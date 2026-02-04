@@ -1,0 +1,109 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Storage - Modular BitTorrent Storage Layer (v2.0.0)
+
+=head1 SYNOPSIS
+
+    use Net::BitTorrent::Storage;
+
+    my $storage = Net::BitTorrent::Storage->new(
+        base_path  => "./downloads",
+        file_tree  => $bencoded_tree, # From BEP 52
+        piece_size => 262144
+    );
+
+    # Write a block (16KiB) to the async cache
+    $storage->write_block($pieces_root, $offset, $data);
+
+    # Periodically flush the cache to disk
+    $storage->tick(0.1);
+
+    # Force all pending data to disk (e.g. before shutdown)
+    $storage->explicit_flush();
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Storage> is the central I/O manager for BitTorrent swarms. It abstracts the complexity of mapping
+BitTorrent "pieces" and "blocks" to actual files on disk.
+
+In a multi-file torrent, the protocol treats all files as a single contiguous stream of bytes. This class manages the
+translation between this "virtual file" and the physical files on the filesystem. It is particularly important for
+B<BitTorrent v2 (BEP 52)> and hybrid torrents, where file alignment and padding are strictly defined.
+
+=head2 Key Features:
+
+=over
+
+=item * B<BitTorrent v2 (BEP 52)>: Uses C<pieces root> (Merkle roots) to identify and verify files. Each file is verified independently.
+
+=item * B<Hybrid Mapping>: Automatically handles the padding required to align v1 pieces with v2 file boundaries. This ensures that a single v1 piece never spans multiple v2 files, which simplifies verification.
+
+=item * B<Async Disk Cache>: Buffers writes in memory and flushes them in small batches during the C<tick()>
+cycle, preventing synchronous I/O from blocking the network logic.
+
+=item * B<Sub-range Reads>: The cache is intelligent enough to serve partial reads from larger cached blocks.
+
+=back
+
+=head1 METHODS
+
+=head2 C<verify_block( $root, $index, $data )>
+
+Verifies a 16KiB block against the Merkle tree for the file identified by C<$root>. Returns boolean. Part of B<BEP 52>.
+
+=head2 C<write_block( $root, $offset, $data )>
+
+Writes a block to the asynchronous cache. The data will be flushed to the file C<$root> at C<$offset> during a
+subsequent C<tick()>.
+
+=head2 C<read_block( $root, $offset, $length )>
+
+Reads data from the cache (if available) or falls back to disk.
+
+=head2 C<read_global( $offset, $length )> / C<write_global( $offset, $data )>
+
+Legacy methods for accessing the swarm as a single contiguous virtual file. Essential for B<BEP 03> compatibility.
+
+=head2 C<map_v1_piece( $index )>
+
+Calculates which files and segments are contained within a v1 piece index. In hybrid torrents, this accounts for the
+padding files/space defined in B<BEP 52>.
+
+=head2 C<map_v2_piece( $index )>
+
+Returns the C<pieces_root> and relative index for a v2 piece. Since v2 pieces are aligned to files, a piece always
+belongs to exactly one file (or padding).
+
+=head2 C<get_hashes( $root, $base_layer, $index, $count )>
+
+Retrieves a string of concatenated hashes from the Merkle tree for file C<$root>. Used to respond to B<BEP 52>
+C<HASH_REQUEST> messages.
+
+=head2 C<explicit_flush()>
+
+Guarantees that all data currently in the memory cache is written to the physical disk immediately.
+
+=head2 C<dump_state()> / C<load_state( $state )>
+
+Persistence API. Saves the Merkle tree nodes and verification state so that swarms can be resumed instantly without a
+full file re-hash.
+
+=head1 SEE ALSO
+
+L<Net::BitTorrent::Storage::File>, L<Digest::Merkle::SHA256>
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

@@ -1,0 +1,78 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Torrent::PiecePicker - Algorithmic Piece Selection (v2.0.0)
+
+=head1 SYNOPSIS
+
+    use Net::BitTorrent::Torrent::PiecePicker;
+
+    my $picker = Net::BitTorrent::Torrent::PiecePicker->new(
+        bitfield => $my_bitfield,
+        strategy => 'RAREST_FIRST'
+    );
+
+    # Update global swarm availability
+    $picker->update_availability($peer_bitfield, 1); # peer joined
+    $picker->update_availability($peer_bitfield, -1); # peer left
+
+    # Pick the next piece to request from a peer
+    my $idx = $picker->pick_piece($peer_bitfield, \%blocks_pending);
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Torrent::PiecePicker> implements the selection logic used to decide which  torrent piece to request
+next. A good picker is essential for swarm health and performance.
+
+=head1 SELECTION STRATEGIES
+
+=over
+
+=item * B<RAREST_FIRST>: (Default) Prioritizes pieces that have the lowest availability in the
+local swarm. This ensures that rare pieces are replicated quickly, preventing "stalled"
+torrents where the last few pieces are missing.
+
+=item * B<SEQUENTIAL>: Picks pieces in simple numerical order. Useful for linear media playback
+where early data is needed first.
+
+=item * B<STREAMING>: A hybrid approach that prioritizes early pieces while still respecting
+per-piece priorities.
+
+=back
+
+=head1 METHODS
+
+=head2 C<pick_piece( $peer_bitfield, \%blocks_pending )>
+
+Finds the "best" piece to request from a specific peer.  * Filters out pieces we already have or have already skipped
+(priority 0). * Accounts for B<End-Game Mode> (allowing redundant requests for the last remaining pieces). * Uses
+randomization to break ties and prevent "thundering herd" issues.
+
+=head2 C<update_availability( $bitfield, $delta )>
+
+Increments or decrements the availability count for every piece in the provided bitfield.  This is called whenever a
+peer's C<BITFIELD>, C<HAVE>, or C<HAVE_ALL> message is processed.
+
+=head2 C<set_priority( $index, $priority )>
+
+Weights a specific piece.  * C<0>: Skip (do not request). * C<1>: Normal. * C<2+>: High priority.
+
+=head2 C<enter_end_game()>
+
+Enables B<End-Game Mode>. In this mode, the picker becomes more aggressive, allowing requests  for the same block to be
+sent to multiple peers simultaneously to finish the torrent faster.
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

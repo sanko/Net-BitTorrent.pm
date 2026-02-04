@@ -1,0 +1,72 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Tracker::WebSeed - HTTP/FTP Seeding (BEP 19) (v2.1.0)
+
+=head1 SYNOPSIS
+
+    use Net::BitTorrent::Tracker::WebSeed;
+
+    my $ws = Net::BitTorrent::Tracker::WebSeed->new(
+        url => "https://archive.org/download/my_torrent/"
+    );
+
+    # Fetch a piece using segments mapped by the storage layer
+    my $data = $ws->fetch_piece([
+        { rel_path => "file1.bin", offset => 0, length => 16384 }
+    ]);
+
+    say "Successfully fetched piece" if $data;
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Tracker::WebSeed> implements B<BEP 19 (WebSeeding)>. It allows a client to  download pieces of a
+torrent from a standard HTTP or FTP server. This is highly effective  for ensuring swarm availability when no regular
+BitTorrent seeders are online.
+
+=head1 METHODS
+
+=head2 C<fetch_piece( $segments )>
+
+Attempts to fetch a piece from the web seed.  * C<$segments>: An arrayref of segment hashrefs (mapped by
+L<Net::BitTorrent::Storage>). * Uses B<HTTP Range Requests> to fetch only the specific bytes required for the piece. *
+Automatically follows up to 5 redirects. * Handles B<410 Gone> status codes by permanently disabling the web seed
+instance.
+
+=head2 C<disabled()>
+
+Returns true if the web seed has been disabled due to a 410 Gone error or persistent failures.
+
+=head2 C<url()>
+
+Returns the base URL of the web seed.
+
+=head1 ARCHITECTURE
+
+For multi-file torrents, if the URL ends in a slash (C</>), the module automatically  appends the relative path of each
+file within the swarm to build the target URL.
+
+This module is designed to be called by L<Net::BitTorrent::Torrent> when a piece  cannot be found in the P2P swarm.
+
+=head1 SPECIFICATIONS
+
+=over
+
+=item * B<BEP 19>: WebSeed - HTTP/FTP Seeding (GetRight style)
+
+=back
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

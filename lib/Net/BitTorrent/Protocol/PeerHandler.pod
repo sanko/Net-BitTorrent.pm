@@ -1,0 +1,101 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Protocol::PeerHandler - Integrated Protocol Extension Orchestrator (v2.0.0)
+
+=head1 SYNOPSIS
+
+    # Inherits from BEP 06, which inherits from BEP 52, then BEP 11, etc.
+    use Net::BitTorrent::Protocol::PeerHandler;
+
+    my $handler = Net::BitTorrent::Protocol::PeerHandler->new(
+        info_hash => $ih,
+        peer_id   => $id,
+        features  => { bep06 => 1, bep10 => 1 }
+    );
+
+    # Link to the high-level Peer object
+    $handler->set_peer($peer);
+
+    # Feed raw data from the transport
+    $handler->receive_data($raw_bytes);
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Protocol::PeerHandler> is the "brain" of the Peer Wire Protocol implementation.  It utilizes
+multiple inheritance (via the C<class> feature) to consolidate all supported  BitTorrent extensions into a single,
+unified interface.
+
+It works closely with L<Net::BitTorrent::Peer> to manage the lifecycle of a connection:
+
+=over
+
+=item 1. B<Handshake>: Negotiates protocol version (v1 vs v2) and reserved bits.
+
+=item 2. B<Extensions>: If B<BEP 10> is negotiated, it exchanges extended handshakes to discover support for PEX, Metadata, etc.
+
+=item 3. B<Steady State>: Dispatches standard messages (Piece, Request) and extensions (PEX, Merkle hashes) to the high-level Peer object.
+
+=back
+
+=head2 Supported Extensions (Managed by this Handler):
+
+=over
+
+=item * B<BEP 03>: Standard Handshake and Core Messages (Choke, Have, Request, etc.)
+
+=item * B<BEP 06 (Fast)>: Reduced latency messages (Allowed Fast, Suggest Piece, Reject)
+
+=item * B<BEP 09 (Metadata)>: UT_METADATA exchange for Magnet links.
+
+=item * B<BEP 10 (Extension)>: Capability negotiation.
+
+=item * B<BEP 11 (PEX)>: Peer Exchange.
+
+=item * B<BEP 52 (v2)>: Merkle Tree synchronization (HASHES, HASH_REQUEST).
+
+=item * B<BEP 55 (Holepunch)>: NAT traversal support.
+
+=back
+
+=head1 METHODS
+
+=head2 C<set_peer( $peer_object )>
+
+Associates the low-level protocol handler with a high-level L<Net::BitTorrent::Peer> object.  The handler will dispatch
+parsed events (like C<on_pex> or C<on_metadata_data>) to the peer.
+
+=head2 C<_handle_message( $id, $payload )>
+
+Internal dispatcher that validates message IDs against enabled features. For example, if  B<BEP 06> is disabled, Fast
+Extension message IDs are ignored.
+
+=head1 CALLBACKS (EVENT DISPATCH)
+
+This class implements various C<on_*> methods defined by the individual BEP modules. It acts  as the implementation
+layer that connects wire-format data to application logic:
+
+=over
+
+=item * C<on_pex>: Forwards discovered peers to the swarm manager.
+
+=item * C<on_hash_request>: Initiates Merkle tree lookups in the storage layer.
+
+=item * C<on_metadata_request>: Serves info dictionary pieces from local memory.
+
+=back
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

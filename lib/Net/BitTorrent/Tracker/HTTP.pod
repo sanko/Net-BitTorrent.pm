@@ -1,0 +1,79 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Tracker::HTTP - HTTP/HTTPS Tracker Protocol (v2.0.0)
+
+=head1 SYNOPSIS
+
+    use Net::BitTorrent::Tracker::HTTP;
+
+    my $tracker = Net::BitTorrent::Tracker::HTTP->new(
+        url => "https://tracker.example.com/announce"
+    );
+
+    # Perform synchronous announce
+    my $res = $tracker->perform_announce({
+        info_hash => $ih,
+        peer_id   => $id,
+        port      => 6881,
+        downloaded => 0,
+        uploaded => 0,
+        left => 1024
+    });
+
+    say "Interval: " . $res->{interval};
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Tracker::HTTP> implements the original BitTorrent tracker protocol  over HTTP and HTTPS. It handles
+URL-encoding of binary info-hashes and parsing of  bencoded responses.
+
+=head1 METHODS
+
+=head2 C<perform_announce( \%params, [$callback] )>
+
+Executes an C<HTTP GET> request to the tracker.  * Automatically handles compact peer lists (IPv4 and IPv6). * Supports
+B<Asynchronous Mode>: if C<$params-E<gt>{ua}> is provided (e.g., a    L<Mojo::UserAgent> instance), the request will be
+non-blocking.
+
+=head2 C<perform_scrape( \@info_hashes, [$callback] )>
+
+Executes a tracker scrape (B<BEP 48>) by converting the C<announce> URL to a C<scrape> URL  and requesting statistics
+for the provided hashes.
+
+=head2 C<build_announce_url( \%params )>
+
+Generates the full URL with query parameters. Correctly percent-encodes the binary  C<info_hash> and C<peer_id> fields.
+
+=head2 C<parse_response( $bencoded_data )>
+
+Parses and validates the tracker's response. Automatically expands compact peer lists  into user-friendly hashrefs.
+
+=head1 SPECIFICATIONS
+
+=over
+
+=item * B<BEP 03>: The BitTorrent Protocol (HTTP Tracker)
+
+=item * B<BEP 23>: Tracker Returns Compact Peer Lists
+
+=item * B<BEP 07>: IPv6 Support (C<peers6> field)
+
+=item * B<BEP 48>: Tracker Scrape Convention
+
+=back
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

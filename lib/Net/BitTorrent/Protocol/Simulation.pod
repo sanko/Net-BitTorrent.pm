@@ -1,0 +1,50 @@
+=head1 NAME
+
+Net::BitTorrent::Protocol::Simulation - BitTorrent protocol handler for swarm simulations
+
+=head1 SYNOPSIS
+
+    use Net::BitTorrent::Protocol::Simulation;
+
+    my $proto = Net::BitTorrent::Protocol::Simulation->new(
+        peer_id => $my_id,
+        info_hash => $ih,
+    );
+    $proto->peer($peer_object);
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Protocol::Simulation> is a subclass of L<Net::BitTorrent::Protocol::BEP11> (which includes PEX and
+Peer Exchange) designed for use in tests and simulations.
+
+It allows a L<Net::BitTorrent::Peer> object to be associated directly with the protocol handler, bypassing the usual
+event-driven network transport for easier manipulation of peer state during simulated swarm behavior.
+
+=head1 ATTRIBUTES
+
+=head2 peer
+
+A L<Net::BitTorrent::Peer> object (or compatible mock) that should receive notifications of incoming messages.
+
+=head1 METHODS
+
+=head2 _handle_message ( $id, $payload )
+
+Internal method that overrides the default message handling to forward messages to the associated C<peer> object before
+passing them up the inheritance chain.
+
+=head1 SEE ALSO
+
+L<Net::BitTorrent::Protocol::BEP11>, L<Net::BitTorrent::Peer>
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

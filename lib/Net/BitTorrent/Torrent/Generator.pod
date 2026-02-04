@@ -1,0 +1,79 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Torrent::Generator - Create modern v1, v2, and Hybrid Torrents (v2.0.0)
+
+=head1 SYNOPSIS
+
+    use Net::BitTorrent::Torrent::Generator;
+
+    my $gen = Net::BitTorrent::Torrent::Generator->new(
+        base_path    => "./my_files",
+        piece_length => 262144 # 256KiB
+    );
+
+    # Add files to the torrent
+    $gen->add_file("linux-distro.iso");
+    $gen->add_file("README.txt");
+
+    # Add metadata
+    $gen->add_tracker("https://tracker.example.com/announce");
+    $gen->add_node("router.bittorrent.com", 6881);
+
+    # Generate the .torrent file data (bencoded)
+    my $v1_data     = $gen->generate_v1();
+    my $v2_data     = $gen->generate_v2();
+    my $hybrid_data = $gen->generate_hybrid();
+
+    path("my_project.torrent")->spew_raw($hybrid_data);
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Torrent::Generator> allows you to programmatically create BitTorrent metadata  files. It supports
+the latest B<BEP 52> standards for BitTorrent v2 and hybrid swarms.
+
+=head1 METHODS
+
+=head2 C<add_file( $rel_path )>
+
+Adds a file from the C<base_path> to the torrent. If C<set_align_files(1)> has been called,  this will automatically
+insert padding files (B<BEP 47>) to ensure files start on piece  boundaries, which is highly recommended for hybrid
+torrents.
+
+=head2 C<generate_v1()>
+
+Generates a legacy BitTorrent v1 torrent using SHA-1 piece hashes. Compatible with all clients.
+
+=head2 C<generate_v2()>
+
+Generates a modern BitTorrent v2 torrent. Uses SHA-256 and Merkle trees. Only compatible with  v2-aware clients (like
+this library).
+
+=head2 C<generate_hybrid()>
+
+Generates a torrent containing B<both> v1 and v2 metadata. This allows v1-only clients to  participate in the same
+swarm as v2 clients. Recommended for maximum compatibility.
+
+=head2 C<set_private( $boolean )>
+
+Sets the C<private> flag. If true, the client will only use trackers and will B<not>  enable DHT or PEX for this swarm.
+
+=head2 C<set_align_files( $boolean )>
+
+If true, ensures every file starts at the beginning of a piece by adding zero-filled padding  files. This optimizes
+performance and allows for better cross-swarm deduplication.
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

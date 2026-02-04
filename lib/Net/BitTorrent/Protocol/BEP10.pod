@@ -1,0 +1,78 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Protocol::BEP10 - Extension Protocol (v2.0.0)
+
+=head1 SYNOPSIS
+
+    # Inherits from Net::BitTorrent::Protocol::BEP52 (BitTorrent v2)
+    use Net::BitTorrent::Protocol::BEP10;
+
+    my $proto = Net::BitTorrent::Protocol::BEP10->new(
+        local_extensions => { ut_metadata => 1, ut_pex => 2 }
+    );
+
+    # Once core handshake is done, send extension handshake
+    $proto->send_ext_handshake();
+
+    # Send an extension message by name
+    $proto->send_ext_message('ut_pex', $bencoded_pex_data);
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Protocol::BEP10> implements the B<Extension Protocol (BEP 10)>. This is the  standard mechanism
+modern BitTorrent clients use to negotiate support for additional  features (like PEX, Magnet links, and DHT security)
+without needing to allocate new  reserved bits in the foundational BitTorrent handshake.
+
+=head1 METHODS
+
+=head2 C<send_ext_handshake()>
+
+Sends the ID 20 (C<EXTENDED>) message with a sub-ID of 0. This message contains a bencoded  dictionary of supported
+extensions and their local IDs.
+
+=head2 C<send_ext_message( $name, $payload )>
+
+Sends a message for the extension identified by C<$name>. The module automatically looks up   the remote peer's
+assigned ID for that extension.
+
+=head2 C<remote_extensions()>
+
+Returns a hashref of extensions supported by the remote peer and their assigned message IDs.
+
+=head2 C<remote_version()> / C<remote_ip()>
+
+Returns the client version string and external IP address reported by the remote peer during  the extended handshake.
+
+=head1 CALLBACKS
+
+=head2 C<on_ext_handshake( $data )>
+
+Triggered when the remote peer's extended handshake is received.
+
+=head2 C<on_extended_message( $name, $payload )>
+
+Triggered when a message for a registered extension is received.
+
+=head1 SPECIFICATIONS
+
+=over
+
+=item * B<BEP 10>: Extension Protocol
+
+=back
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

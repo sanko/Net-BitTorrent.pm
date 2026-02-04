@@ -1,0 +1,61 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Protocol::MSE::KeyExchange - Diffie-Hellman Exchange for MSE (v2.0.0)
+
+=head1 SYNOPSIS
+
+    use Net::BitTorrent::Protocol::MSE::KeyExchange;
+
+    my $kx = Net::BitTorrent::Protocol::MSE::KeyExchange->new(
+        info_hash    => $bin_ih,
+        is_initiator => 1
+    );
+
+    # Share this with the peer
+    my $my_pub = $kx->pub_key;
+
+    # Compute shared secret once peer's key arrives
+    $kx->compute_secret($remote_pub);
+
+    # Get ready-to-use ciphers
+    my $cipher = $kx->encrypt_rc4;
+    $cipher->crypt($plaintext);
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Protocol::MSE::KeyExchange> handles the low-level Diffie-Hellman  math and cipher initialization
+required for Message Stream Encryption.
+
+It uses a fixed 768-bit B<Safe Prime> (P) and generator (G=2) as defined in the MSE  specification.
+
+=head1 METHODS
+
+=head2 C<compute_secret( $remote_public_key )>
+
+Computes the shared Diffie-Hellman secret and derives the RC4 encryption and decryption  keys using the info-hash as a
+salt.
+
+This method automatically discards the first B<1024 bytes> of both RC4 keystreams to  mitigate known weaknesses in the
+RC4 cipher's initial output (a requirement of the  MSE spec).
+
+=head2 C<pub_key()>
+
+Returns the raw binary representation of the local public key (128 bytes).
+
+=head2 C<encrypt_rc4()> / C<decrypt_rc4()>
+
+Returns instances of L<Crypt::Stream::RC4> correctly seeded and ready for payload  obfuscation.
+
+=head2 C<shared_secret()>
+
+Returns the raw binary shared secret derived from the exchange.
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=cut

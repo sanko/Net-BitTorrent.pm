@@ -1,0 +1,80 @@
+name: Delete old workflow runs
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Days to retain runs"
+        required: true
+        default: "30"
+      minimum_runs:
+        description: "Minimum runs to keep"
+        required: true
+        default: "6"
+      delete_workflow_pattern:
+        description: "Workflow name or filename (omit for all). Use `|` to separate multiple filters (e.g. 'build|deploy')."
+        required: false
+      delete_workflow_by_state_pattern:
+        description: "Workflow state: active, deleted, disabled_fork, disabled_inactivity, disabled_manually"
+        required: false
+        default: "ALL"
+        type: choice
+        options:
+          - "ALL"
+          - active
+          - deleted
+          - disabled_inactivity
+          - disabled_manually
+      delete_run_by_conclusion_pattern:
+        description: "Run conclusion: action_required, cancelled, failure, skipped, success"
+        required: false
+        default: "ALL"
+        type: choice
+        options:
+          - "ALL"
+          - "Unsuccessful: action_required,cancelled,failure,skipped"
+          - action_required
+          - cancelled
+          - failure
+          - skipped
+          - success
+      dry_run:
+        description: "Simulate deletions"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      check_branch_existence:
+        description: "Skip deletions linked to an existing branch"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  delete-runs:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Delete workflow runs
+        uses: Mattraks/delete-workflow-runs@v2.1.0
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          retain_days: ${{ github.event.inputs.days }}
+          keep_minimum_runs: ${{ github.event.inputs.minimum_runs }}
+          delete_workflow_pattern: ${{ github.event.inputs.delete_workflow_pattern }}
+          delete_workflow_by_state_pattern: ${{ github.event.inputs.delete_workflow_by_state_pattern }}
+          delete_run_by_conclusion_pattern: >-
+            ${{
+              startsWith(github.event.inputs.delete_run_by_conclusion_pattern, 'Unsuccessful:') &&
+              'action_required,cancelled,failure,skipped' ||
+              github.event.inputs.delete_run_by_conclusion_pattern
+            }}
+          check_branch_existence: ${{ github.event.inputs.check_branch_existence }}
+          dry_run: ${{ github.event.inputs.dry_run }}

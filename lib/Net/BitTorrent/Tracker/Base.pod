@@ -1,0 +1,44 @@
+=head1 NAME
+
+Net::BitTorrent::Tracker::Base - Base class for BitTorrent tracker clients
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Tracker::Base> is the abstract base class for all tracker implementation types (HTTP, UDP, WebSeed,
+etc.).
+
+It defines the interface that all tracker clients must implement to provide announcing and scraping functionality to
+the L<Net::BitTorrent> client.
+
+=head1 ATTRIBUTES
+
+=head2 url
+
+The full URL of the tracker (read-only).
+
+=head1 METHODS
+
+=head2 perform_announce ( $params, $cb = undef )
+
+Abstract method. Implementation should request a list of peers from the tracker.
+
+=head2 perform_scrape ( $info_hashes, $cb = undef )
+
+Abstract method. Implementation should request metadata statistics (seeders, leechers, completed) for the given info
+hashes.
+
+=head1 SEE ALSO
+
+L<Net::BitTorrent::Tracker::HTTP>, L<Net::BitTorrent::Tracker::UDP>
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

@@ -1,0 +1,63 @@
+=head1 NAME
+
+Net::BitTorrent::Transport::TCP - TCP transport shim for Net::BitTorrent
+
+=head1 SYNOPSIS
+
+    use Net::BitTorrent::Transport::TCP;
+
+    my $transport = Net::BitTorrent::Transport::TCP->new(
+        socket => $socket_handle
+    );
+
+    $transport->on('data', sub ($data) {
+        $protocol->receive_data($data);
+    });
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Transport::TCP> provides a standardized interface for handling TCP-based peer connections within the
+loop-agnostic L<Net::BitTorrent> framework.
+
+It acts as an abstraction layer between the high-level L<Net::BitTorrent::Peer> and the physical network socket. This
+allows the library to handle different connection types (TCP vs uTP) using the same high-level logic.
+
+While L<Net::uTP> handles its own congestion control and packetization, this class acts as a pass-through for raw TCP
+streams, allowing the protocol handlers to treat all connections uniformly.
+
+=head1 ATTRIBUTES
+
+=head2 socket
+
+The underlying IO::Socket (or compatible) object.
+
+=head1 METHODS
+
+=head2 on ( $event, $cb )
+
+Registers a callback for an event (currently 'data' or 'connected').
+
+=head2 send_data ($data)
+
+Buffers or returns data to be sent over the socket. In this shim implementation, it currently returns the data directly
+for the caller to handle.
+
+=head2 receive_data ($data)
+
+Triggers the 'data' event with the provided raw data.
+
+=head2 state ()
+
+Returns 'CONNECTED' or 'CLOSED' based on the status of the underlying socket.
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

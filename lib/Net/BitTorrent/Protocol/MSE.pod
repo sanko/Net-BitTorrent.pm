@@ -1,0 +1,79 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Protocol::MSE - Message Stream Encryption (MSE/PE) (v2.0.0)
+
+=head1 SYNOPSIS
+
+    use Net::BitTorrent::Protocol::MSE;
+
+    my $mse = Net::BitTorrent::Protocol::MSE->new(
+        info_hash    => $bin_ih,
+        is_initiator => 1
+    );
+
+    # Step 1: Send initial Public Key
+    my $out = $mse->write_buffer();
+
+    # Step 2: Feed data from socket until state is 'PAYLOAD'
+    while ($mse->state ne 'PAYLOAD') {
+        $mse->receive_data($raw_incoming);
+        my $reply = $mse->write_buffer();
+        # send $reply to peer
+    }
+
+    # Step 3: Transparently encrypt/decrypt PWP messages
+    my $encrypted = $mse->encrypt_data($pwp_payload);
+    my $plain     = $mse->decrypt_data($raw_from_socket);
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Protocol::MSE> implements the B<Message Stream Encryption (MSE)> protocol,  also known as B<Protocol
+Encryption (PE)>. This protocol provides a layer of obfuscation for  BitTorrent traffic, helping to prevent passive
+traffic analysis and "throttling" by  Internet Service Providers.
+
+=head2 Security Disclaimer
+
+MSE is B<not> designed to provide strong cryptographic security or authentication. It is  purely an obfuscation layer
+designed to make the BitTorrent protocol difficult to identify  via pattern matching.
+
+=head1 METHODS
+
+=head2 C<receive_data( $data )>
+
+Feeds raw bytes from the transport layer.  * During the handshake, it advances the MSE state machine. * Once the state
+is C<PAYLOAD>, it returns the decrypted plaintext.
+
+=head2 C<encrypt_data( $data )> / C<decrypt_data( $data )>
+
+High-level methods for stream obfuscation. These should only be used once C<state()>  returns C<PAYLOAD>.
+
+=head2 C<write_buffer()>
+
+Returns pending bytes that must be sent to the remote peer to advance the handshake or  provide encryption responses.
+
+=head2 C<state()>
+
+Returns the current MSE handshake state:  * C<A_WAIT_PUBKEY>, C<B_WAIT_PUBKEY>: Waiting for Diffie-Hellman exchange. *
+C<A_WAIT_SELECT>, C<B_WAIT_REQS>: Synchronizing on the info-hash. * C<PAYLOAD>: Handshake complete; stream is now
+obfuscated.
+
+=head1 ARCHITECTURE
+
+MSE uses a 768-bit B<Diffie-Hellman> key exchange to derive a shared secret, which is then used  to seed two B<RC4>
+stream ciphers (one for each direction).
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

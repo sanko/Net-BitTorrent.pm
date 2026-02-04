@@ -1,0 +1,72 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Protocol::BEP55 - Holepunching Extension (NAT Traversal) (v2.0.0)
+
+=head1 SYNOPSIS
+
+    # Inherits from Net::BitTorrent::Protocol::BEP11
+    use Net::BitTorrent::Protocol::BEP55;
+
+    my $p = Net::BitTorrent::Protocol::BEP55->new(...);
+
+    # Ask a mutual peer to introduce us to a target
+    $p->send_hp_rendezvous($target_peer_id);
+
+    # Handle incoming connection requests
+    $p->on('hp_connect', sub ($ip, $port) {
+        say "Attempting holepunch connect to $ip:$port";
+    });
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Protocol::BEP55> implements the B<Holepunching Extension (BEP 55)>. This  extension allows two peers
+who are both behind B<NAT (Network Address Translation)> to  coordinate a simultaneous UDP connection (uTP) using a
+third, mutually connected peer  as a signaling relay.
+
+It runs as a sub-protocol of the Extension Protocol (BEP 10) under the name C<ut_holepunch>.
+
+=head1 METHODS
+
+=head2 C<send_hp_rendezvous( $target_peer_id )>
+
+Sends a rendezvous request to a peer we are both connected to. The relay peer will then  send a C<CONNECT> message to
+the target.
+
+=head2 C<send_hp_connect( $ip, $port )>
+
+Sent by the relay peer to the target, instructing it to initiate a uTP connection to the  original requester at
+C<$ip:$port>.
+
+=head2 C<send_hp_error( $error_code )>
+
+Sent if the rendezvous cannot be completed (e.g., target peer is no longer connected).
+
+=head1 CALLBACKS
+
+=head2 C<on_hp_rendezvous( $id )> / C<on_hp_connect( $ip, $port )> / C<on_hp_error( $code )>
+
+Overridable handlers for incoming holepunching control messages.
+
+=head1 SPECIFICATIONS
+
+=over
+
+=item * B<BEP 55>: Holepunching
+
+=back
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

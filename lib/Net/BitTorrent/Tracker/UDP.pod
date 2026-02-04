@@ -1,0 +1,83 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Tracker::UDP - UDP Tracker Protocol (BEP 15) (v2.0.0)
+
+=head1 SYNOPSIS
+
+    use Net::BitTorrent::Tracker::UDP;
+
+    my $tracker = Net::BitTorrent::Tracker::UDP->new(
+        url => "udp://tracker.openbittorrent.com:80/announce"
+    );
+
+    # Announce
+    $tracker->perform_announce({
+        info_hash  => $bin_ih,
+        peer_id    => $my_id,
+        port       => 6881,
+        downloaded => 0,
+        uploaded   => 0,
+        left       => 1024
+    }, sub ($res) {
+        say "Peers: " . join(', ', map { $_->{ip} } @{$res->{peers}});
+    });
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Tracker::UDP> implements the lightweight UDP Tracker Protocol (BEP 15). UDP is the preferred
+transport for BitTorrent trackers as it significantly reduces overhead on the tracker server compared to HTTP.
+
+=head2 BitTorrent v2 Support
+
+This module is B<BEP 52 compliant>. It correctly handles 32-byte SHA-256 info-hashes in both C<announce> and C<scrape>
+packets by dynamically adjusting the binary structure of the outgoing messages.
+
+=head1 METHODS
+
+=head2 C<perform_announce( \%params, [$callback] )>
+
+Synchronously executes the UDP announce cycle:
+
+=over
+
+=item 1. Sends a C<connect> request to get a session C<connection_id>.
+
+=item 2. Sends the C<announce> request containing client stats and info-hash.
+
+=item 3. Parses the response into a hashref of swarm data and peers.
+
+=back
+
+=head2 C<perform_scrape( \@info_hashes, [$callback] )>
+
+Synchronously fetches seeder/leecher counts for multiple torrents.
+
+=head2 C<url()>
+
+Returns the tracker URL.
+
+=head1 Specifications
+
+=over
+
+=item * B<BEP 15>: UDP Tracker Protocol
+
+=item * B<BEP 52>: The BitTorrent Protocol v2 (UDP extensions)
+
+=back
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

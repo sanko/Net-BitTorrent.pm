@@ -1,0 +1,51 @@
+=head1 NAME
+
+Net::BitTorrent::Protocol::HandshakeOnly - BitTorrent handshake-only protocol handler
+
+=head1 SYNOPSIS
+
+    use Net::BitTorrent::Protocol::HandshakeOnly;
+
+    my $proto = Net::BitTorrent::Protocol::HandshakeOnly->new(
+        on_handshake_cb => sub ( $ih, $id ) {
+            say "Received handshake for $ih from $id";
+        },
+        peer_id => $my_id,
+    );
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Protocol::HandshakeOnly> is a specialized subclass of L<Net::BitTorrent::Protocol::BEP03> that is
+used when the local client does not yet know which torrent an incoming connection belongs to.
+
+It processes the initial handshake and then triggers a callback, allowing the client to upgrade the connection to a
+full protocol handler once the info hash is known.
+
+=head1 ATTRIBUTES
+
+=head2 on_handshake_cb
+
+A coderef that is called when a valid handshake is received. It receives the info hash and peer ID as arguments.
+
+=head1 METHODS
+
+=head2 on_handshake ( $ih, $id )
+
+Internal method called by L<Net::BitTorrent::Protocol::BEP03> when the handshake is complete. It executes the
+C<on_handshake_cb> callback.
+
+=head1 SEE ALSO
+
+L<Net::BitTorrent::Protocol::BEP03>
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

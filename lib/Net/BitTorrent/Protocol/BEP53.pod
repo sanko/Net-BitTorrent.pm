@@ -1,0 +1,81 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Protocol::BEP53 - Magnet URI extension (v2 support) (v2.0.0)
+
+=head1 SYNOPSIS
+
+    use Net::BitTorrent::Protocol::BEP53;
+
+    # Parse an incoming URI
+    my $m = Net::BitTorrent::Protocol::BEP53->parse($uri_string);
+
+    say "Name: " . $m->name;
+    say "V2 Hash: " . unpack('H*', $m->info_hash_v2) if $m->info_hash_v2;
+
+    # Generate a new URI
+    my $new_uri = Net::BitTorrent::Protocol::BEP53->new(
+        info_hash_v2 => $ih2,
+        name         => "Special Linux Distro",
+        trackers     => ["udp://tracker.example.com:80"]
+    )->to_string();
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Protocol::BEP53> implements the B<Magnet URI extension (BEP 53)>. It provides a robust parser and
+generator for magnet links, specifically updated to support the multihash SHA-256 identifiers required for B<BitTorrent
+v2>.
+
+=head2 Multihash Support
+
+This module correctly identifies and extracts: * B<v1 (legacy)>: C<urn:btih:...> (SHA-1) * B<v2 (modern)>:
+C<urn:btmh:1220...> (SHA-256 multihash)
+
+=head1 METHODS
+
+=head2 C<parse( $class, $uri )>
+
+Class method. Deconstructs a magnet string into an object. Supports both C<&> and C<;> separators.
+
+=head2 C<to_string()>
+
+Generates a URI-encoded magnet string based on the object's current state.
+
+=head2 C<info_hash_v1()> / C<info_hash_v2()>
+
+Returns the binary info-hash strings. C<info_hash_v2> is returned B<without> the 4-byte multihash prefix (C<0x12
+0x20>).
+
+=head2 C<trackers()>
+
+Returns an arrayref of C<tr> (tracker) URLs found in the URI.
+
+=head2 C<nodes()>
+
+Returns an arrayref of C<x.pe> (Peer Exchange) nodes. These allow a client to connect directly to initial peers without
+waiting for DHT or tracker responses.
+
+=head1 SPECIFICATIONS
+
+=over
+
+=item * B<BEP 09>: Magnet URI format (Foundational)
+
+=item * B<BEP 53>: Magnet URI extension (v2 and multihash)
+
+=back
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

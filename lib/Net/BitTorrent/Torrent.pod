@@ -1,0 +1,192 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Torrent - High-level Torrent/Swarm Manager (v2.0.0)
+
+=head1 SYNOPSIS
+
+    my $torrent = $client->add_magnet($uri, "./downloads");
+
+    # Monitor progress
+    $torrent->on('piece_verified', sub ($t, $index) {
+        printf "[%s] Progress: %.2f%%\n", $t->name, $t->progress;
+    });
+
+    # Wait for metadata (if magnet)
+    $torrent->on('status_update', sub ($t) {
+        if ($t->is_metadata_complete) {
+            say "Metadata received for " . $t->name;
+            $t->start(); # Transition from METADATA to RUNNING
+        }
+    });
+
+    $torrent->start();
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Torrent> represents a single BitTorrent swarm. It orchestrates the interaction between peers, the
+piece picker, and the storage layer.
+
+=head2 Lifecycle States:
+
+=over
+
+=item * B<STOPPED>: No network activity.
+
+=item * B<METADATA>: (Magnet mode) Fetching the info dictionary via B<BEP 09>.
+
+=item * B<STARTING>: Initializing storage and announcing to trackers.
+
+=item * B<RUNNING>: Actively downloading and uploading data.
+
+=item * B<PAUSED>: Connections are maintained, but no data is transferred.
+
+=back
+
+=head1 METHODS
+
+=head2 C<start()> / C<stop()> / C<pause()> / C<resume()>
+
+Controls the operational state of the swarm.
+
+    $torrent->start();
+    # ... later ...
+    $torrent->pause();
+
+=over
+
+=item * B<Use Case>: Starting or stopping network activity for this specific swarm.
+
+=item * B<Intent>: C<start()> triggers DHT lookups, tracker announces, and local peer discovery.
+
+=back
+
+=head2 C<on( $event, $callback )>
+
+Registers a callback for swarm events.
+
+    $torrent->on(piece_verified => sub ($t, $idx) { ... });
+
+=over
+
+=item * B<Use Case>: Reacting to download progress or errors.
+
+=item * B<Parameters>: C<$event> (Str), C<$callback> (CodeRef).
+
+=item * B<Events>:
+C<piece_verified>, C<piece_failed>, C<status_update>, C<peer_discovered>, C<started>, C<stopped>, C<paused>, C<resumed>.
+
+=back
+
+=head2 C<name()>
+
+Returns a human-readable name for the torrent.
+
+    say "Downloading: " . $torrent->name;
+
+=over
+
+=item * B<Use Case>: Displaying the torrent in a UI.
+
+=item * B<Returns>: The name from the metadata, or a hex info-hash as a fallback.
+
+=back
+
+=head2 C<progress()>
+
+Returns the download completion percentage (0.0 to 100.0).
+
+    printf "Done: %.2f%%\n", $torrent->progress;
+
+=over
+
+=item * B<Use Case>: Displaying progress bars.
+
+=item * B<Returns>: Float.
+
+=back
+
+=head2 C<is_finished()>
+
+Returns true if the download is 100% complete and verified.
+
+    if ($torrent->is_finished) {
+        say "Download complete!";
+    }
+
+=head2 C<is_seed()>
+
+Returns true if the client is currently acting as a seeder for this swarm (all pieces available).
+
+=head2 C<is_metadata_complete()>
+
+Returns true if the torrent's metadata (info dictionary) has been loaded. This is always true for C<.torrent> files and
+becomes true for magnets once B<BEP 09> exchange completes.
+
+=head2 C<is_running()>
+
+Returns true if the swarm is in an active state (STARTING, RUNNING, or METADATA).
+
+=head2 C<set_piece_priority( $index, $priority )>
+
+Sets the weight for a specific piece.
+
+    # Skip a piece
+    $torrent->set_piece_priority(5, 0);
+
+=over
+
+=item * B<Parameters>: C<$index> (Int), C<$priority> (Int: 0=skip, 1=normal, 2+=high).
+
+=back
+
+=head2 C<set_picking_strategy( $strategy )>
+
+Switch between algorithms: C<RAREST_FIRST>, C<SEQUENTIAL>, or C<STREAMING>.
+
+=head2 C<info_hash_v1()> / C<info_hash_v2()>
+
+Returns the binary info-hashes for the swarm.
+
+=head2 C<discovered_peers()>
+
+Returns a list of peers found via DHT, Trackers, PEX, and LPD.
+
+=head2 C<dump_state()> / C<load_state( $state )>
+
+Internal persistence methods for L<Net::BitTorrent/save_state>.
+
+=head1 SPECIFICATIONS
+
+=over
+
+=item * B<BEP 03>: Core Peer Wire Protocol
+
+=item * B<BEP 06>: Fast Extension
+
+=item * B<BEP 09>: Metadata Exchange
+
+=item * B<BEP 11>: Peer Exchange (PEX)
+
+=item * B<BEP 16>: Super-seeding Logic
+
+=item * B<BEP 33>: DHT Scraping
+
+=item * B<BEP 52>: BitTorrent v2 (Hybrid support)
+
+=back
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

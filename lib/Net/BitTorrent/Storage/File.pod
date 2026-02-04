@@ -1,0 +1,81 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Storage::File - File-level I/O and Block Verification (v2.0.0)
+
+=head1 SYNOPSIS
+
+    use Net::BitTorrent::Storage::File;
+
+    my $file = Net::BitTorrent::Storage::File->new(
+        path        => "./data/test.bin",
+        size        => 1048576,
+        pieces_root => $binary_merkle_root
+    );
+
+    # Write data to a specific offset
+    $file->write(0, $chunk);
+
+    # Verify a 16KiB block against the Merkle tree (BEP 52)
+    my $is_valid = $file->verify_block($index, $data);
+
+    # Read back data
+    my $data = $file->read($offset, $len);
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Storage::File> represents a single physical file within a BitTorrent swarm. It handles the raw
+reading and writing of data and integrates with L<Digest::Merkle::SHA256> to provide block-level cryptographic
+verification.
+
+In BitTorrent v2 (B<BEP 52>), every file has its own Merkle tree. This class manages the mapping of block indices to
+Merkle tree leaves, ensuring that every 16KiB chunk written to disk is cryptographically verified against the swarm's
+trusted C<pieces root>.
+
+It is typically used as a component of L<Net::BitTorrent::Storage>, which manages multiple files and provides a unified
+view of the swarm.
+
+=head1 METHODS
+
+=head2 C<read( $offset, $length )>
+
+Reads C<$length> bytes from the file starting at C<$offset>. Returns the binary data or C<undef> if the file does not
+exist.
+
+=head2 C<write( $offset, $data )>
+
+Writes the binary string C<$data> to the file at C<$offset>. Automatically creates the file and any parent directories
+if they are missing.
+
+=head2 C<verify_block( $index, $data )>
+
+Calculates the SHA-256 hash of C<$data> and inserts it into the file's internal Merkle tree at block index C<$index>.
+Returns true if the updated tree root matches the expected C<pieces_root>.
+
+=head2 C<verify_block_audit( $index, $data, $audit_path )>
+
+Verifies a block using a provided B<audit path> (a list of sibling hashes). This allows verifying data even if the rest
+of the Merkle tree has not been populated yet.
+
+=head2 C<path()> / C<size()> / C<pieces_root()>
+
+Attribute readers for the file's metadata.
+
+=head2 C<dump_state()> / C<load_state( $state )>
+
+Persistence API for saving and restoring the populated Merkle tree hashes.
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

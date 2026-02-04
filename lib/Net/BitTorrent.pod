@@ -1,0 +1,298 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent - Modern, loop-agnostic BitTorrent client library
+
+=head1 SYNOPSIS
+
+    use v5.40;
+    use Net::BitTorrent;
+
+    # Initialize the client
+    my $client = Net::BitTorrent->new(
+        user_agent   => "MyClient/1.0",
+        upnp_enabled => 1
+    );
+
+    # Unified add() handles magnets, .torrents, or info-hashes
+    my $torrent = $client->add("magnet:?xt=urn:btih:...", "./downloads");
+
+    # Simple event handling
+    $client->on(torrent_added => sub ($t) {
+        say "New swarm added: " . $t->name;
+        $t->start();
+    });
+
+    # Wait for all downloads to finish
+    $client->wait();
+
+    # Graceful shutdown
+    $client->shutdown();
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent> is a comprehensive, high-performance BitTorrent client library rewritten from the ground up for
+B<Modern Perl (v5.40+)> using the native C<class> feature.
+
+The library is designed around three core principles:
+
+=over
+
+=item 1. Loop-agnosticism: The core logic is decoupled from I/O. You can drive it with a simple C<while> loop, integrate it into C<IO::Async>, C<Mojo::IOLoop>, or even run it in a synchronous environment.
+
+=item 2. BitTorrent v2 first: Full support for B<BEP 52 (BitTorrent v2)>, including SHA-256 infohashes, Merkle tree block verification, and hybrid v1/v2 swarms.
+
+=item 3. Security: Features like B<BEP 42 (DHT Security)>, B<Protocol Encryption (MSE/PE)>, and peer reputation tracking are built-in and enabled by default.
+
+=back
+
+=head2 How Everything Fits Together
+
+Net::BitTorrent uses a hierarchical architecture to manage the complexities of the protocol:
+
+=head3 1. The Client (L<Net::BitTorrent>)
+
+The entry point. It manages multiple swarms, global rate limits, decentralized discovery (DHT/LPD), and unified UDP
+packet routing. It also provides a centralized "hashing queue" to prevent block verification from starving your CPU.
+
+=head3 2. Torrents (L<Net::BitTorrent::Torrent>)
+
+Orchestrates a single swarm. It manages its own list of discovered peers, the Piece Picker (rarest-first logic), and
+communicates with the Trackers. It acts as the bridge between the network (Peers) and the local disk (Storage).
+
+=head3 3. Peers (L<Net::BitTorrent::Peer>)
+
+Tracks the state of a single connection (choking, interested, transfer rates). It uses a B<Protocol Handler> to speak
+the wire protocol and a B<Net::BitTorrent::Transport> (TCP or uTP) to move bytes.
+
+=head3 4. Storage (L<Net::BitTorrent::Storage>)
+
+Manages files on disk. It uses Merkle trees for per-block verification (v2) and handles the "virtual contiguous file"
+mapping required for v1 compatibility. It includes an asynchronous disk cache to keep the main loop fast.
+
+=head1 METHODS
+
+=head2 C<new( %params )>
+
+Creates a new client instance.
+
+    my $client = Net::BitTorrent->new(
+        port         => 6881,
+        encryption   => 'required',
+        upnp_enabled => 1
+    );
+
+=over
+
+=item * B<Use Case>: Initializing the BitTorrent engine with custom configuration.
+
+=item * B<Parameters>:
+C<port> (Int),
+C<user_agent> (Str),
+C<encryption> (Str: none, preferred, required),
+C<upnp_enabled> (Bool),
+and various C<bepXX> toggles.
+
+=item * B<Returns>: A new C<Net::BitTorrent> instance.
+
+=back
+
+=head2 C<on( $event, $callback )>
+
+Registers a global callback for client-level events.
+
+    $client->on(torrent_added => sub ($torrent) {
+        warn "Added: " . $torrent->name;
+    });
+
+=over
+
+=item * B<Use Case>: Reacting to system-wide changes or automating newly added swarms.
+
+=item * B<Parameters>: C<$event> (Str), C<$callback> (CodeRef).
+
+=item * B<Returns>: Nothing.
+
+=item * B<Events>:
+C<torrent_added>: Emitted whenever a new swarm is registered.
+
+=back
+
+=head2 C<add( $thing, $base_path, [%args] )>
+
+The recommended, unified method for adding a swarm. It automatically detects the type of the first parameter.
+
+    # Add a .torrent file
+    $client->add("ubuntu.torrent", "./iso");
+
+    # Add a magnet link
+    $client->add("magnet:?xt=urn:btih:...", "./data");
+
+    # Add a raw info-hash (hex)
+    $client->add("1bd088ee9166a062cf4af09cf99720fa6e1a3133", "./downloads");
+
+=over
+
+=item * B<Use Case>: Easily adding any BitTorrent resource without worrying about its format.
+
+=item * B<Parameters>: C<$thing> (Str: path, URI, or hex hash), C<$base_path> (Str: directory for data), C<%args> (Optional Torrent parameters).
+
+=item * B<Returns>: A L<Net::BitTorrent::Torrent> object.
+
+=back
+
+=head2 C<add_torrent( $path, $base_path, [%args] )>
+
+Adds a torrent from a local C<.torrent> file.
+
+    my $t = $client->add_torrent("linux.torrent", "/downloads");
+
+=over
+
+=item * B<Use Case>: Adding a swarm specifically from a metadata file.
+
+=item * B<Parameters>: C<$path> (Str), C<$base_path> (Str), C<%args> (Optional parameters).
+
+=item * B<Returns>: A L<Net::BitTorrent::Torrent> object.
+
+=back
+
+=head2 C<add_info_hash( $ih, $base_path, [%args] )>
+
+Adds a torrent by its info hash (binary or hex).
+
+    my $t = $client->add_info_hash(pack('H*', '...'), './data');
+
+=over
+
+=item * B<Use Case>: Bootstrapping a swarm when only the hash is known (e.g., from a crawler).
+
+=item * B<Parameters>: C<$ih> (20/32 byte Binary or 40/64 byte Hex), C<$base_path> (Str).
+
+=item * B<Returns>: A L<Net::BitTorrent::Torrent> object.
+
+=back
+
+=head2 C<add_magnet( $uri, $base_path, [%args] )>
+
+Adds a torrent from a Magnet URI (B<BEP 53>).
+
+    my $t = $client->add_magnet("magnet:?xt=urn:btmh:...", "./data");
+
+=over
+
+=item * B<Use Case>: Adding resources from web links.
+
+=item * B<Returns>: A L<Net::BitTorrent::Torrent> object.
+
+=item * B<Specifications>: B<BEP 09> (Metadata Exchange), B<BEP 53> (Magnet URIs).
+
+=back
+
+=head2 C<torrents()>
+
+Returns an arrayref of all active C<Net::BitTorrent::Torrent> objects.
+
+=head2 C<finished()>
+
+Returns an arrayref of all managed torrents that have completed their download.
+
+    my $done = $client->finished();
+    say $_->name for @$done;
+
+=head2 C<wait( [$condition], [$timeout] )>
+
+Blocks (while calling C<tick()>) until a condition is met or a timeout occurs.
+
+    # Wait for all torrents to finish
+    $client->wait();
+
+    # Wait up to 60 seconds for at least one seeder
+    $client->wait(sub ($c) {
+        any { $_->discovered_peers > 0 } $c->torrents->@*;
+    }, 60);
+
+=over
+
+=item * B<Use Case>: Writing simple scripts that need to wait for a download to complete.
+
+=item * B<Parameters>: C<$condition> (Optional CodeRef), C<$timeout> (Optional Int: seconds).
+
+=item * B<Returns>: Boolean (True if condition met, False on timeout).
+
+=back
+
+=head2 C<tick( [$timeout] )>
+
+The "heartbeat" of the library. Each tick processes internal logic.
+
+=over
+
+=item * B<Use Case>: Driving the client in a manual event loop.
+
+=item * B<Parameters>: C<$timeout> (Optional Num: maximum duration in seconds).
+
+=item * B<Intent>: This method performs discovery (DHT/LPD), updates swarm logic (choking/picking), and handles retransmissions (uTP).
+
+=back
+
+=head2 C<save_state( $path )> / C<load_state( $path )>
+
+Persists session state (node ID, torrent progress) to a JSON file.
+
+=head2 C<dht_get( $target, $callback )> / C<dht_put( $value, [$callback] )>
+
+High-level B<BEP 44> API for storing and retrieving arbitrary data in the DHT.
+
+    $client->dht_put('My Shared Note', sub { say "Stored!" });
+
+=head2 C<dht_scrape( $info_hash, $callback )>
+
+Performs a decentralized scrape (B<BEP 33>) to find seeder/leecher counts.
+
+=head2 C<shutdown()>
+
+Gracefully stops all swarms and releases system resources.
+
+=head1 Supported Specifications
+
+=over
+
+=item * B<BEP 03>: The BitTorrent Protocol (TCP)
+
+=item * B<BEP 05>: Mainline DHT
+
+=item * B<BEP 06>: Fast Extension
+
+=item * B<BEP 09>: Metadata Exchange
+
+=item * B<BEP 10>: Extension Protocol
+
+=item * B<BEP 11>: Peer Exchange (PEX)
+
+=item * B<BEP 14>: Local Peer Discovery (LPD)
+
+=item * B<BEP 29>: uTP (UDP Transport)
+
+=item * B<BEP 42>: DHT Security Extensions
+
+=item * B<BEP 52>: BitTorrent v2
+
+=item * B<BEP 53>: Magnet URI Extension
+
+=back
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

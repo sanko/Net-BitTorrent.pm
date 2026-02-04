@@ -1,0 +1,71 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Protocol::BEP09 - Metadata Exchange (Magnet Links) (v2.0.0)
+
+=head1 SYNOPSIS
+
+    # Inherits from Net::BitTorrent::Protocol::BEP10 (Extension Protocol)
+    use Net::BitTorrent::Protocol::BEP09;
+
+    my $proto = Net::BitTorrent::Protocol::BEP09->new(...);
+
+    # Request segment 0 of the info dictionary
+    $proto->send_metadata_request(0);
+
+    # Handle incoming metadata pieces
+    $proto->on('metadata_data', sub ($piece, $total, $data) {
+        say "Received metadata piece $piece of $total";
+    });
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Protocol::BEP09> implements the B<Extension for Peers to Send Metadata  Files (BEP 09)>. This is the
+protocol that makes B<Magnet Links> work by allowing a client  to download the torrent's C<info> dictionary directly
+from other peers when the local  C<.torrent> file is missing.
+
+It works as a sub-protocol of the B<Extension Protocol (BEP 10)>, using the C<ut_metadata>  message name.
+
+=head1 METHODS
+
+=head2 C<send_metadata_request( $piece_index )>
+
+Sends a request for a 16KiB segment of the info dictionary.
+
+=head2 C<send_metadata_data( $piece_index, $total_size, $data )>
+
+Sends a metadata segment to a peer.  * C<$piece_index>: The segment index being sent. * C<$total_size>: The full length
+of the info dictionary. * C<$data>: The raw binary bencoded data for this segment.
+
+=head2 C<send_metadata_reject( $piece_index )>
+
+Informs the peer that the metadata request cannot be fulfilled.
+
+=head1 CALLBACKS
+
+=head2 C<on_metadata_request( $piece_index )> / C<on_metadata_data( $piece, $total, $data )> / C<on_metadata_reject( $piece )>
+
+Overridable handlers for incoming metadata messages.
+
+=head1 SPECIFICATIONS
+
+=over
+
+=item * B<BEP 09>: Extension for Peers to Send Metadata Files
+
+=back
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

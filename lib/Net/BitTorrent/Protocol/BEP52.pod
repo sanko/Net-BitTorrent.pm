@@ -1,0 +1,64 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Protocol::BEP52 - BitTorrent v2 Protocol Extensions (v2.0.0)
+
+=head1 SYNOPSIS
+
+    # Inherits from Net::BitTorrent::Protocol::BEP03
+    use Net::BitTorrent::Protocol::BEP52;
+
+    my $p = Net::BitTorrent::Protocol::BEP52->new(...);
+
+    # Request hashes for a Merkle tree
+    $p->send_hash_request($pieces_root, $proof_layer, $base_layer, $index, $count);
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Protocol::BEP52> extends the standard peer wire protocol with support for  B<BitTorrent v2 (BEP
+52)>. It specifically handles the synchronization of Merkle tree hashes  between peers, which is required for
+block-level data verification.
+
+Unlike v1, where piece hashes are contained in the C<.torrent> file, v2 uses a dynamic hash fetching mechanism. When a
+peer receives a block, it may need to request the corresponding Merkle proof nodes from the swarm to verify the block
+data. This module provides the wire-format messages to perform these requests.
+
+It is typically used via L<Net::BitTorrent::Protocol::PeerHandler>.
+
+=head1 METHODS
+
+=head2 C<send_hash_request( $pieces_root, $proof_layer, $base_layer, $index, $length )>
+
+Sends a C<HASH_REQUEST> (ID 21) message.  * C<$pieces_root>: The 32-byte binary SHA-256 Merkle root of the file. *
+C<$proof_layer>: The height of the layer containing the proof nodes. * C<$base_layer>: The height of the layer being
+requested. * C<$index>: The start index within the base layer. * C<$length>: The number of hashes requested.
+
+=head2 C<send_hashes( $pieces_root, $proof_layer, $base_layer, $index, $length, $hashes )>
+
+Sends a C<HASHES> (ID 22) message containing the requested binary hash string.
+
+=head2 C<send_hash_reject( $pieces_root, $proof_layer, $base_layer, $index, $length )>
+
+Sends a C<HASH_REJECT> (ID 23) message to indicate the hashes cannot be provided.
+
+=head1 CALLBACKS
+
+=head2 C<on_hash_request(...)> / C<on_hashes(...)> / C<on_hash_reject(...)>
+
+These methods are designed to be overridden or implemented by the C<PeerHandler>. They are  triggered when the
+corresponding wire-format messages are received.
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

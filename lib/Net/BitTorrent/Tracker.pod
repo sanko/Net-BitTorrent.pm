@@ -1,0 +1,74 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Tracker - Multi-tier Tracker Manager (v2.0.0)
+
+=head1 SYNOPSIS
+
+    use Net::BitTorrent::Tracker;
+
+    my $manager = Net::BitTorrent::Tracker->new(
+        tiers_raw => [
+            ['udp://tracker.openbittorrent.com:80/announce'],
+            ['http://tracker.example.com/announce', 'https://another.net/announce']
+        ]
+    );
+
+    # Announce presence and get peers
+    $manager->announce_all({
+        info_hash  => $bin_ih,
+        peer_id    => $my_id,
+        port       => 6881,
+        downloaded => 0,
+        uploaded   => 0,
+        left       => 1024,
+        event      => 'started'
+    }, sub ($peers) {
+        say "Found " . scalar(@$peers) . " peers!";
+    });
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Tracker> manages communication with external trackers. It implements the  B<Multi-tracker Metadata
+(BEP 12)> specification, handling tiers, retries, and backoff logic.
+
+=head2 Protocol Support
+
+The manager automatically detects and handles multiple tracker protocols: * B<UDP (BEP 15)>: Lightweight, preferred
+transport. * B<HTTP/HTTPS>: Standard bencoded announce protocol.
+
+=head1 METHODS
+
+=head2 C<announce_all( \%params, [$callback] )>
+
+Announces to all tracker tiers.  * Implements B<BEP 12> logic: iterates through trackers in a tier until one succeeds,
+then moves to    the next tier. * Automatically handles tracker-provided C<interval> and C<min interval>. * Supports
+B<Hybrid Torrent> announces by sending requests for both v1 and v2 info-hashes.
+
+=head2 C<scrape_all( \@info_hashes, [$callback] )>
+
+Performs a scrape (B<BEP 48>) across all trackers to gather swarm statistics (seeders, leechers,  completed downloads)
+without registering as a peer.
+
+=head2 C<trackers()>
+
+Returns a flattened arrayref of all tracker URLs currently managed.
+
+=head1 SEE ALSO
+
+L<Net::BitTorrent::Tracker::HTTP>, L<Net::BitTorrent::Tracker::UDP>
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

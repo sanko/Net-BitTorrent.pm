@@ -1,0 +1,72 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Protocol::BEP06 - Fast Extension (v2.0.0)
+
+=head1 SYNOPSIS
+
+    # Inherits from Net::BitTorrent::Protocol::BEP55 (Holepunching)
+    use Net::BitTorrent::Protocol::BEP06;
+
+    # Inform peer we have everything immediately
+    $proto->send_have_all();
+
+    # Explicitly reject a request (instead of ignoring it)
+    $proto->send_reject($index, $begin, $length);
+
+=head1 DESCRIPTION
+
+C<Net::BitTorrent::Protocol::BEP06> implements the B<Fast Extension (BEP 06)>. This extension  improves swarm
+efficiency by adding several messages that reduce latency during startup and  provide better error handling for block
+requests.
+
+=head1 METHODS
+
+=head2 C<send_have_all()> / C<send_have_none()>
+
+Compact alternatives to the C<BITFIELD> message. C<HAVE_ALL> signals that the client is a seeder,  and C<HAVE_NONE>
+signals a leecher with no data.
+
+=head2 C<send_suggest( $index )>
+
+Sends a hint to the peer that they might want to request a specific piece. Useful for  B<Super-seeding> or distributed
+cache optimization.
+
+=head2 C<send_allowed_fast( $index )>
+
+Informs the peer that they are allowed to request the block at C<$index> even if they are  currently choked. This is
+used to allow "free" initial data during startup.
+
+=head2 C<send_reject( $index, $begin, $length )>
+
+Explicitly rejects a block request. In legacy BitTorrent, ignored requests simply timed out;  the Fast Extension allows
+clients to immediately retry other peers.
+
+=head1 CALLBACKS
+
+=head2 C<on_have_all()> / C<on_have_none()> / C<on_suggest($index)> / C<on_reject(...)> / C<on_allowed_fast($index)>
+
+Overridable event handlers triggered when the remote peer sends the corresponding message.
+
+=head1 SPECIFICATIONS
+
+=over
+
+=item * B<BEP 06>: Fast Extension
+
+=back
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

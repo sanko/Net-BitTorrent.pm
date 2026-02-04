@@ -1,0 +1,193 @@
+{
+   "X_No_Archive" : "Yes",
+   "abstract" : "Pure Perl BitTorrent Client",
+   "author" : [
+      "Sanko Robinson <sanko@cpan.org>"
+   ],
+   "description" : "You know what it is.",
+   "dynamic_config" : 0,
+   "generated_by" : "App::mii v1.0.0",
+   "keywords" : [
+      "dht",
+      "kademlia",
+      "bittorrent",
+      "interplanetary"
+   ],
+   "license" : [
+      "artistic_2"
+   ],
+   "meta-spec" : {
+      "url" : "https://metacpan.org/pod/CPAN::Meta::Spec",
+      "version" : 2
+   },
+   "name" : "Net-BitTorrent",
+   "no_index" : {
+      "directory" : [
+         "t",
+         "xt",
+         "eg"
+      ]
+   },
+   "optional_features" : {
+      "mse" : {
+         "description" : "Protocol Encryption (MSE/PE) support",
+         "prereqs" : {
+            "runtime" : {
+               "requires" : {
+                  "Crypt::PK::DH" : "0",
+                  "Crypt::Stream::RC4" : "0"
+               }
+            }
+         }
+      },
+      "upnp" : {
+         "description" : "UPnP port mapping support",
+         "prereqs" : {
+            "runtime" : {
+               "requires" : {
+                  "Acme::UPnP" : "0"
+               }
+            }
+         }
+      }
+   },
+   "prereqs" : {
+      "build" : {
+         "requires" : {
+            "Module::Build::Tiny" : "0"
+         }
+      },
+      "configure" : {
+         "requires" : {
+            "Module::Build::Tiny" : "0",
+            "perl" : "v5.42.0"
+         }
+      },
+      "runtime" : {
+         "recommends" : {
+            "Acme::UPnP" : "0",
+            "Crypt::PK::DH" : "0",
+            "Crypt::Stream::RC4" : "0",
+            "IO::Async" : "0"
+         },
+         "requires" : {
+            "Acme::Bitfield" : "0",
+            "Acme::Selection::RarestFirst" : "0",
+            "Acme::UPnP" : "0",
+            "Algorithm::Kademlia" : "0",
+            "Algorithm::RateLimiter::TokenBucket" : "0",
+            "Digest::Merkle::SHA256" : "0",
+            "Digest::SHA" : "0",
+            "HTTP::Tiny" : "0",
+            "IO::Select" : "0",
+            "IO::Socket::IP" : "0",
+            "Net::BitTorrent::DHT" : "0",
+            "Net::BitTorrent::Protocol::BEP03::Bencode" : "0",
+            "Net::Multicast::PeerDiscovery" : "0",
+            "Net::uTP" : "0",
+            "Path::Tiny" : "0",
+            "Socket" : "0",
+            "URI::Escape" : "0",
+            "perl" : "v5.42.0"
+         }
+      },
+      "test" : {
+         "requires" : {
+            "Test2::V1" : "0"
+         }
+      }
+   },
+   "provides" : {
+      "Net::BitTorrent" : {
+         "file" : "lib/Net/BitTorrent.pm",
+         "version" : "v2.0.0"
+      },
+      "Net::BitTorrent::Peer" : {
+         "file" : "lib/Net/BitTorrent/Peer.pm"
+      },
+      "Net::BitTorrent::Protocol::BEP03" : {
+         "file" : "lib/Net/BitTorrent/Protocol/BEP03.pm"
+      },
+      "Net::BitTorrent::Protocol::BEP23" : {
+         "file" : "lib/Net/BitTorrent/Protocol/BEP23.pm"
+      },
+      "Net::BitTorrent::Protocol::BEP53" : {
+         "file" : "lib/Net/BitTorrent/Protocol/BEP53.pm"
+      },
+      "Net::BitTorrent::Protocol::MSE" : {
+         "file" : "lib/Net/BitTorrent/Protocol/MSE.pm",
+         "version" : "v2.0.2"
+      },
+      "Net::BitTorrent::Protocol::MSE::KeyExchange" : {
+         "file" : "lib/Net/BitTorrent/Protocol/MSE/KeyExchange.pm",
+         "version" : "v2.0.4"
+      },
+      "Net::BitTorrent::Protocol::MSE::RC4" : {
+         "file" : "lib/Net/BitTorrent/Protocol/MSE/KeyExchange.pm"
+      },
+      "Net::BitTorrent::Storage" : {
+         "file" : "lib/Net/BitTorrent/Storage.pm",
+         "version" : "v2.0.0"
+      },
+      "Net::BitTorrent::Storage::File" : {
+         "file" : "lib/Net/BitTorrent/Storage/File.pm",
+         "version" : "v2.0.0"
+      },
+      "Net::BitTorrent::Torrent" : {
+         "file" : "lib/Net/BitTorrent/Torrent.pm"
+      },
+      "Net::BitTorrent::Torrent::Generator" : {
+         "file" : "lib/Net/BitTorrent/Torrent/Generator.pm",
+         "version" : "v2.0.0"
+      },
+      "Net::BitTorrent::Torrent::PiecePicker" : {
+         "file" : "lib/Net/BitTorrent/Torrent/PiecePicker.pm",
+         "version" : "v2.0.0"
+      },
+      "Net::BitTorrent::Tracker" : {
+         "file" : "lib/Net/BitTorrent/Tracker.pm",
+         "version" : "v2.0.0"
+      },
+      "Net::BitTorrent::Tracker::Base" : {
+         "file" : "lib/Net/BitTorrent/Tracker/Base.pm",
+         "version" : "v2.0.0"
+      },
+      "Net::BitTorrent::Tracker::WebSeed" : {
+         "file" : "lib/Net/BitTorrent/Tracker/WebSeed.pm",
+         "version" : "v2.1.0"
+      },
+      "Net::BitTorrent::Transport::TCP" : {
+         "file" : "lib/Net/BitTorrent/Transport/TCP.pm"
+      }
+   },
+   "release_status" : "stable",
+   "resources" : {
+      "bugtracker" : {
+         "web" : "https://github.com/sanko/Net-BitTorrent.pm/issues"
+      },
+      "homepage" : "https://github.com/sanko/Net-BitTorrent.pm",
+      "license" : [
+         "http://www.perlfoundation.org/artistic_license_2_0"
+      ],
+      "repository" : {
+         "type" : "git",
+         "url" : "git://github.com/sanko/Net-BitTorrent.pm.git",
+         "web" : "https://github.com/sanko/Net-BitTorrent.pm"
+      }
+   },
+   "version" : "v2.0.0",
+   "x_help_wanted" : [
+      "Tester",
+      "Documenter"
+   ],
+   "x_ignore" : [
+      ".tidyallrc",
+      ".gitignore",
+      ".github/",
+      ".github/*",
+      ".github/**",
+      ".clang-format"
+   ],
+   "x_serialization_backend" : "JSON::PP version 4.16",
+   "x_static_install" : 0
+}
