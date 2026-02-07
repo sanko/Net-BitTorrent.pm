@@ -195,7 +195,10 @@ $client->wait(sub ($c) {
 The "heartbeat" of the library. Each tick processes internal logic.
 
 - **Use Case**: Driving the client in a manual event loop.
-- **Parameters**: `$timeout` (Optional Num: maximum duration in seconds).
+- **Parameters**: `$timeout` (Optional Num: duration in seconds since last call).
+- **Internal Logic**: This method utilizes a "time debt" system. If a large delta is provided (e.g., 1.0s),
+it will process multiple internal slices (up to 0.1s each) to ensure rate limiters and hashing queues remain
+accurate. It includes a real-time cap (default 200ms) per call to maintain responsiveness for the caller's loop.
 - **Intent**: This method performs discovery (DHT/LPD), updates swarm logic (choking/picking), and handles retransmissions (uTP).
 
 ## `save_state( $path )` / `load_state( $path )`

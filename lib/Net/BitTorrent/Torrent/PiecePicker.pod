@@ -47,9 +47,25 @@ per-piece priorities.
 
 =head2 C<pick_piece( $peer_bitfield, \%blocks_pending )>
 
-Finds the "best" piece to request from a specific peer.  * Filters out pieces we already have or have already skipped
-(priority 0). * Accounts for B<End-Game Mode> (allowing redundant requests for the last remaining pieces). * Uses
-randomization to break ties and prevent "thundering herd" issues.
+Finds the "best" piece to request from a specific peer based on the current strategy.
+
+=over
+
+=item * Filters out pieces we already have or have already skipped (priority 0).
+
+=item * Accounts for B<End-Game Mode> (allowing redundant requests for the last remaining pieces).
+
+=item * Uses randomization to break ties and prevent "thundering herd" issues.
+
+=back
+
+=head2 C<pick_block( $peer, \%blocks_pending )>
+
+Selects the next available block (16KiB) to request from a specific peer.
+
+Unlike C<pick_piece>, which returns a whole piece index, C<pick_block> iterates through the prioritized candidates and
+returns the first block that is not already pending or received. This naturally allows the client to work on multiple
+pieces simultaneously (multi-piece parallelism) to keep peer pipelines full.
 
 =head2 C<update_availability( $bitfield, $delta )>
 

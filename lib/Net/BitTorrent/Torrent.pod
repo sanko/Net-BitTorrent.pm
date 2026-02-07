@@ -151,6 +151,10 @@ Switch between algorithms: C<RAREST_FIRST>, C<SEQUENTIAL>, or C<STREAMING>.
 
 Returns the binary info-hashes for the swarm.
 
+=head2 C<files()>
+
+Returns an arrayref of absolute paths (as L<Path::Tiny> objects) for all files in the torrent.
+
 =head2 C<discovered_peers()>
 
 Returns a list of peers found via DHT, Trackers, PEX, and LPD.
