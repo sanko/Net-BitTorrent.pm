@@ -181,7 +181,10 @@ class Net::BitTorrent::Peer {
         return '' unless length $raw;
 
         # Rate limiting logic
-        my $allowed = $torrent->can_write( length $raw );
+        my $allowed = length $raw;
+        if ($torrent) {
+            $allowed = $torrent->can_write( length $raw );
+        }
         if ( $allowed < length $raw ) {
 
             # Simplified: if we can't send all, we send none or partial.

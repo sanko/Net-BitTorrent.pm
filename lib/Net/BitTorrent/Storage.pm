@@ -14,12 +14,13 @@ class Net::BitTorrent::Storage v2.0.0 {
     field $pieces_v1  : param : reader = undef;
     field %files;                  # pieces_root => File object
     field @files_ordered;          # For v1 mapping
+    method files_ordered () { \@files_ordered }
     field %piece_layers;           # pieces_root => piece layer data
 
     # Async Disk Cache
-    field %cache;                                    # file_id => { offset => data }
-    field @dirty_list;                               # [file_obj, offset] - FIFO for flushing
-    field $max_cache_size     = 1024 * 1024 * 16;    # 16MiB default cache limit
+    field %cache;                                     # file_id => { offset => data }
+    field @dirty_list;                                # [file_obj, offset] - FIFO for flushing
+    field $max_cache_size     = 1024 * 1024 * 128;    # 128MiB default cache limit
     field $current_cache_size = 0;
     ADJUST {
         $base_path = Path::Tiny::path($base_path);
@@ -119,6 +120,7 @@ class Net::BitTorrent::Storage v2.0.0 {
 
     method _write_to_cache ( $file, $offset, $data ) {
         my $id = refaddr($file);
+        warn "    [DEBUG] Adding " . length($data) . " bytes to cache for file $id at offset $offset\n";
         if ( exists $cache{$id}{$offset} ) {
             $current_cache_size -= length( $cache{$id}{$offset} );
         }
@@ -147,7 +149,11 @@ class Net::BitTorrent::Storage v2.0.0 {
     }
 
     method flush ( $count = undef ) {
-        my $flushed = 0;
+        my $flushed     = 0;
+        my $total_dirty = scalar(@dirty_list);
+        if ( $total_dirty > 0 ) {
+            warn "    [DEBUG] Storage::flush: starting flush of $total_dirty items\n" if !defined $count;
+        }
         while ( @dirty_list && ( !defined $count || $flushed < $count ) ) {
             my $entry = shift @dirty_list;
             my ( $file, $offset ) = @$entry;
@@ -157,6 +163,9 @@ class Net::BitTorrent::Storage v2.0.0 {
                 $current_cache_size -= length($data);
                 $file->write( $offset, $data );
                 $flushed++;
+                if ( !defined $count && $flushed % 50 == 0 ) {
+                    warn "    [DEBUG] Storage::flush: $flushed/$total_dirty items flushed...\n";
+                }
             }
             delete $cache{$id} unless keys %{ $cache{$id} // {} };
         }
@@ -168,7 +177,7 @@ class Net::BitTorrent::Storage v2.0.0 {
     }
 
     method tick ( $delta = 0.1 ) {
-        $self->flush(8);
+        $self->flush(64);
     }
 
     method map_abs_offset ( $root, $offset, $length ) {
@@ -225,7 +234,8 @@ class Net::BitTorrent::Storage v2.0.0 {
     }
 
     method write_piece_v1 ( $index, $data ) {
-        my $segments    = $self->map_v1_piece($index);
+        my $segments = $self->map_v1_piece($index);
+        warn "    [DEBUG] write_piece_v1: Piece $index mapped to " . scalar(@$segments) . " segments\n";
         my $data_offset = 0;
         for my $seg (@$segments) {
             $self->_write_to_cache( $seg->{file}, $seg->{offset}, substr( $data, $data_offset, $seg->{length} ) );

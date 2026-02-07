@@ -41,12 +41,16 @@ class Net::BitTorrent::Transport::TCP {
         if ( $filter && $filter->can('encrypt_data') && $filter->state eq 'PAYLOAD' ) {
             $data = $filter->encrypt_data($data);
         }
+
+        # warn "    [DEBUG] TCP::send_data: " . length($data) . " bytes\n";
         $write_buffer .= $data;
         $self->_flush_write_buffer();
         return length $data;
     }
 
     method send_raw ($data) {
+
+        # warn "    [DEBUG] TCP::send_raw: " . length($data) . " bytes\n";
         $write_buffer .= $data;
         $self->_flush_write_buffer();
         return length $data;
@@ -76,7 +80,8 @@ class Net::BitTorrent::Transport::TCP {
                 my $error = $socket->getsockopt( SOL_SOCKET, SO_ERROR );
                 if ( $error == 0 ) {
                     $connecting = 0;
-                    warn "    [DEBUG] TCP connection established to " . $socket->peerhost . ":" . $socket->peerport . "\n";
+
+                    # warn "    [DEBUG] TCP connection established to " . $socket->peerhost . ":" . $socket->peerport . "\n";
                     $self->_emit('connected');
                 }
                 else {
@@ -101,6 +106,8 @@ class Net::BitTorrent::Transport::TCP {
         $self->_flush_write_buffer();
         my $len = $socket->sysread( my $buffer, 65535 );
         if ( defined $len && $len > 0 ) {
+
+            # warn "    [DEBUG] TCP::tick received $len bytes\n";
             if ($filter) {
                 my $decrypted = $filter->receive_data($buffer);
                 if ( $filter->state eq 'PLAINTEXT_FALLBACK' ) {

@@ -72,33 +72,32 @@ class Net::BitTorrent::Storage::File v2.0.0 {
     method read ( $offset, $length ) {
         return '' if $length <= 0;
         return undef unless $file_path->exists;
-        open my $fh, '<', $file_path or die "Could not open $file_path: $!";
-        binmode $fh;
+        my $fh = $file_path->openr_raw;
         seek $fh, $offset, 0;
         read( $fh, my $chunk, $length );
-        close $fh;
         return $chunk;
     }
 
     method write ( $offset, $data ) {
         $self->_ensure_exists();
-        open my $fh, '+<', $file_path or die "Could not open $file_path for writing: $!";
-        binmode $fh;
+        warn "    [DEBUG] Writing " . length($data) . " bytes to $file_path at offset $offset\n";
+        my $fh = $file_path->openrw_raw;
         seek $fh, $offset, 0;
-        print $fh $data;
-        close $fh;
+        print {$fh} $data or die "Failed to write to $file_path: $!";
+        $fh->flush();
     }
 
     method _ensure_exists () {
         if ( !$file_path->exists ) {
             $file_path->parent->mkpath;
-            open my $fh, '>', $file_path or die "Could not create $file_path: $!";
-            binmode $fh;
             if ( $size > 0 ) {
+                my $fh = $file_path->openw_raw;
                 seek $fh, $size - 1, 0;
-                print $fh "\0";
+                print {$fh} "\0";
             }
-            close $fh;
+            else {
+                $file_path->touch;
+            }
         }
     }
 

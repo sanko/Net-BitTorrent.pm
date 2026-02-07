@@ -52,7 +52,16 @@ class Net::BitTorrent::Protocol::BEP10 v2.0.0 : isa(Net::BitTorrent::Protocol::B
 
     method _handle_ext_handshake ($payload) {
         my $data;
-        eval { $data = bdecode($payload) };
+        eval {
+            my @res = bdecode( $payload, 1 );
+            if ( @res > 2 ) {    # Dictionary returned as key-value list + leftover
+                pop @res;        # Discard leftover
+                $data = {@res};
+            }
+            else {
+                $data = $res[0];
+            }
+        };
         if ( $@ || ref $data ne 'HASH' ) {
             warn "  [ERROR] Malformed extended handshake: $@\n";
             return;

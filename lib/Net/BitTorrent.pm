@@ -14,6 +14,7 @@ class Net::BitTorrent v2.0.0 {
     field %pending_peers;     # transport => Peer object
     field $dht;
     field $tcp_listener;
+    field $tick_debt = 0;
     field $utp : reader = Net::uTP::Manager->new();
     field $lpd;
     field $node_id : reader : writer;
@@ -39,8 +40,8 @@ class Net::BitTorrent v2.0.0 {
     field %on;                          # event => [cb, ...]
 
     # Verification Throttling
-    field @hashing_queue;                                     # Array of { torrent => $t, index => $i, data => $d }
-    field $hashing_rate_limit : writer = 1024 * 1024 * 50;    # 50MB/s limit for hashing
+    field @hashing_queue;                                      # Array of { torrent => $t, index => $i, data => $d }
+    field $hashing_rate_limit : writer = 1024 * 1024 * 500;    # 500MB/s limit for hashing
     field $hashing_allowance = 0;
 
     method features () {
@@ -145,13 +146,11 @@ class Net::BitTorrent v2.0.0 {
     }
 
     sub _generate_peer_id () {
-        state $v = our $VERSION;
-        state $u = $v =~ /_/;
-        $v =~ s/^0\.//;      # Strip 0. prefix if present (v0.052 -> 052)
-        $v =~ s/[^\d]//g;    # Strip dots/underscores (v2.0.0 -> 2000)
-        my $v_id  = substr( $v, 0, 3 );
+        my $v_id  = '200';                                                                  # Hardcoded version for stability in ID generation
         my $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
-        return pack( 'a20', sprintf( '-NB%03d%s-%sSanko', $v_id, ( $u ? 'U' : 'S' ), join( '', map { substr( $chars, rand(66), 1 ) } 1 .. 7 ) ) );
+        my $id    = pack( 'a20', sprintf( '-NB%sS-%sSanko', $v_id, join( '', map { substr( $chars, rand(66), 1 ) } 1 .. 7 ) ) );
+        warn "    [DEBUG] Generated Peer ID: " . unpack( 'H*', $id ) . " (" . $id . ")\n";
+        return $id;
     }
 
     method forward_ports () {
@@ -165,7 +164,13 @@ class Net::BitTorrent v2.0.0 {
             $port_mapper->unmap_port( 6881, 'TCP' );
             $port_mapper->unmap_port( 6881, 'UDP' );
         }
-        $_->stop for values %torrents;
+        for my $t ( values %torrents ) {
+            $t->stop if $t;
+        }
+    }
+
+    method DESTROY () {
+        $self->shutdown();
     }
 
     method handle_udp_packet ( $data, $addr ) {
@@ -247,7 +252,7 @@ class Net::BitTorrent v2.0.0 {
                 torrent   => undef,
                 ip        => $transport->socket->peerhost,
                 port      => $transport->socket->peerport,
-                debug     => $debug,
+                debug     => $debug
             );
 
             # Feed the data we already read to the new protocol handler
@@ -357,18 +362,23 @@ class Net::BitTorrent v2.0.0 {
     method hashing_queue_size () { scalar @hashing_queue }
 
     method queue_verification ( $torrent, $index, $data ) {
-        warn "    [DEBUG] Queuing verification for piece $index (" . length($data) . " bytes)\n" if $debug;
+        warn "\n    [LOUD] PIECE $index: Queuing for verification (" . length($data) . " bytes)\n";
         push @hashing_queue, { torrent => $torrent, index => $index, data => $data };
     }
 
     method _process_hashing_queue ($delta) {
         $hashing_allowance += $hashing_rate_limit * $delta;
+        if ( @hashing_queue && $hashing_allowance < length( $hashing_queue[0]{data} ) ) {
+            warn sprintf( "\r    [LOUD] Hashing Throttled: %.2f%% of next piece ready",
+                ( $hashing_allowance / length( $hashing_queue[0]{data} ) ) * 100 );
+        }
         while (@hashing_queue) {
             my $task = $hashing_queue[0];
             my $len  = length( $task->{data} );
             if ( $hashing_allowance >= $len ) {
                 shift @hashing_queue;
                 $hashing_allowance -= $len;
+                warn "\n    [LOUD] PIECE $task->{index}: Processing hash...\n";
                 $task->{torrent}->_verify_queued_piece( $task->{index}, $task->{data} );
             }
             else {
@@ -446,7 +456,7 @@ class Net::BitTorrent v2.0.0 {
                 'filter_failed',
                 sub ($leftover) {
                     return unless $weak_self && $weak_transport;
-                    warn "    [DEBUG] connect_to_peer: MSE failed, falling back to plaintext\n" if $weak_self->debug;
+                    warn "    [DEBUG] connect_to_peer: MSE failed, falling back to plaintext\n" if $debug;
                     $weak_self->_upgrade_pending_peer(
                         $weak_transport, $ih, undef,
                         $weak_transport->socket->peerhost,
@@ -553,11 +563,10 @@ class Net::BitTorrent v2.0.0 {
                     return unless $weak_self;
 
                     #~ warn "    [DHT] External IP detected: $ip. Rotating node_id.\n";
-                    use Net::BitTorrent::DHT::Security;
-                    my $sec    = Net::BitTorrent::DHT::Security->new();
-                    my $new_id = $sec->generate_node_id($ip);
-                    $weak_self->set_node_id($new_id);
-                    $dht->set_node_id($new_id);
+                    # my $sec    = Net::BitTorrent::DHT::Security->new();
+                    # my $new_id = $sec->generate_node_id($ip);
+                    # $weak_self->set_node_id($new_id);
+                    # $dht->set_node_id($new_id);
                 }
             );
             $dht->bootstrap();
@@ -566,7 +575,22 @@ class Net::BitTorrent v2.0.0 {
     }
 
     method tick ( $timeout //= 0.1 ) {
-        warn "  [DEBUG] Net::BitTorrent::tick starting\n" if $debug > 1;
+        $tick_debt += $timeout;
+        $tick_debt = 5.0 if $tick_debt > 5.0;    # Max debt to avoid huge bursts
+        my $real_start = time();
+        while ( $tick_debt >= 0.01 ) {
+            my $slice = 0.1;
+            $slice = $tick_debt if $tick_debt < $slice;
+            $self->_run_one_tick($slice);
+            $tick_debt -= $slice;
+
+            # Don't block the caller's main loop for more than 200ms
+            last if ( time() - $real_start ) > 0.2;
+        }
+    }
+
+    method _run_one_tick ($timeout) {
+        warn "  [DEBUG] Net::BitTorrent::_run_one_tick starting (timeout=$timeout)\n" if $debug > 1;
         my $start = time();
         $limit_up->tick($timeout);
         $limit_down->tick($timeout);
@@ -662,7 +686,10 @@ class Net::BitTorrent v2.0.0 {
 
             # Merge packet-derived data with tick-derived data
             my @all_data = grep {defined} ( $tick_data, @packet_data );
-            warn "  [DEBUG] Tick nodes: " . scalar(@all_nodes) . ", peers: " . scalar(@all_peers) . "\n" if $debug && ( @all_nodes || @all_peers );
+            if ( $debug && ( @all_nodes || @all_peers || @all_data ) ) {
+                warn sprintf( "    [DEBUG] DHT tick+packets: nodes=%d, peers=%d, data=%d\n",
+                    scalar(@all_nodes), scalar(@all_peers), scalar(@all_data) );
+            }
 
             # If we found new nodes, add them to the frontier of starving torrents
             if (@all_nodes) {
@@ -679,9 +706,15 @@ class Net::BitTorrent v2.0.0 {
             for my $d (@all_data) {
                 my $ih = $d->{queried_target};
                 if ( $ih && ( my $t = $torrents{$ih} ) ) {
+                    if ( $debug && @all_peers ) {
+                        warn "    [DEBUG] Dispatching " . scalar(@all_peers) . " peers to torrent " . unpack( "H*", $ih ) . "\n";
+                    }
                     for my $peer (@all_peers) {
                         $t->add_peer($peer);
                     }
+                }
+                elsif ( $debug && $ih ) {
+                    warn "    [DEBUG] DHT result for unknown info_hash " . unpack( "H*", $ih ) . "\n";
                 }
             }
 

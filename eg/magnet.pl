@@ -2,7 +2,7 @@ use v5.40;
 use lib '../lib';
 use Net::BitTorrent;
 use Path::Tiny;
-use Time::HiRes                               qw[sleep];
+use Time::HiRes                               qw[sleep time];
 use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode];
 $|++;
 my ( $magnet_uri, $data_dir ) = @ARGV;
@@ -13,8 +13,9 @@ if ( !$magnet_uri || !$data_dir ) {
     exit 1;
 }
 path($data_dir)->mkpath;
+say "Data directory: " . path($data_dir)->absolute;
 my $client  = Net::BitTorrent->new( debug => 1, encryption => 'required' );
-my $torrent = $client->add_magnet( $magnet_uri, $data_dir );
+my $torrent = $client->add( $magnet_uri, $data_dir );
 my $ih_hex  = unpack( 'H*', $torrent->info_hash_v2 || $torrent->info_hash_v1 );
 say "Added magnet: $ih_hex";
 say "Waiting for metadata...";
@@ -27,7 +28,7 @@ $torrent->on(
 $torrent->on(
     'status_update',
     sub ( $t, $stats ) {
-        printf "\rPeers: %d | DL: %d | UL: %d", $stats->{peers}, $stats->{downloaded}, $stats->{uploaded};
+        printf "\rPeers: %d | DL: %d | UL: %d | Hashing: %d", $stats->{peers}, $stats->{downloaded}, $stats->{uploaded}, $client->hashing_queue_size;
     }
 );
 $torrent->on(
@@ -40,6 +41,9 @@ $torrent->on(
         $out_file->spew_raw( bencode( $t->metadata ) );
         say "Saved metainfo to: $out_file";
         say "Files:";
+        for my $file ( $t->files->@* ) {
+            say "  - $file";
+        }
         my $tree = $t->file_tree;
         _print_tree( $tree, "" );
     }
@@ -51,14 +55,19 @@ $torrent->on(
     }
 );
 $torrent->start();
+my $last_tick  = time();
 my $start_time = time();
 while (1) {
-    $client->tick(0.1);
+    my $now   = time();
+    my $delta = $now - $last_tick;
+    $client->tick($delta) if $delta > 0;
+    $last_tick = $now;
+
+    #~ if ( time() - $start_time > 600 ) {
+    #~ say "\nTimeout reached (600s). Exiting...";
+    #~ last;
+    #~ }
     sleep(0.1);
-    if ( time() - $start_time > 180 ) {
-        say "\nTimeout reached (180s). Exiting...";
-        last;
-    }
 
     # Stop if we finished (though a real client would keep seeding)
     if ( $torrent->bitfield && $torrent->bitfield->count == $torrent->bitfield->size ) {
@@ -66,6 +75,7 @@ while (1) {
         last;
     }
 }
+$client->shutdown();
 
 sub _print_tree ( $tree, $indent ) {
     for my $name ( sort keys %$tree ) {

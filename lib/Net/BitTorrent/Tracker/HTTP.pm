@@ -46,13 +46,14 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
         if ( $dict->{failure_reason} ) {
             croak "Tracker failure: $dict->{failure_reason}";
         }
-        if ( $dict->{peers} && !ref $dict->{peers} ) {
+        if ( defined $dict->{peers} && !ref $dict->{peers} ) {
             $dict->{peers} = Net::BitTorrent::Protocol::BEP23::unpack_peers_ipv4( $dict->{peers} );
         }
-        if ( $dict->{peers6} && !ref $dict->{peers6} ) {
+        if ( defined $dict->{peers6} && !ref $dict->{peers6} ) {
             my $p6 = Net::BitTorrent::Protocol::BEP23::unpack_peers_ipv6( $dict->{peers6} );
             $dict->{peers} = [ @{ $dict->{peers} // [] }, @$p6 ];
         }
+        $dict->{peers} //= [];    # Ensure it is an array ref
         return $dict;
     }
 

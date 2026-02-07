@@ -585,11 +585,12 @@ class Net::BitTorrent::Torrent {
     }
 
     method handle_metadata_data ( $peer, $piece, $total_size, $data ) {
-        delete $metadata_pending{$peer}                                                 if defined $peer;
-        $metadata_size = $total_size                                                    if $metadata_size == 0;
-        warn "    [DEBUG] Received metadata piece $piece (len " . length($data) . ")\n" if $debug;
+        delete $metadata_pending{$peer} if defined $peer;
+        $metadata_size = $total_size    if $metadata_size == 0;
+        warn "    [DEBUG] Received metadata piece $piece (len " . length($data) . ") from " . ( $peer ? $peer->ip : "unknown" ) . "\n" if $debug;
         $metadata_pieces{$piece} = $data;
         my $num_pieces = int( ( $metadata_size + 16383 ) / 16384 );
+        warn "    [DEBUG] Metadata progress: " . scalar( keys %metadata_pieces ) . "/$num_pieces pieces\n" if $debug;
         if ( scalar keys %metadata_pieces == $num_pieces ) {
             my $full_info = join( '', map { $metadata_pieces{$_} } sort { $a <=> $b } keys %metadata_pieces );
 
@@ -623,12 +624,26 @@ class Net::BitTorrent::Torrent {
         }
 
         # Initialize storage
+        warn "    [DEBUG] Initializing storage at $storage_path\n" if $debug;
         $storage = Net::BitTorrent::Storage->new(
             base_path  => $storage_path,
-            file_tree  => $self->file_tree,
             piece_size => $metadata->{info}{'piece length'},
             pieces_v1  => $metadata->{info}{pieces},
         );
+
+        # Load files into storage
+        if ( my $tree = $metadata->{info}{'file tree'} ) {
+            $storage->load_file_tree($tree);
+        }
+        elsif ( my $files = $metadata->{info}{files} ) {    # v1 Multi-file
+            for my $f (@$files) {
+                my $rel_path = Path::Tiny::path( @{ $f->{path} } );
+                $storage->add_file( $rel_path, $f->{length} );
+            }
+        }
+        else {                                              # v1 Single-file
+            $storage->add_file( $metadata->{info}{name}, $metadata->{info}{length} );
+        }
 
         # Initialize bitfield
         my $num_pieces = 0;
@@ -653,6 +668,7 @@ class Net::BitTorrent::Torrent {
     }
 
     method receive_block ( $peer, $index, $begin, $data ) {
+        return 0 unless $bitfield;
         return 0 if $bitfield->get($index);
 
         # If we've already received this block, or the piece is already being verified, skip.
@@ -805,9 +821,9 @@ class Net::BitTorrent::Torrent {
     }
 
     method peer_disconnected ($peer) {
-        warn "  [DEBUG] Peer disconnected: " . $peer->ip . ":" . $peer->port . "\n" if $debug;
-        delete $metadata_pending{$peer}                                             if defined $peer;
         my $ip_port = $peer->ip . ':' . $peer->port;
+        warn "  [DEBUG] Peer disconnected: $ip_port\n" if $debug;
+        delete $metadata_pending{$peer}                if defined $peer;
         $pex_dropped{$ip_port} = { ip => $peer->ip, port => $peer->port };
         delete $pex_added{$ip_port};
         if ( my $bf = $peer_bitfields{$peer} ) {
@@ -1014,6 +1030,7 @@ class Net::BitTorrent::Torrent {
     method add_peer ($peer) {
         my $ip   = eval { $peer->ip }   // $peer->{ip} // $peer->{address};
         my $port = eval { $peer->port } // $peer->{port};
+        warn "    [DEBUG] Torrent::add_peer: $ip:$port\n" if $debug;
         return unless $ip && $port;
         my $key = "$ip:$port";
         unless ( $peers{$key} ) {
@@ -1144,13 +1161,13 @@ class Net::BitTorrent::Torrent {
                 $self->start_dht_lookup();
 
                 # Fallback: If we are starving, try adding a public tracker if not already present
-                state $added_fallback = 0;
-                if ( !$added_fallback && keys %peer_objects < 5 ) {
-                    warn "  [DEBUG] Adding fallback OpenTrackr\n" if $debug;
-                    $tracker_manager->add_tracker('udp://tracker.opentrackr.org:1337/announce');
-                    $self->announce('started');
-                    $added_fallback = 1;
-                }
+                #~ state $added_fallback = 0;
+                #~ if ( !$added_fallback && keys %peer_objects < 5 ) {
+                #~ warn "  [DEBUG] Adding fallback OpenTrackr\n" if $debug;
+                #~ $tracker_manager->add_tracker('udp://tracker.opentrackr.org:1337/announce');
+                #~ $self->announce('started');
+                #~ $added_fallback = 1;
+                #~ }
             }
         }
     }
@@ -1188,6 +1205,11 @@ class Net::BitTorrent::Torrent {
     method info_hash_v2 () {$info_hash_v2}
     method peer_id ()      {$peer_id}
     method trackers ()     { return $tracker_manager->trackers() }
+
+    method files () {
+        return [] unless $storage;
+        return [ map { $_->path->absolute->stringify } $storage->files_ordered->@* ];
+    }
 
     method dump_state () {
         return {

@@ -30,7 +30,22 @@ class Net::BitTorrent::Protocol::BEP09 v2.0.0 : isa(Net::BitTorrent::Protocol::B
     method on_extended_message ( $name, $payload ) {
         if ( $name eq 'ut_metadata' ) {
             my ( $dict, $remaining );
-            eval { ( $dict, $remaining ) = bdecode( $payload, 1 ); };
+            eval {
+                my @res = bdecode( $payload, 1 );
+                if ( ref $res[0] eq 'HASH' ) {
+                    ( $dict, $remaining ) = @res;
+                }
+                elsif ( @res % 2 == 0 ) {    # It's a list of keys and values + leftover? No, that would be odd.
+
+                    # Wait, if it returned a list of KV pairs + leftover, total elements is odd.
+                    $remaining = pop @res;
+                    $dict      = {@res};
+                }
+                else {                       # Odd number of elements: KV pairs + leftover
+                    $remaining = pop @res;
+                    $dict      = {@res};
+                }
+            };
             if ( $@ || ref $dict ne 'HASH' ) {
                 warn "  [ERROR] Malformed ut_metadata message: $@\n";
                 return;

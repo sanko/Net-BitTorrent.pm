@@ -86,8 +86,7 @@ class Net::BitTorrent::Torrent::Generator v2.0.0 {
                 }
                 next;
             }
-            my $fh = $file->{abs}->openr;
-            binmode $fh;
+            my $fh = $file->{abs}->openr_raw;
             while ( read( $fh, my $chunk, $piece_length - length($buffer) ) ) {
                 $buffer .= $chunk;
                 if ( length($buffer) == $piece_length ) {
@@ -105,9 +104,8 @@ class Net::BitTorrent::Torrent::Generator v2.0.0 {
         my $file_tree = {};
         my %piece_layers;
         for my $file ( grep { !$_->{padding} } @files ) {
-            my $merkle = Digest::Merkle::SHA256->new( file_size => $file->{size} );
-            my $fh     = $file->{abs}->openr;
-            binmode $fh;
+            my $merkle    = Digest::Merkle::SHA256->new( file_size => $file->{size} );
+            my $fh        = $file->{abs}->openr_raw;
             my $block_idx = 0;
             while ( read( $fh, my $block, 16384 ) ) {
                 $merkle->set_block( $block_idx++, sha256($block) );

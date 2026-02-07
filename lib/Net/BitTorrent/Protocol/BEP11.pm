@@ -24,7 +24,21 @@ class Net::BitTorrent::Protocol::BEP11 : isa(Net::BitTorrent::Protocol::BEP09) {
 
     method on_extended_message ( $name, $payload ) {
         if ( $name eq 'ut_pex' ) {
-            my $dict     = bdecode($payload);
+            my $dict;
+            eval {
+                my @res = bdecode( $payload, 1 );
+                if ( @res > 2 ) {
+                    pop @res;    # Discard leftover
+                    $dict = {@res};
+                }
+                else {
+                    $dict = $res[0];
+                }
+            };
+            if ( $@ || ref $dict ne 'HASH' ) {
+                warn "  [ERROR] Malformed ut_pex message: $@\n";
+                return;
+            }
             my $added    = Net::BitTorrent::Protocol::BEP23::unpack_peers_ipv4( $dict->{added}   // '' );
             my $dropped  = Net::BitTorrent::Protocol::BEP23::unpack_peers_ipv4( $dict->{dropped} // '' );
             my $added6   = $dict->{added6}   ? Net::BitTorrent::Protocol::BEP23::unpack_peers_ipv6( $dict->{added6} )   : [];

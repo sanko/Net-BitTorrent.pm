@@ -31,7 +31,21 @@ class Net::BitTorrent::Protocol::BEP55 : isa(Net::BitTorrent::Protocol::BEP11) {
     method on_extended_message ( $name, $payload ) {
         if ( $name eq 'ut_holepunch' ) {
             my $type = unpack( 'C', substr( $payload, 0, 1, '' ) );
-            my $dict = bdecode($payload);
+            my $dict;
+            eval {
+                my @res = bdecode( $payload, 1 );
+                if ( @res > 2 ) {
+                    pop @res;    # Discard leftover
+                    $dict = {@res};
+                }
+                else {
+                    $dict = $res[0];
+                }
+            };
+            if ( $@ || ref $dict ne 'HASH' ) {
+                warn "  [ERROR] Malformed ut_holepunch message: $@\n";
+                return;
+            }
             if ( $type == HP_RENDEZVOUS ) {
                 $self->on_hp_rendezvous( $dict->{id} );
             }
