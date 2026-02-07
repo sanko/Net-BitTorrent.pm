@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Protocol::PeerHandler - Integrated Protocol Extension Orchestrator (v2.0.0)
+Net::BitTorrent::Protocol::PeerHandler - Integrated Protocol Extension Orchestrator
 
 =head1 SYNOPSIS
 
@@ -18,16 +18,16 @@ Net::BitTorrent::Protocol::PeerHandler - Integrated Protocol Extension Orchestra
     );
 
     # Link to the high-level Peer object
-    $handler->set_peer($peer);
+    $handler->set_peer( $peer );
 
     # Feed raw data from the transport
-    $handler->receive_data($raw_bytes);
+    $handler->receive_data( $raw_bytes );
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Protocol::PeerHandler> is the "brain" of the Peer Wire Protocol implementation.  It utilizes
-multiple inheritance (via the C<class> feature) to consolidate all supported  BitTorrent extensions into a single,
-unified interface.
+C<Net::BitTorrent::Protocol::PeerHandler> is the "brain" of the Peer Wire Protocol implementation. It utilizes multiple
+inheritance (via the C<class> feature) to consolidate all supported BitTorrent extensions into a single, unified
+interface.
 
 It works closely with L<Net::BitTorrent::Peer> to manage the lifecycle of a connection:
 
@@ -41,7 +41,7 @@ It works closely with L<Net::BitTorrent::Peer> to manage the lifecycle of a conn
 
 =back
 
-=head2 Supported Extensions (Managed by this Handler):
+=head2 Supported Extensions:
 
 =over
 

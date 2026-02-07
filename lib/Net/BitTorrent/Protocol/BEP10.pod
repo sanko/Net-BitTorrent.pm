@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Protocol::BEP10 - Extension Protocol (v2.0.0)
+Net::BitTorrent::Protocol::BEP10 - Extension Protocol
 
 =head1 SYNOPSIS
 
@@ -19,35 +19,35 @@ Net::BitTorrent::Protocol::BEP10 - Extension Protocol (v2.0.0)
     $proto->send_ext_handshake();
 
     # Send an extension message by name
-    $proto->send_ext_message('ut_pex', $bencoded_pex_data);
+    $proto->send_ext_message( 'ut_pex', $bencoded_pex_data );
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Protocol::BEP10> implements the B<Extension Protocol (BEP 10)>. This is the  standard mechanism
-modern BitTorrent clients use to negotiate support for additional  features (like PEX, Magnet links, and DHT security)
-without needing to allocate new  reserved bits in the foundational BitTorrent handshake.
+C<Net::BitTorrent::Protocol::BEP10> implements the Extension Protocol (BEP 10). This is the standard mechanism modern
+BitTorrent clients use to negotiate support for additional features (like PEX, Magnet links, and DHT security) without
+needing to allocate new reserved bits in the foundational BitTorrent handshake.
 
 =head1 METHODS
 
-=head2 C<send_ext_handshake()>
+=head2 C<send_ext_handshake( )>
 
-Sends the ID 20 (C<EXTENDED>) message with a sub-ID of 0. This message contains a bencoded  dictionary of supported
+Sends the ID 20 (C<EXTENDED>) message with a sub-ID of 0. This message contains a bencoded dictionary of supported
 extensions and their local IDs.
 
 =head2 C<send_ext_message( $name, $payload )>
 
-Sends a message for the extension identified by C<$name>. The module automatically looks up   the remote peer's
-assigned ID for that extension.
+Sends a message for the extension identified by C<$name>. The module automatically looks up the remote peer's assigned
+ID for that extension.
 
-=head2 C<remote_extensions()>
+=head2 C<remote_extensions( )>
 
 Returns a hashref of extensions supported by the remote peer and their assigned message IDs.
 
-=head2 C<remote_version()> / C<remote_ip()>
+=head2 C<remote_version( )> / C<remote_ip( )>
 
-Returns the client version string and external IP address reported by the remote peer during  the extended handshake.
+Returns the client version string and external IP address reported by the remote peer during the extended handshake.
 
-=head1 CALLBACKS
+=head1 Callbacks
 
 =head2 C<on_ext_handshake( $data )>
 
@@ -57,11 +57,11 @@ Triggered when the remote peer's extended handshake is received.
 
 Triggered when a message for a registered extension is received.
 
-=head1 SPECIFICATIONS
+=head1 Specifications
 
 =over
 
-=item * B<BEP 10>: Extension Protocol
+=item * BEP 10: Extension Protocol
 
 =back
 

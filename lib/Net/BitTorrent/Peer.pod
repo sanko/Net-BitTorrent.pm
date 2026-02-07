@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Peer - Individual Peer Connection & State Tracking (v2.0.0)
+Net::BitTorrent::Peer - Individual Peer Connection & State Tracking
 
 =head1 SYNOPSIS
 
@@ -13,35 +13,46 @@ Net::BitTorrent::Peer - Individual Peer Connection & State Tracking (v2.0.0)
         protocol   => $handler,
         torrent    => $torrent,
         transport  => $tcp_transport,
-        ip         => "1.2.3.4",
+        ip         => '1.2.3.4',
         port       => 6881,
-        encryption => "required"
+        encryption => REQUIRED
     );
 
     # Access transport layer
     my $transport = $peer->transport;
 
     # Manual choking control
-    $peer->unchoke();
+    $peer->unchoke( );
 
     # Check peer state
-    say "Peer is interested" if $peer->peer_interested;
-    say "Download rate: " . $peer->rate_down . " KB/s";
+    say 'Peer is interested' if $peer->peer_interested;
+    say 'Download rate: ' . $peer->rate_down . ' KB/s';
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Peer> represents a single connection to a remote BitTorrent client. It maintains the
-choking/interested state machine and handles all message routing for a specific neighbor.
+C<Net::BitTorrent::Peer> represents a single connection to a remote BitTorrent client. It maintains the choking/interested state machine and handles all message routing for a specific neighbor.
 
 =head2 Reputation & Security
 
-This class implements B<Peer Reputation Tracking>.  * Peers start with a reputation of 100. * Providing a verified
-piece increases reputation by 1. * Providing a corrupt piece (failed hash) decreases reputation by 20. * If reputation
-falls to B<50 or below>, the peer is automatically disconnected and blacklisted for the session.
+This class implements peer reputation tracking:
+
+=over
+
+=itme Peers start with a reputation of 100.
+
+=item Providing a verified piece increases reputation by 1.
+
+=itme Providing a corrupt piece (failed hash) decreases reputation by 20.
+
+=item If reputation falls to B<50 or below>, the peer is automatically disconnected and blacklisted for the session.
+
+=back
 
 =head1 METHODS
 
 =head2 C<new( %params )>
+
+Parameters;
 
 =over
 
@@ -53,28 +64,27 @@ falls to B<50 or below>, the peer is automatically disconnected and blacklisted 
 
 =back
 
-=head2 C<unchoke()> / C<choke()>
+=head2 C<unchoke( )> / C<choke( )>
 
-Sends a C<CHOKE> or C<UNCHOKE> message to the peer. This controls whether the remote peer is allowed  to request blocks
-from us.
+Sends a C<CHOKE> or C<UNCHOKE> message to the peer. This controls whether the remote peer is allowed to request blocks from us.
 
 =head2 C<send_suggest( $index )> / C<send_allowed_fast( $index )>
 
 Sends B<BEP 06> Fast Extension hints to the peer.
 
-=head2 C<rate_down()> / C<rate_up()>
+=head2 C<rate_down( )> / C<rate_up( )>
 
 Returns the current transfer rates in bytes per second, calculated via a 20% moving average decay.
 
-=head2 C<reputation()>
+=head2 C<reputation( )>
 
 Returns the current reputation score (51-101).
 
-=head2 C<am_choking()> / C<peer_choking()>
+=head2 C<am_choking( )> / C<peer_choking( )>
 
 Returns the current choking status for both sides of the connection.
 
-=head2 C<am_interested()> / C<peer_interested()>
+=head2 C<am_interested( )> / C<peer_interested( )>
 
 Returns the current interest status.
 
@@ -82,7 +92,7 @@ Returns the current interest status.
 
 Manually adjust the peer's reputation score. Triggers an automatic disconnect if the score drops below 50.
 
-=head1 SPECIFICATIONS
+=head1 Specifications
 
 =over
 

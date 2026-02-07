@@ -1,15 +1,14 @@
 use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
-
-class Net::BitTorrent::Protocol::Simulation : isa(Net::BitTorrent::Protocol::BEP11) {
+#
+class Net::BitTorrent::Protocol::Simulation v2.0.0 : isa(Net::BitTorrent::Protocol::BEP11) {
     field $peer : reader : writer;
 
     method _handle_message ( $id, $payload ) {
-        if ($peer) {
-            $peer->handle_message( $id, $payload );
-        }
+        $peer->handle_message( $id, $payload ) if $peer;
         $self->next::method( $id, $payload );
     }
-}
+};
+#
 1;

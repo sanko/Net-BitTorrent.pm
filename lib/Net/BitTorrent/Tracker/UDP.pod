@@ -4,14 +4,14 @@
 
 =head1 NAME
 
-Net::BitTorrent::Tracker::UDP - UDP Tracker Protocol (BEP 15) (v2.0.0)
+Net::BitTorrent::Tracker::UDP - UDP Tracker Protocol (BEP 15)
 
 =head1 SYNOPSIS
 
     use Net::BitTorrent::Tracker::UDP;
 
     my $tracker = Net::BitTorrent::Tracker::UDP->new(
-        url => "udp://tracker.openbittorrent.com:80/announce"
+        url => 'udp://tracker.openbittorrent.com:80/announce'
     );
 
     # Announce
@@ -23,7 +23,7 @@ Net::BitTorrent::Tracker::UDP - UDP Tracker Protocol (BEP 15) (v2.0.0)
         uploaded   => 0,
         left       => 1024
     }, sub ($res) {
-        say "Peers: " . join(', ', map { $_->{ip} } @{$res->{peers}});
+        say 'Peers: ' . join(', ', map { $_->{ip} } @{$res->{peers}});
     });
 
 =head1 DESCRIPTION
@@ -33,7 +33,7 @@ transport for BitTorrent trackers as it significantly reduces overhead on the tr
 
 =head2 BitTorrent v2 Support
 
-This module is B<BEP 52 compliant>. It correctly handles 32-byte SHA-256 info-hashes in both C<announce> and C<scrape>
+This module is BEP 52 compliant. It correctly handles 32-byte SHA-256 info-hashes in both C<announce> and C<scrape>
 packets by dynamically adjusting the binary structure of the outgoing messages.
 
 =head1 METHODS
@@ -56,7 +56,7 @@ Synchronously executes the UDP announce cycle:
 
 Synchronously fetches seeder/leecher counts for multiple torrents.
 
-=head2 C<url()>
+=head2 C<url( )>
 
 Returns the tracker URL.
 

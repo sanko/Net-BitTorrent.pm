@@ -1,7 +1,32 @@
 use v5.40;
 use feature 'class';
 no warnings 'experimental::class', 'experimental::builtin';
-class Net::BitTorrent v2.0.0 {
+class    #
+    Net::BitTorrent::Emitter v2.0.0 {
+    field %on;    # event => [cb, ...]
+    field $debug : param : reader : writer //= 0;
+
+    method on ( $event, $cb ) {
+        push $on{$event}->@*, $cb;
+    }
+
+    method _emit ( $event, @args ) {
+        for my $cb ( $on{$event}->@* ) {
+            $cb->(@args);
+        }
+    }
+
+    method clear_listeners ($event) {
+        if ($event) {
+            $on{$event} = [];
+        }
+        else {
+            %on = ();
+        }
+    }
+    }
+    #
+    class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
     use Net::BitTorrent::Torrent;
     use Net::BitTorrent::DHT;
     use Net::uTP::Manager;    # Standalone spin-off
@@ -23,7 +48,6 @@ class Net::BitTorrent v2.0.0 {
     field $port_mapper : reader;
     field $port       : param : reader = 49152 + int( rand(10000) );
     field $user_agent : param : reader //= join '/', __CLASS__, our $VERSION;
-    field $debug      : param = 0;
     field $encryption : param : reader = 'preferred';
 
     # Feature Toggles (Default to enabled)
@@ -37,7 +61,6 @@ class Net::BitTorrent v2.0.0 {
     field $limit_up     : reader;
     field $limit_down   : reader;
     field $upnp_enabled : param = 0;
-    field %on;                          # event => [cb, ...]
 
     # Verification Throttling
     field @hashing_queue;                                      # Array of { torrent => $t, index => $i, data => $d }
@@ -47,16 +70,6 @@ class Net::BitTorrent v2.0.0 {
     method features () {
         { bep05 => $bep05, bep06 => $bep06, bep09 => $bep09, bep10 => $bep10, bep11 => $bep11, bep52 => $bep52, bep55 => $bep55, };
     }
-
-    method on ( $event, $cb ) {
-        push $on{$event}->@*, $cb;
-    }
-
-    method _emit ( $event, @args ) {
-        for my $cb ( $on{$event}->@* ) {
-            $cb->(@args);
-        }
-    }
     ADJUST {
         $node_id //= _generate_peer_id();
         my $weak_self = $self;
@@ -65,12 +78,8 @@ class Net::BitTorrent v2.0.0 {
         # TCP Listener
         use IO::Socket::IP;
         $tcp_listener = IO::Socket::IP->new( LocalPort => $port, Listen => 5, ReuseAddr => 1, Blocking => 0, );
-        if ($tcp_listener) {
-            warn "    [DEBUG] TCP listener started on port $port\n" if $debug;
-        }
-        else {
-            warn "    [ERROR] Could not start TCP listener on port $port: $!\n";
-        }
+        $self->_emit(
+            debug => ( $tcp_listener ? 'TCP listener started on port ' . $port : 'Could not start TCP listener on port ' . $port . ': ' . $! ) );
         $utp->on(
             'new_connection',
             sub ( $utp_conn, $ip, $port ) {
@@ -92,7 +101,7 @@ class Net::BitTorrent v2.0.0 {
                     transport => $utp_conn,
                     ip        => $ip,
                     port      => $port,
-                    debug     => $debug
+                    debug     => $self->debug
                 );
                 $pending_peers{$utp_conn} = $peer;
             }
@@ -232,12 +241,12 @@ class Net::BitTorrent v2.0.0 {
         my $first_byte = ord( substr( $data, 0, 1 ) );
         if ( $first_byte == 0x13 ) {
             if ( $encryption eq 'required' ) {
-                warn "    [DEBUG] Rejecting plaintext connection because encryption is required\n" if $debug;
+                $self->_emit( debug => 'Rejecting plaintext connection because encryption is required' );
                 $transport->socket->close();
                 delete $pending_peers{$transport};
                 return;
             }
-            warn "    [DEBUG] Autodetected PWP handshake\n" if $debug;
+            $self->_emit( debug => 'Autodetected PWP handshake' );
             use Net::BitTorrent::Protocol::HandshakeOnly;
             my $proto = Net::BitTorrent::Protocol::HandshakeOnly->new(
                 info_hash       => undef,
@@ -252,14 +261,14 @@ class Net::BitTorrent v2.0.0 {
                 torrent   => undef,
                 ip        => $transport->socket->peerhost,
                 port      => $transport->socket->peerport,
-                debug     => $debug
+                debug     => $self->debug
             );
 
             # Feed the data we already read to the new protocol handler
             $entry->{peer}->on_data($data);
         }
         else {
-            warn "    [DEBUG] Autodetected potential MSE handshake\n" if $debug;
+            $self->_emit( debug => 'Autodetected potential MSE handshake' );
 
             # MSE handling will be complex because we don't know the info_hash yet
             # We need an MSE object that can try ALL our hosted info_hashes?
@@ -285,7 +294,7 @@ class Net::BitTorrent v2.0.0 {
                     for my $ih ( grep {defined} ( $ih1, $ih2 ) ) {
                         my $expected_xor = $mse_obj->_xor_strings( sha1( 'req2' . $ih ), sha1( 'req3' . $s ) );
                         if ( $xor_part eq $expected_xor ) {
-                            warn "    [DEBUG] MSE matched info_hash: " . unpack( 'H*', $ih ) . "\n" if $debug;
+                            $self->_emit( debug => 'MSE matched info_hash ' . unpack( 'H*', $ih ) );
                             return $ih;
                         }
                     }
@@ -304,7 +313,7 @@ class Net::BitTorrent v2.0.0 {
             }
         );
         $transport->set_filter($mse);
-        warn "    [DEBUG] Incoming MSE handshake started\n" if $debug;
+        $self->_emit( debug => 'Incoming MSE handshake started' );
 
         # Feed the data we already have
         $mse->receive_data($data);
@@ -322,8 +331,8 @@ class Net::BitTorrent v2.0.0 {
         delete $pending_peers{$transport};
         my $torrent = $torrents{$ih};
         if ( !$torrent ) {
-            warn "    [DEBUG] Handshake for unknown torrent " . unpack( 'H*', $ih ) . " from $ip:$port\n" if $debug;
-            $transport->socket->close()                                                                   if $transport->socket;
+            $self->_emit( debug => 'Handshake for unknown torrent ' . unpack( 'H*', $ih ) . " from $ip:$port" );
+            $transport->socket->close() if $transport->socket;
             return;
         }
         use Net::BitTorrent::Protocol::PeerHandler;
@@ -331,7 +340,7 @@ class Net::BitTorrent v2.0.0 {
             info_hash     => $ih,
             peer_id       => $self->node_id,
             features      => $torrent->features,
-            debug         => $debug,
+            debug         => $self->debug,
             metadata_size => $torrent->metadata ? length( Net::BitTorrent::Protocol::BEP03::Bencode::bencode( $torrent->metadata->{info} ) ) : 0,
         );
         my $peer;
@@ -347,7 +356,7 @@ class Net::BitTorrent v2.0.0 {
                 transport  => $transport,
                 ip         => $ip,
                 port       => $port,
-                debug      => $debug,
+                debug      => $self->debug,
                 mse        => $entry->{mse},
                 encryption => $encryption,
             );
@@ -426,7 +435,7 @@ class Net::BitTorrent v2.0.0 {
         use IO::Socket::IP;
         my $socket = IO::Socket::IP->new( PeerHost => $ip, PeerPort => $port, Type => SOCK_STREAM, Blocking => 0, );
         return unless $socket;
-        warn "    [DEBUG] Connecting to $ip:$port for " . unpack( 'H*', $ih ) . "\n" if $debug;
+        $self->_emit( debug => "Connecting to $ip:$port for " . unpack( 'H*', $ih ) );
         use Net::BitTorrent::Transport::TCP;
         my $transport = Net::BitTorrent::Transport::TCP->new( socket => $socket, connecting => 1 );
 
@@ -456,7 +465,7 @@ class Net::BitTorrent v2.0.0 {
                 'filter_failed',
                 sub ($leftover) {
                     return unless $weak_self && $weak_transport;
-                    warn "    [DEBUG] connect_to_peer: MSE failed, falling back to plaintext\n" if $debug;
+                    $self->_emit( debug => ' connect_to_peer: MSE failed, falling back to plaintext' );
                     $weak_self->_upgrade_pending_peer(
                         $weak_transport, $ih, undef,
                         $weak_transport->socket->peerhost,
@@ -499,11 +508,19 @@ class Net::BitTorrent v2.0.0 {
         elsif ( -f $thing ) {
             return $self->add_torrent( $thing, $base_path, %args );
         }
-        croak "Don't know how to add '$thing'";
+        $self->_emit( debug => "Don't know how to add '$thing'" );
+        ();
     }
 
     method add_torrent ( $path, $base_path, %args ) {
-        my $t = Net::BitTorrent::Torrent->new( path => $path, base_path => $base_path, client => $self, debug => $debug, peer_id => $node_id, %args );
+        my $t = Net::BitTorrent::Torrent->new(
+            path      => $path,
+            base_path => $base_path,
+            client    => $self,
+            debug     => $self->debug,
+            peer_id   => $node_id,
+            %args
+        );
         $torrents{ $t->info_hash_v1 } = $t if $t->info_hash_v1;
         $torrents{ $t->info_hash_v2 } = $t if $t->info_hash_v2;
         $self->_emit( 'torrent_added', $t );
@@ -511,8 +528,14 @@ class Net::BitTorrent v2.0.0 {
     }
 
     method add_info_hash ( $ih, $base_path, %args ) {
-        my $t = Net::BitTorrent::Torrent->new( info_hash => $ih, base_path => $base_path, client => $self, debug => $debug, peer_id => $node_id,
-            %args );
+        my $t = Net::BitTorrent::Torrent->new(
+            info_hash => $ih,
+            base_path => $base_path,
+            client    => $self,
+            debug     => $self->debug,
+            peer_id   => $node_id,
+            %args
+        );
         $torrents{ $t->info_hash_v1 } = $t if $t->info_hash_v1;
         $torrents{ $t->info_hash_v2 } = $t if $t->info_hash_v2;
         $self->_emit( 'torrent_added', $t );
@@ -529,7 +552,7 @@ class Net::BitTorrent v2.0.0 {
             initial_peers    => $m->nodes,          # x.pe
             base_path        => $base_path,
             client           => $self,
-            debug            => $debug,
+            debug            => $self->debug,
             peer_id          => $node_id,
             %args
         );
@@ -552,8 +575,8 @@ class Net::BitTorrent v2.0.0 {
                 want_v6     => 1,
                 bep32       => 1,
                 bep42       => 0,
-                debug       => $debug,
-                boot_nodes  => [ [ 'router.bittorrent.com', 6881 ], [ 'router.utorrent.com', 6881 ], [ 'dht.transmissionbt.com', 6881 ], ]
+                debug       => $self->debug,
+                boot_nodes  => [ [ 'router.bittorrent.com', 6881 ], [ 'router.utorrent.com', 6881 ], [ 'dht.transmissionbt.com', 6881 ] ]
             );
             my $weak_self = $self;
             builtin::weaken($weak_self);
@@ -590,7 +613,7 @@ class Net::BitTorrent v2.0.0 {
     }
 
     method _run_one_tick ($timeout) {
-        warn "  [DEBUG] Net::BitTorrent::_run_one_tick starting (timeout=$timeout)\n" if $debug > 1;
+        $self->_emit( debug => "Net::BitTorrent::_run_one_tick starting (timeout=$timeout)" );
         my $start = time();
         $limit_up->tick($timeout);
         $limit_down->tick($timeout);
@@ -601,7 +624,7 @@ class Net::BitTorrent v2.0.0 {
             if ( $sel->can_read(0) ) {
                 while ( my $socket = $tcp_listener->accept() ) {
                     $socket->blocking(0);
-                    warn "    [DEBUG] Accepted TCP connection from " . $socket->peerhost . ":" . $socket->peerport . "\n" if $debug;
+                    $self->_emit( debug => 'Accepted TCP connection from ' . $socket->peerhost . ':' . $socket->peerport );
                     use Net::BitTorrent::Transport::TCP;
                     my $transport = Net::BitTorrent::Transport::TCP->new( socket => $socket, connecting => 0 );
 
@@ -611,7 +634,7 @@ class Net::BitTorrent v2.0.0 {
             }
         }
         else {
-            warn "    [DEBUG] No TCP listener active\n" if $debug > 1;
+            $self->_emit( debug => 'No TCP listener active' );
         }
 
         # Process hashing queue (throttled)
@@ -635,10 +658,9 @@ class Net::BitTorrent v2.0.0 {
 
             # Timeout old pending connections (30s)
             if ( time() - $entry->{timestamp} > 30 ) {
-                if ($debug) {
-                    my $host = eval { $transport->socket ? $transport->socket->peerhost : 'unknown' } // 'unknown';
-                    warn "    [DEBUG] Timing out pending connection from $host\n";
-                }
+                $self->_emit( debug => 'Timing out pending connection from ' . eval { $transport->socket ? $transport->socket->peerhost : () }
+                        // 'unknown' )
+                    if $self->debug;
                 $transport->socket->close() if $transport->socket;
                 delete $pending_peers{$t_key};
             }
@@ -686,9 +708,9 @@ class Net::BitTorrent v2.0.0 {
 
             # Merge packet-derived data with tick-derived data
             my @all_data = grep {defined} ( $tick_data, @packet_data );
-            if ( $debug && ( @all_nodes || @all_peers || @all_data ) ) {
-                warn sprintf( "    [DEBUG] DHT tick+packets: nodes=%d, peers=%d, data=%d\n",
-                    scalar(@all_nodes), scalar(@all_peers), scalar(@all_data) );
+            if ( $self->debug && ( @all_nodes || @all_peers || @all_data ) ) {
+                $self->_emit(
+                    debug => sprintf( 'DHT tick+packets: nodes=%d, peers=%d, data=%d', scalar(@all_nodes), scalar(@all_peers), scalar(@all_data) ) );
             }
 
             # If we found new nodes, add them to the frontier of starving torrents
@@ -706,15 +728,14 @@ class Net::BitTorrent v2.0.0 {
             for my $d (@all_data) {
                 my $ih = $d->{queried_target};
                 if ( $ih && ( my $t = $torrents{$ih} ) ) {
-                    if ( $debug && @all_peers ) {
-                        warn "    [DEBUG] Dispatching " . scalar(@all_peers) . " peers to torrent " . unpack( "H*", $ih ) . "\n";
-                    }
+                    $self->_emit( debug => 'Dispatching ' . scalar(@all_peers) . ' peers to torrent ' . unpack( 'H*', $ih ) )
+                        if $self->debug && @all_peers;
                     for my $peer (@all_peers) {
                         $t->add_peer($peer);
                     }
                 }
-                elsif ( $debug && $ih ) {
-                    warn "    [DEBUG] DHT result for unknown info_hash " . unpack( "H*", $ih ) . "\n";
+                elsif ( $self->debug && $ih ) {
+                    $self->_emit( debug => 'DHT result for unknown info_hash ' . unpack( 'H*', $ih ) );
                 }
             }
 
@@ -814,6 +835,6 @@ class Net::BitTorrent v2.0.0 {
         }
         return 1;
     }
-};
+    };
 #
 1;

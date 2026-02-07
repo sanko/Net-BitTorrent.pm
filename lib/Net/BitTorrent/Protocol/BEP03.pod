@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Protocol::BEP03 - Core BitTorrent Peer Wire Protocol (v2.0.0)
+Net::BitTorrent::Protocol::BEP03 - Core BitTorrent Peer Wire Protocol
 
 =head1 SYNOPSIS
 
@@ -16,49 +16,58 @@ Net::BitTorrent::Protocol::BEP03 - Core BitTorrent Peer Wire Protocol (v2.0.0)
     );
 
     # Generate initial handshake
-    my $out = $proto->write_buffer();
+    my $out = $proto->write_buffer( );
 
     # Process incoming bytes from the socket
-    $proto->receive_data($raw_bytes);
+    $proto->receive_data( $raw_bytes );
 
     # Send a custom message
-    $proto->send_message(4, pack('N', $piece_index)); # HAVE
+    $proto->send_message( 4, pack('N', $piece_index) ); # HAVE
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Protocol::BEP03> implements the foundational B<BitTorrent Peer Wire Protocol  (BEP 03)>. It is a
-stateful, loop-agnostic parser and generator for the binary messages  exchanged between peers over TCP (or uTP).
+C<Net::BitTorrent::Protocol::BEP03> implements the foundational B<BitTorrent Peer Wire Protocol (BEP 03)>. It is a
+stateful, loop-agnostic parser and generator for the binary messages exchanged between peers over TCP (or uTP).
 
-This module handles the initial handshake, reserved bit negotiation, and the framing of all  standard messages (Choke,
-Unchoke, Interested, Have, Bitfield, Request, Piece, etc.).
+This module handles the initial handshake, reserved bit negotiation, and the framing of all standard messages (choke,
+unchoke, interested, have, bitfield, request, piece, etc.).
 
 =head1 METHODS
 
 =head2 C<receive_data( $bytes )>
 
-Feeds raw binary data from the transport layer into the protocol parser. It automatically  handles partial handshakes
+Feeds raw binary data from the transport layer into the protocol parser. It automatically handles partial handshakes
 and fragmented messages.
 
 =head2 C<write_buffer()>
 
-Returns any pending binary data that needs to be sent to the remote peer. This includes the  handshake and any queued
+Returns any pending binary data that needs to be sent to the remote peer. This includes the handshake and any queued
 messages.
 
 =head2 C<send_message( $id, [$payload] )>
 
-Queues a framed message for delivery.  * C<$id>: The single-byte message identifier. * C<$payload>: The raw binary
-payload (optional).
+Queues a framed message for delivery.
+
+Params:
+
+=over
+
+=item * C<$id>: The single-byte message identifier.
+
+=item * C<$payload>: The raw binary payload (optional).
+
+=back
 
 =head2 C<set_reserved_bit( $byte_index, $mask )>
 
-Manipulates the 8-byte reserved field sent during the handshake. This is how peers negotiate  support for extensions
+Manipulates the 8-byte reserved field sent during the handshake. This is how peers negotiate support for extensions
 like DHT, PEX, and the Extension Protocol (BEP 10).
 
-=head2 C<send_keepalive()>
+=head2 C<send_keepalive( )>
 
 Queues a 4-byte zero-length message used to prevent connection timeouts.
 
-=head1 CALLBACKS
+=head1 Callbacks
 
 =head2 C<on_handshake( $info_hash, $peer_id )>
 
@@ -66,7 +75,7 @@ Triggered once the remote peer's handshake has been fully parsed and validated.
 
 =head2 C<_handle_message( $id, $payload )>
 
-Internal method intended to be overridden by subclasses or the orchestrator. It is called  whenever a full message has
+Internal method intended to be overridden by subclasses or the orchestrator. It is called whenever a full message has
 been assembled from the input buffer.
 
 =head1 AUTHOR

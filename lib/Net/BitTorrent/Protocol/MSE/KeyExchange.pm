@@ -1,29 +1,22 @@
 use v5.40;
 use feature 'class';
 no warnings qw[experimental::class experimental::builtin];
-class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.4 {
+#
+class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.0 : isa(Net::BitTorrent::Emitter) {
     use Digest::SHA qw[sha1];
     use Carp qw[carp croak];
     use Math::BigInt try => 'GMP';
-
-    # -- Parameters --
+    #
     field $info_hash    : param : reader;
     field $is_initiator : param : reader;
-
-    # -- Internal State --
     field $private_key;
-    field $public_key : reader;
-    field $shared_secret;
+    field $public_key    : reader;
+    field $shared_secret : reader(get_secret);
+    field $encrypt_rc4   : reader;
+    field $decrypt_rc4   : reader;
+    field $decrypt_restore_point;    # Store the initial state (post-discard) for the decryptor to optimize the scan_for_vc loop.
 
-    # -- Cipher State --
-    field $encrypt_rc4 : reader;
-    field $decrypt_rc4 : reader;
-
-    # Store the initial state (post-discard) for the decryptor
-    # to optimize the scan_for_vc loop.
-    field $decrypt_restore_point;
-
-    # 768-bit Safe Prime (Big Endian)
+    # 768-bit safe prime (big endian)
     my $P_STR
         = 'FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74' .
         '020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F1437' .
@@ -52,11 +45,11 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.4 {
         elsif ( length($bin) > 96 ) {
             $bin = substr( $bin, -96 );
         }
-        return $bin;
+        $bin;
     }
 
     method compute_secret ($remote_pub_bytes) {
-        croak "Remote public key must be 96 bytes" unless length($remote_pub_bytes) == 96;
+        return !$self->_emit( debug => 'Remote public key must be 96 bytes' ) unless length($remote_pub_bytes) == 96;
         my $p          = Math::BigInt->from_hex($P_STR);
         my $remote_val = Math::BigInt->from_bytes($remote_pub_bytes);
 
@@ -65,7 +58,6 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.4 {
         $shared_secret = $self->_int_to_bytes($s_val);
         return $shared_secret;
     }
-    method get_secret () { return $shared_secret }
 
     method get_sync_data ( $override_ih = undef ) {
         my $ih = $override_ih // $info_hash;
@@ -89,8 +81,8 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.4 {
 
     method init_rc4 ($ih) {
         $info_hash = $ih;
-        my $keyA = sha1( "keyA" . $shared_secret . $info_hash );
-        my $keyB = sha1( "keyB" . $shared_secret . $info_hash );
+        my $keyA = sha1( 'keyA' . $shared_secret . $info_hash );
+        my $keyB = sha1( 'keyB' . $shared_secret . $info_hash );
         my ( $key_enc, $key_dec );
         if ($is_initiator) {
             $key_enc = $keyA;
@@ -126,7 +118,7 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.4 {
             $trial_rc4->restore($decrypt_restore_point);
             my $ciphertext = substr( $buffer, $offset, 8 );
             my $plaintext  = $trial_rc4->crypt($ciphertext);
-            if ( $plaintext eq "\0\0\0\0\0\0\0\0" ) {
+            if ( $plaintext eq "\0" x 8 ) {
 
                 # Found it! We need to ensure the MAIN decryptor is now
                 # advanced by these 8 bytes so subsequent calls work.
@@ -141,14 +133,15 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.4 {
         }
         return -1;
     }
-    }
-
-    # -- Pure Perl RC4 Implementation --
-    class Net::BitTorrent::Protocol::MSE::RC4 {
+};
+#
+class    #
+    Net::BitTorrent::Protocol::MSE::RC4 {
     field @S;
     field $x = 0;
     field $y = 0;
     field $key : param;
+    #
     ADJUST {
         # KSA (Key Scheduling Algorithm)
         @S = 0 .. 255;
@@ -161,9 +154,7 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.4 {
         }
     }
 
-    method discard ($bytes) {
-
-        # Discard loop (PRGA without output)
+    method discard ($bytes) {    # Discard loop (PRGA without output)
         for ( 1 .. $bytes ) {
             $x = ( $x + 1 ) & 0xFF;
             $y = ( $y + $S[$x] ) & 0xFF;
@@ -183,13 +174,11 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.4 {
             # String XOR (^.) available in 5.40
             $out .= $c^. chr( $S[ ( $S[$x] + $S[$y] ) & 0xFF ] );
         }
-        return $out;
+        $out;
     }
 
     # Create a lightweight state snapshot (Array ref + 2 ints)
-    method snapshot () {
-        return [ [@S], $x, $y ];
-    }
+    method snapshot () { [ [@S], $x, $y ] }
 
     # Restore state from snapshot
     method restore ($snap) {
@@ -197,150 +186,6 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.4 {
         $x = $snap->[1];
         $y = $snap->[2];
     }
-}
-1;
-__END__
-use v5.40;
-use feature 'class';
-no warnings qw[experimental::class experimental::builtin];
-
-class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.3 {
-    use Digest::SHA qw[sha1];
-    use Carp        qw[carp croak];
-    use Math::BigInt try => 'GMP';
-    use Crypt::Stream::RC4;
-
-    # -- Parameters --
-    field $info_hash    : param : reader;
-    field $is_initiator : param : reader;
-
-    # -- Internal State --
-    field $private_key;
-    field $public_key : reader;
-    field $shared_secret;
-
-    # -- Cipher State --
-    field $key_enc_base;
-    field $key_dec_base;
-    field $encrypt_rc4 : reader;
-    field $decrypt_rc4 : reader;
-    field $supported   : reader = 1;
-
-    # 768-bit Safe Prime (Big Endian) for BitTorrent MSE
-    my $P_STR =
-        'FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74' .
-        '020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F1437' .
-        '4FE1356D6D51C245E485B576625E7EC6F44C42E9A63A36210000000000090563';
-
-    ADJUST {
-        my $p = Math::BigInt->from_hex($P_STR);
-        my $g = Math::BigInt->new(2);
-
-        # Private Key: Random 160 bits
-        my $priv_hex = join '', map { sprintf "%02x", rand(256) } 1 .. 20;
-        $private_key = Math::BigInt->from_hex($priv_hex);
-
-        # Public Key: Y = G^X mod P
-        my $pub_val = $g->copy->bmodpow( $private_key, $p );
-        $public_key = $self->_int_to_bytes($pub_val);
-    }
-
-    method _int_to_bytes ($num) {
-        my $hex = $num->to_hex;
-        $hex =~ s/^0x//i;
-        $hex = "0$hex" if length($hex) % 2;
-        my $bin = pack( 'H*', $hex );
-        if ( length($bin) < 96 ) {
-            $bin = ( "\0" x ( 96 - length($bin) ) ) . $bin;
-        }
-        elsif ( length($bin) > 96 ) {
-            $bin = substr( $bin, -96 );
-        }
-        return $bin;
-    }
-
-    method compute_secret ($remote_pub_bytes) {
-        croak "Remote public key must be 96 bytes" unless length($remote_pub_bytes) == 96;
-
-        my $p          = Math::BigInt->from_hex($P_STR);
-        my $remote_val = Math::BigInt->from_bytes($remote_pub_bytes);
-
-        # S = Y_remote ^ X_local mod P
-        my $s_val = $remote_val->copy->bmodpow( $private_key, $p );
-        $shared_secret = $self->_int_to_bytes($s_val);
-
-        return $shared_secret;
-    }
-
-    method get_secret () { return $shared_secret }
-
-    method get_sync_data ($override_ih = undef) {
-        my $ih = $override_ih // $info_hash;
-        return undef unless $ih;
-        my $s = $shared_secret;
-        my $sk = $ih;
-
-        my $req1_hash = sha1( 'req1' . $s );
-        my $req2_hash = sha1( 'req2' . $sk );
-        my $req3_hash = sha1( 'req3' . $s );
-
-        # String XOR using ^.
-        my $xor_mask = $req2_hash ^. $req3_hash;
-
-        return ($req1_hash, $xor_mask);
-    }
-
-    method verify_skey ($xor_block, $candidate_ih) {
-        my $s = $shared_secret;
-        my $req3_hash = sha1( 'req3' . $s );
-
-        # Recover req2 hash
-        my $target_req2 = $xor_block ^. $req3_hash;
-
-        my $check = sha1( 'req2' . $candidate_ih );
-        return $check eq $target_req2;
-    }
-
-    method init_rc4 ($ih) {
-        $info_hash = $ih;
-
-        my $keyA = sha1( "keyA" . $shared_secret . $info_hash );
-        my $keyB = sha1( "keyB" . $shared_secret . $info_hash );
-
-        if ($is_initiator) {
-            $key_enc_base = $keyA;
-            $key_dec_base = $keyB;
-        }
-        else {
-            $key_enc_base = $keyB;
-            $key_dec_base = $keyA;
-        }
-
-        # Initialize and discard 1024 bytes
-        $encrypt_rc4 = Crypt::Stream::RC4->new($key_enc_base);
-        $encrypt_rc4->crypt( "\0" x 1024 );
-
-        $decrypt_rc4 = Crypt::Stream::RC4->new($key_dec_base);
-        $decrypt_rc4->crypt( "\0" x 1024 );
-    }
-
-    method scan_for_vc ($buffer) {
-        my $limit = length($buffer) - 8;
-        $limit = 512 if $limit > 512;
-
-        for my $offset ( 0 .. $limit ) {
-            # Use a trial cipher to avoid advancing the main cipher state
-            my $trial_rc4 = Crypt::Stream::RC4->new($key_dec_base);
-            $trial_rc4->crypt( "\0" x 1024 );
-
-            my $ciphertext = substr($buffer, $offset, 8);
-            my $plaintext  = $trial_rc4->crypt($ciphertext);
-
-            if ($plaintext eq "\0\0\0\0\0\0\0\0") {
-                return $offset;
-            }
-        }
-        return -1;
-    }
-}
+    };
+#
 1;

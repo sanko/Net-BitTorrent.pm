@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Protocol::BEP23 - Compact Peer Address Formatting (v2.0.0)
+Net::BitTorrent::Protocol::BEP23 - Compact Peer Address Formatting
 
 =head1 SYNOPSIS
 
@@ -24,31 +24,31 @@ Net::BitTorrent::Protocol::BEP23 - Compact Peer Address Formatting (v2.0.0)
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Protocol::BEP23> implements the compact binary representation of peer  addresses used throughout the
-BitTorrent ecosystem. By avoiding bencoding for large peer  lists, this format significantly reduces the bandwidth
-required for tracker announces  and Peer Exchange (PEX).
+C<Net::BitTorrent::Protocol::BEP23> implements the compact binary representation of peer addresses used throughout the
+BitTorrent ecosystem. By avoiding bencoding for large peer lists, this format significantly reduces the bandwidth
+required for tracker announces and Peer Exchange (PEX).
 
-=head1 PUBLIC FUNCTIONS
+=head1 Functions
 
 =head2 C<pack_peers_ipv4( @peers )>
 
-Takes a list of hashrefs (C<{ip, port}>) and returns a binary string where each peer is  represented as 6 bytes (4 for
+Takes a list of hashrefs (C<{ip, port}>) and returns a binary string where each peer is represented as 6 bytes (4 for
 IP, 2 for Port).
 
 =head2 C<unpack_peers_ipv4( $data )>
 
-The inverse of C<pack_peers_ipv4>. Takes a binary string and returns an arrayref of hashrefs.  Throws an exception if
+The inverse of C<pack_peers_ipv4>. Takes a binary string and returns an arrayref of hashrefs. Throws an exception if
 the input length is not a multiple of 6.
 
 =head2 C<pack_peers_ipv6( @peers )>
 
-Implements the B<BEP 07> extension for IPv6. Each peer is represented as 18 bytes  (16 for IP, 2 for Port).
+Implements the B<BEP 07> extension for IPv6. Each peer is represented as 18 bytes (16 for IP, 2 for Port).
 
 =head2 C<unpack_peers_ipv6( $data )>
 
 Unpacks an 18-byte-per-peer binary string into IPv6 peer hashrefs.
 
-=head1 SPECIFICATIONS
+=head1 Specifications
 
 =over
 

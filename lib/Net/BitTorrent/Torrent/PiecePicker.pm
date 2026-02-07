@@ -2,13 +2,17 @@ use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
 #
-class Net::BitTorrent::Torrent::PiecePicker v2.0.0 {
+class Net::BitTorrent::Torrent::PiecePicker v2.0.0 : isa(Net::BitTorrent::Emitter) {
     use Acme::Selection::RarestFirst;
+    use constant { SEQUENTIAL => 0, RAREST_FIRST => 1, STREAMING => 2 };
+    use Exporter qw[import];
+    our %EXPORT_KEYS = ( all => [ our @EXPORT_OK = qw[SEQUENTIAL RAREST_FIRST STREAMING] ] );
+    #
     field $bitfield : param;
     field $rarest_first = Acme::Selection::RarestFirst->new( size => $bitfield->size );
     field $piece_priorities : param = undef;
     field @piece_priorities;
-    field $strategy : param : reader : writer = 'RAREST_FIRST';    # SEQUENTIAL, RAREST_FIRST, STREAMING
+    field $strategy : param : reader : writer = RAREST_FIRST;
     field $end_game : reader = 0;
     #
     ADJUST {
@@ -113,6 +117,6 @@ class Net::BitTorrent::Torrent::PiecePicker v2.0.0 {
         return undef;
     }
     method enter_end_game () { $end_game = 1 }
-    }
-    #
-    1;
+};
+#
+1;

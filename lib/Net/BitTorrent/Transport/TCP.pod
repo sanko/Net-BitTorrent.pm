@@ -1,3 +1,7 @@
+=pod
+
+=encoding utf-8
+
 =head1 NAME
 
 Net::BitTorrent::Transport::TCP - TCP transport shim for Net::BitTorrent
@@ -33,20 +37,20 @@ The underlying IO::Socket (or compatible) object.
 
 =head1 METHODS
 
-=head2 on ( $event, $cb )
+=head2 C<on( $event, $cb )>
 
-Registers a callback for an event (currently 'data' or 'connected').
+Registers a callback for an event (currently 'data', 'debug', or 'connected').
 
-=head2 send_data ($data)
+=head2 C<send_data( $data )>
 
 Buffers or returns data to be sent over the socket. In this shim implementation, it currently returns the data directly
 for the caller to handle.
 
-=head2 receive_data ($data)
+=head2 C<receive_data( $data )>
 
 Triggers the 'data' event with the provided raw data.
 
-=head2 state ()
+=head2 C<state( )>
 
 Returns 'CONNECTED' or 'CLOSED' based on the status of the underlying socket.
 

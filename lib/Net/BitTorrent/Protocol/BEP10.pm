@@ -1,10 +1,10 @@
 use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
-use lib '../lib';
+#
 class Net::BitTorrent::Protocol::BEP10 v2.0.0 : isa(Net::BitTorrent::Protocol::BEP52) {
     use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode bdecode];
-    use Carp qw[croak];
+    #
     field $local_extensions  : param : reader = {};
     field $remote_extensions : reader = {};
     field $remote_version    : reader = undef;
@@ -24,8 +24,11 @@ class Net::BitTorrent::Protocol::BEP10 v2.0.0 : isa(Net::BitTorrent::Protocol::B
 
     method send_ext_message ( $name, $payload ) {
         my $id = $remote_extensions->{$name};
-        croak "Remote does not support extension: $name" unless defined $id;
-        $self->send_message( EXTENDED, pack( 'C a*', $id, $payload ) );
+        unless ( defined $id ) {
+            $self = undef;    # must disconnect peer
+            return $self->_emit( debug => 'Remote does not support extension: ' . $name );
+        }
+        $self->send_message( EXTENDED => pack 'C a*', $id, $payload );
     }
 
     method _handle_message ( $id, $payload ) {
@@ -41,7 +44,7 @@ class Net::BitTorrent::Protocol::BEP10 v2.0.0 : isa(Net::BitTorrent::Protocol::B
                     $self->on_extended_message( $name, $payload );
                 }
                 else {
-                    warn "  [DEBUG] Received unknown extended message ID: $ext_id\n" if $self->debug;
+                    $self->_emit( debug => 'Received unknown extended message ID: ' . $ext_id );
                 }
             }
         }
@@ -63,13 +66,11 @@ class Net::BitTorrent::Protocol::BEP10 v2.0.0 : isa(Net::BitTorrent::Protocol::B
             }
         };
         if ( $@ || ref $data ne 'HASH' ) {
-            warn "  [ERROR] Malformed extended handshake: $@\n";
+            $self->_emit( debug => 'Malformed extended handshake: ' . $@ );
             return;
         }
         $remote_extensions = $data->{m} || {};
-        if ( $self->debug ) {
-            warn "    [DEBUG] Remote extensions: " . join( ", ", map {"$_=$remote_extensions->{$_}"} keys %$remote_extensions ) . "\n";
-        }
+        $self->_emit( debug => 'Remote extensions: ' . join( ', ', map {"$_=$remote_extensions->{$_}"} keys %$remote_extensions ) );
         $remote_version             = $data->{v}             if exists $data->{v};
         $remote_ip                  = $data->{yourip}        if exists $data->{yourip};
         $metadata_size              = $data->{metadata_size} if exists $data->{metadata_size};
@@ -94,4 +95,6 @@ class Net::BitTorrent::Protocol::BEP10 v2.0.0 : isa(Net::BitTorrent::Protocol::B
     # Overridable callbacks
     method on_ext_handshake    ($data)             { }
     method on_extended_message ( $name, $payload ) { }
-} 1;
+};
+#
+1;

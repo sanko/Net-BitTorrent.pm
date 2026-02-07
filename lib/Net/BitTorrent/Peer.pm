@@ -1,9 +1,9 @@
 use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
-
-class Net::BitTorrent::Peer {
-    use Carp qw[croak];
+#
+class Net::BitTorrent::Peer v2.0.0 : isa(Net::BitTorrent::Emitter) {
+    use constant { NONE => 0, PREFERRED => 1, REQUIRED => 2 };
     field $protocol        : param;                      # Instance of Net::BitTorrent::Protocol::BEP03 or subclass
     field $torrent         : param : reader;             # Parent Net::BitTorrent::Torrent object
     field $transport       : param : reader;             # Net::BitTorrent::Transport::*
@@ -22,26 +22,14 @@ class Net::BitTorrent::Peer {
     field $rate_up    : reader = 0;
     field $reputation : reader = 100;                    # Start at 100
     field $debug      : param : reader = 0;
-    field $encryption : param : reader = 'preferred';    # none, preferred, required
+    field $encryption : param : reader = PREFERRED;
     field $mse        : param = undef;
-    field %on;                                           # event_name => [ sub { ... }, ... ]
     field @allowed_fast_set;                             # Pieces we are allowed to request even if choked
     field @suggested_pieces;
     field $pwp_handshake_sent = 0;
-
-    method on ( $event, $cb ) {
-        push $on{$event}->@*, $cb;
-        return $self;
-    }
-
-    method _emit ( $event, @args ) {
-        for my $cb ( $on{$event}->@* ) {
-            eval { $cb->( $self, @args ) };
-            warn "  [ERROR] Callback for $event failed: $@" if $@;
-        }
-    }
+    #
     method protocol ()     {$protocol}
-    method is_encrypted () { defined $mse             && $mse->state eq 'PAYLOAD' }
+    method is_encrypted () { defined $mse             && $mse->state == PAYLOAD }
     method is_seeder ()    { defined $bitfield_status && $bitfield_status eq 'all' }
 
     method flags () {
@@ -60,7 +48,7 @@ class Net::BitTorrent::Peer {
             $mse = Net::BitTorrent::Protocol::MSE->new(
                 info_hash       => $torrent ? ( $torrent->info_hash_v1 // $torrent->info_hash_v2 ) : undef,
                 is_initiator    => 1,                                                                         # Outgoing
-                allow_plaintext => ( $encryption eq 'preferred' ? 1 : 0 ),
+                allow_plaintext => ( $encryption == PREFERRED ? 1 : 0 ),
             );
             if ( $mse->supported ) {
                 $transport->set_filter($mse);
@@ -72,23 +60,20 @@ class Net::BitTorrent::Peer {
         my $weak_self = $self;
         builtin::weaken($weak_self);
         $transport->on(
-            'data',
-            sub ($data) {
+            data => sub ($data) {
                 $weak_self->receive_data($data) if $weak_self;
             }
         );
         $transport->on(
-            'disconnected',
-            sub {
+            disconnected => sub {
                 $weak_self->disconnected() if $weak_self;
             }
         );
         $transport->on(
-            'filter_failed',
-            sub ($leftover) {
+            filter_failed => sub ($leftover) {
                 return unless $weak_self;
-                return                                                      if $weak_self->encryption eq 'required';
-                warn "    [DEBUG] Falling back to plaintext handshake...\n" if $weak_self->debug;
+                return if $weak_self->encryption == REQUIRED;
+                $self->_emit( debug => 'Falling back to plaintext handshake...' );
 
                 # We can't easily change $mse from here because it's a field
                 # but we can call a method or just use it.
@@ -100,11 +85,10 @@ class Net::BitTorrent::Peer {
             }
         );
         $transport->on(
-            'connected',
-            sub {
+            connected => sub {
                 return unless $weak_self;
                 if ($mse) {
-                    warn "    [DEBUG] Starting MSE handshake...\n" if $weak_self->debug;
+                    $self->_emit('Starting MSE handshake...');
 
                     # Handshake is driven by transport filter's write_buffer in tick()
                 }
@@ -115,8 +99,7 @@ class Net::BitTorrent::Peer {
             }
         );
         $self->on(
-            'handshake_complete',
-            sub {
+            handshake_complete => sub {
                 return unless $weak_self;
 
                 # Some peers need us to be unchoked/interested to talk to us
@@ -135,16 +118,14 @@ class Net::BitTorrent::Peer {
                 }
 
                 # If in METADATA mode, we don't send unchoke/interested yet
-                return if $torrent && $torrent->state eq 'METADATA';
+                return if $torrent && $torrent->state == METADATA;
                 $weak_self->unchoke();
                 $weak_self->_check_interest();
 
                 # BEP 06: Send Allowed Fast set immediately after handshake
                 if ( $protocol->isa('Net::BitTorrent::Protocol::BEP06') ) {
                     my $set = $torrent->get_allowed_fast_set( $weak_self->ip );
-                    for my $idx (@$set) {
-                        $protocol->send_allowed_fast($idx);
-                    }
+                    $protocol->send_allowed_fast($_) for @$set;
                 }
             }
         );
@@ -171,7 +152,7 @@ class Net::BitTorrent::Peer {
     }
 
     method receive_data ($data) {
-        warn "    [DEBUG] Peer received " . length($data) . " bytes of data\n" if $debug;
+        $self->_emit( debug => 'Peer received ' . length($data) . ' bytes of data' );
         $torrent->can_read( length $data );
         $protocol->receive_data($data);
     }
@@ -218,11 +199,11 @@ class Net::BitTorrent::Peer {
             my $hash = substr( $hashes, $i * $node_size, $node_size );
             $file->merkle->set_node( $base_layer, $index + $i, $hash );
         }
-        warn "    [DEBUG] Received and stored $num_hashes hashes for root " . unpack( 'H*', $root ) . " at layer $base_layer\n" if $debug;
+        $self->_emit( debug => "Received and stored $num_hashes hashes for root " . unpack( 'H*', $root ) . " at layer $base_layer" );
     }
 
     method handle_hash_reject ( $root, $proof_layer, $base_layer, $index, $length ) {
-        warn "    [DEBUG] Peer rejected hash request for root " . unpack( 'H*', $root ) . "\n" if $debug;
+        $self->_emit( debug => 'Peer rejected hash request for root ' . unpack( 'H*', $root ) );
     }
 
     method handle_metadata_request ($piece) {
@@ -268,19 +249,18 @@ class Net::BitTorrent::Peer {
     }
 
     method handle_hp_connect ( $ip, $port ) {
-        warn "    [BEP 55] Instructed to connect to $ip:$port\n" if $debug;
+        $self->_emit( debug => "[BEP 55] Instructed to connect to $ip:$port" );
 
         # Trigger uTP connection
         $torrent->client->connect_to_peer( $ip, $port, $torrent->info_hash_v2 || $torrent->info_hash_v1 );
     }
 
     method handle_hp_error ($err) {
-        warn "    [BEP 55] Received holepunch error: $err\n" if $debug;
+        $self->_emit( debug => "[BEP 55] Received holepunch error: $err" );
     }
 
     method handle_message ( $id, $payload ) {
-
-        # warn '  [DEBUG] Peer ' . ($socket ? $socket->peerhost : 'sim') . " sent message ID $id (len " . length($payload) . ")\n";
+        $self->_emit( debug => 'Peer ' . ( $socket ? $socket->peerhost : 'sim' ) . " sent message ID $id (len " . length($payload) . ')' );
         if ( $id == 0 ) {    # CHOKE
             $peer_choking = 1;
             $self->_emit('choked');
@@ -443,7 +423,7 @@ class Net::BitTorrent::Peer {
     }
 
     method _handle_piece_data ( $index, $begin, $data ) {
-        warn "    [DEBUG] Received " . length($data) . " bytes for piece $index at $begin\n" if $debug;
+        $self->_emit( debug => 'Received ' . length($data) . " bytes for piece $index at $begin" );
         $bytes_down += length($data);
         $blocks_inflight--;
         my $status = $torrent->receive_block( $self, $index, $begin, $data );
@@ -509,9 +489,10 @@ class Net::BitTorrent::Peer {
     method adjust_reputation ($delta) {
         $reputation += $delta;
         if ( $reputation <= 50 ) {
-            warn "    [PEER] Blacklisting peer $ip:$port due to low reputation ($reputation)\n" if $debug;
+            $self->_emit( debug => "Blacklisting peer $ip:$port due to low reputation ($reputation)" );
             $self->disconnected();
         }
     }
-}
+};
+#
 1;

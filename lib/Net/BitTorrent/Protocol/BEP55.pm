@@ -1,14 +1,13 @@
 use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
-
+#
 class Net::BitTorrent::Protocol::BEP55 : isa(Net::BitTorrent::Protocol::BEP11) {
     use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode bdecode];
     use Net::BitTorrent::Protocol::BEP23;
-    use Carp qw[croak];
 
     # BEP 55 Message IDs (internal to ut_holepunch)
-    use constant { HP_RENDEZVOUS => 0, HP_CONNECT => 1, HP_ERROR => 2, };
+    use constant { HP_RENDEZVOUS => 0, HP_CONNECT => 1, HP_ERROR => 2 };
 
     method send_hp_rendezvous ($target_id) {
         return unless exists $self->remote_extensions->{ut_holepunch};
@@ -43,7 +42,7 @@ class Net::BitTorrent::Protocol::BEP55 : isa(Net::BitTorrent::Protocol::BEP11) {
                 }
             };
             if ( $@ || ref $dict ne 'HASH' ) {
-                warn "  [ERROR] Malformed ut_holepunch message: $@\n";
+                $self->_emit( debug => 'Malformed ut_holepunch message: ' . $@ );
                 return;
             }
             if ( $type == HP_RENDEZVOUS ) {
@@ -63,33 +62,6 @@ class Net::BitTorrent::Protocol::BEP55 : isa(Net::BitTorrent::Protocol::BEP11) {
     method on_hp_rendezvous ($id)          { }
     method on_hp_connect    ( $ip, $port ) { }
     method on_hp_error      ($err)         { }
-}
+};
+#
 1;
-__END__
-
-=pod
-
-=head1 NAME
-
-Net::BitTorrent::Protocol::BEP55 - Holepunching Extension (NAT Traversal)
-
-=head1 DESCRIPTION
-
-This module implements the C<ut_holepunch> extension (BEP 55), allowing  peers to coordinate NAT traversal for uTP
-connections.
-
-=head1 METHODS
-
-=head2 send_hp_rendezvous($target_id)
-
-Requests a rendezvous with a target peer via this peer.
-
-=head2 send_hp_connect($ip, $port)
-
-Instructs a target peer to connect back to a source peer.
-
-=head2 send_hp_error($err_code)
-
-Sends an error message (e.g. peer not found).
-
-=cut

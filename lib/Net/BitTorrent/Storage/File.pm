@@ -1,40 +1,40 @@
 use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
-class Net::BitTorrent::Storage::File v2.0.0 {
+#
+class Net::BitTorrent::Storage::File v2.0.0 : isa(Net::BitTorrent::Emitter) {
     use Digest::Merkle::SHA256;
-    use Path::Tiny  qw();
+    use Path::Tiny  qw[];
     use Carp        qw[croak];
     use Digest::SHA qw[sha256];
+    #
     field $file_path   : param(path) : reader(path);
     field $size        : param       : reader;
     field $pieces_root : param       : reader = undef;
     field $piece_size  : param       : reader = 0;
     field $merkle      : reader;
+    #
     ADJUST {
-        $file_path = Path::Tiny::path($file_path);
-        if ($pieces_root) {
-            $merkle = Digest::Merkle::SHA256->new( file_size => $size );
-        }
+        $file_path = Path::Tiny::path($file_path) unless builtin::blessed($file_path);
+        $merkle    = Digest::Merkle::SHA256->new( file_size => $size ) if $pieces_root;
     }
 
     method verify_block ( $index, $data ) {
-        croak 'File does not have Merkle tree (no pieces root)' unless $merkle;
-        my $old_hash = $merkle->get_node( $merkle->height, $index );
-        my $hash     = sha256($data);
-        $merkle->set_block( $index, $hash );
-        if ( $merkle->root eq $pieces_root ) {
-            return 1;
-        }
-        else {
+        if ( defined $merkle ) {
+            my $old_hash = $merkle->get_node( $merkle->height, $index );
+            my $hash     = sha256($data);
+            $merkle->set_block( $index, $hash );
+            return 1 if $merkle->root eq $pieces_root;
             $merkle->set_block( $index, $old_hash );
             return 0;
         }
+        $self->_emit( debug => 'File does not have Merkle tree (no pieces root)' );
+        0;
     }
 
     method verify_block_audit ( $index, $data, $audit_path ) {
-        croak 'File does not have pieces root' unless $pieces_root;
-        return Digest::Merkle::SHA256->verify_hash( $index, sha256($data), $audit_path, $pieces_root );
+        return Digest::Merkle::SHA256->verify_hash( $index, sha256($data), $audit_path, $pieces_root ) if $pieces_root;
+        $self->_emit( debug => 'File does not have pieces root' );
     }
 
     method verify_piece_v2 ( $index, $data, $expected_hash ) {
@@ -51,7 +51,7 @@ class Net::BitTorrent::Storage::File v2.0.0 {
         }
         else {
             my $tmp_merkle = Digest::Merkle::SHA256->new( file_size => length($data), block_size => $block_size );
-            for ( my $i = 0; $i < $num_blocks; $i++ ) {
+            for my $i ( 0 .. $num_blocks - 1 ) {
                 $tmp_merkle->set_block( $i, sha256( substr( $data, $i * $block_size, $block_size ) ) );
             }
             $actual_hash = $tmp_merkle->root;
@@ -60,7 +60,7 @@ class Net::BitTorrent::Storage::File v2.0.0 {
 
             # If we have a full merkle tree, we can populate its leaves now
             if ($merkle) {
-                for ( my $i = 0; $i < $num_blocks; $i++ ) {
+                for my $i ( 0 .. $num_blocks - 1 ) {
                     $merkle->set_block( $index * $blocks_per_piece + $i, sha256( substr( $data, $i * $block_size, $block_size ) ) );
                 }
             }
@@ -74,13 +74,13 @@ class Net::BitTorrent::Storage::File v2.0.0 {
         return undef unless $file_path->exists;
         my $fh = $file_path->openr_raw;
         seek $fh, $offset, 0;
-        read( $fh, my $chunk, $length );
-        return $chunk;
+        read $fh, my $chunk, $length;
+        $chunk;
     }
 
     method write ( $offset, $data ) {
         $self->_ensure_exists();
-        warn "    [DEBUG] Writing " . length($data) . " bytes to $file_path at offset $offset\n";
+        $self->_emit( debug => 'Writing ' . length($data) . " bytes to $file_path at offset $offset" );
         my $fh = $file_path->openrw_raw;
         seek $fh, $offset, 0;
         print {$fh} $data or die "Failed to write to $file_path: $!";
@@ -100,14 +100,8 @@ class Net::BitTorrent::Storage::File v2.0.0 {
             }
         }
     }
-
-    method dump_state () {
-        return { merkle => ( $merkle ? $merkle->dump_state : undef ), };
-    }
-
-    method load_state ($state) {
-        if ( $merkle && $state->{merkle} ) {
-            $merkle->load_state( $state->{merkle} );
-        }
-    }
-} 1;
+    method dump_state ()       { { merkle => ( $merkle ? $merkle->dump_state : undef ) } }
+    method load_state ($state) { $merkle->load_state( $state->{merkle} ) if $merkle && $state->{merkle} }
+};
+#
+1;

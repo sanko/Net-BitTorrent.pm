@@ -4,35 +4,42 @@
 
 =head1 NAME
 
-Net::BitTorrent::Protocol::BEP53 - Magnet URI extension (v2 support) (v2.0.0)
+Net::BitTorrent::Protocol::BEP53 - Magnet URI extension (v2 support)
 
 =head1 SYNOPSIS
 
     use Net::BitTorrent::Protocol::BEP53;
 
     # Parse an incoming URI
-    my $m = Net::BitTorrent::Protocol::BEP53->parse($uri_string);
+    my $m = Net::BitTorrent::Protocol::BEP53->parse( $uri_string );
 
-    say "Name: " . $m->name;
-    say "V2 Hash: " . unpack('H*', $m->info_hash_v2) if $m->info_hash_v2;
+    say 'Name: ' . $m->name;
+    say 'V2 Hash: ' . unpack('H*', $m->info_hash_v2) if $m->info_hash_v2;
 
     # Generate a new URI
     my $new_uri = Net::BitTorrent::Protocol::BEP53->new(
         info_hash_v2 => $ih2,
-        name         => "Special Linux Distro",
-        trackers     => ["udp://tracker.example.com:80"]
+        name         => 'Special Linux Distro',
+        trackers     => ['udp://tracker.example.com:80']
     )->to_string();
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Protocol::BEP53> implements the B<Magnet URI extension (BEP 53)>. It provides a robust parser and
-generator for magnet links, specifically updated to support the multihash SHA-256 identifiers required for B<BitTorrent
-v2>.
+C<Net::BitTorrent::Protocol::BEP53> implements the magnet URI extension (BEP 53). It provides a robust parser and
+generator for magnet links, specifically updated to support the multihash SHA-256 identifiers required for BitTorrent
+v2.
 
 =head2 Multihash Support
 
-This module correctly identifies and extracts: * B<v1 (legacy)>: C<urn:btih:...> (SHA-1) * B<v2 (modern)>:
-C<urn:btmh:1220...> (SHA-256 multihash)
+This module correctly identifies and extracts:
+
+=over
+
+=item v1 (legacy): C<urn:btih:...> (SHA-1)
+
+=item v2 (modern): C<urn:btmh:1220...> (SHA-256 multihash)
+
+=back
 
 =head1 METHODS
 
@@ -40,25 +47,25 @@ C<urn:btmh:1220...> (SHA-256 multihash)
 
 Class method. Deconstructs a magnet string into an object. Supports both C<&> and C<;> separators.
 
-=head2 C<to_string()>
+=head2 C<to_string( )>
 
 Generates a URI-encoded magnet string based on the object's current state.
 
-=head2 C<info_hash_v1()> / C<info_hash_v2()>
+=head2 C<info_hash_v1( )> / C<info_hash_v2( )>
 
 Returns the binary info-hash strings. C<info_hash_v2> is returned B<without> the 4-byte multihash prefix (C<0x12
 0x20>).
 
-=head2 C<trackers()>
+=head2 C<trackers( )>
 
 Returns an arrayref of C<tr> (tracker) URLs found in the URI.
 
-=head2 C<nodes()>
+=head2 C<nodes( )>
 
-Returns an arrayref of C<x.pe> (Peer Exchange) nodes. These allow a client to connect directly to initial peers without
+Returns an arrayref of C<x.pe> (peer exchange) nodes. These allow a client to connect directly to initial peers without
 waiting for DHT or tracker responses.
 
-=head1 SPECIFICATIONS
+=head1 Specifications
 
 =over
 

@@ -8,7 +8,7 @@ Net::BitTorrent::Protocol::Simulation - BitTorrent protocol handler for swarm si
 
     my $proto = Net::BitTorrent::Protocol::Simulation->new(
         peer_id => $my_id,
-        info_hash => $ih,
+        info_hash => $ih
     );
     $proto->peer($peer_object);
 

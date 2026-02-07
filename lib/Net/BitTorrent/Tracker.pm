@@ -6,7 +6,7 @@ class Net::BitTorrent::Tracker v2.0.0 {
     use Net::BitTorrent::Tracker::HTTP;
     use Net::BitTorrent::Tracker::UDP;
     use List::Util qw[shuffle];
-    use Carp       qw[croak];
+    #
     field $tiers_raw : param;    # [ [url1, url2], [url3] ]
     field $debug : param = 0;
     field @tiers;                # [ [ { obj, last_announce, interval, ... }, ... ], ... ]
@@ -34,7 +34,8 @@ class Net::BitTorrent::Tracker v2.0.0 {
     method _create_tracker ($url) {
         if    ( $url =~ /^udp:/ )    { return Net::BitTorrent::Tracker::UDP->new( url => $url ) }
         elsif ( $url =~ /^https?:/ ) { return Net::BitTorrent::Tracker::HTTP->new( url => $url ) }
-        croak "Unsupported tracker protocol: $url";
+        warn "Unsupported tracker protocol: $url";
+        return;
     }
 
     method announce_all ( $params, $cb = undef ) {

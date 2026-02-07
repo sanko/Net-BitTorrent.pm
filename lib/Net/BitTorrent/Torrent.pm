@@ -1,8 +1,9 @@
 use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
-
-class Net::BitTorrent::Torrent {
+#
+class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
+    use constant { STOPPED => 0, STARTING => 1, RUNNING => 3, PAUSED => 5, METADATA => 2 };
     use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode bdecode];
     use Net::BitTorrent::Storage;
     use Net::BitTorrent::Tracker;
@@ -11,7 +12,6 @@ class Net::BitTorrent::Torrent {
     use Net::BitTorrent::Tracker::WebSeed;
     use Digest::SHA qw[sha1 sha256];
     use Path::Tiny;
-    use Carp qw[croak];
     use IO::Select;
     use IO::Socket::IP;
     #
@@ -49,7 +49,7 @@ class Net::BitTorrent::Torrent {
     field $bytes_uploaded   = 0;
     field $bytes_left       = 0;
     field @piece_priorities;
-    field $picking_strategy = 'RAREST_FIRST';
+    field $picking_strategy = Net::BitTorrent::Torrent::PiecePicker::RAREST_FIRST();
     field $is_partial_seed : reader : writer(set_partial_seed) = 0;
     field $is_superseed    : reader : writer(set_superseed)    = 0;
     field %superseed_offers;    # Peer object => piece_index
@@ -86,15 +86,14 @@ class Net::BitTorrent::Torrent {
     field $choke_timer             = 0;
     field $optimistic_timer        = 0;
     field $optimistic_unchoke_peer = undef;
-    field %on;                            # event_name => [ sub { ... }, ... ]
-    field $state : reader = 'STOPPED';    # STOPPED, STARTING, RUNNING, PAUSED, METADATA
+    field $state : reader          = STOPPED;
 
     # PEX (BEP 11) logic
     field $pex_timer        = 0;
     field $tracker_timer    = 0;
     field $dht_lookup_timer = 0;
-    field %pex_added;                     # ip:port => { ip, port }
-    field %pex_dropped;                   # ip:port => { ip, port }
+    field %pex_added;      # ip:port => { ip, port }
+    field %pex_dropped;    # ip:port => { ip, port }
 
     # Magnet/Metadata fetching
     field %metadata_pieces;
@@ -134,7 +133,7 @@ class Net::BitTorrent::Torrent {
 
     method is_finished () {
         return 0 unless $self->is_metadata_complete;
-        return 0 if $state eq 'METADATA';
+        return 0 if $state == METADATA;
         return $bytes_left == 0;
     }
 
@@ -147,7 +146,7 @@ class Net::BitTorrent::Torrent {
     }
 
     method is_running () {
-        return $state eq 'RUNNING' || $state eq 'STARTING' || $state eq 'METADATA';
+        return $state == RUNNING || $state == STARTING || $state == METADATA;
     }
 
     method name () {
@@ -157,15 +156,15 @@ class Net::BitTorrent::Torrent {
 
     method progress () {
         return 0 unless $self->is_metadata_complete;
-        return 0 if $state eq 'METADATA';
+        return 0 if $state == METADATA;
         my $total = $self->_calculate_total_size();
         return 100 if $total == 0;
         return ( ( $total - $bytes_left ) / $total ) * 100;
     }
 
     method start () {
-        return if $state ne 'STOPPED';
-        $state = 'STARTING';
+        return if $state != STOPPED;
+        $state = STARTING;
         $self->announce('started');
         $self->start_dht_lookup() unless $is_private;
 
@@ -181,18 +180,18 @@ class Net::BitTorrent::Torrent {
             );
         }
         if ( !$metadata ) {
-            $state = 'METADATA';
-            warn "  [DEBUG] Torrent starting in METADATA mode\n" if $debug;
+            $state = METADATA;
+            $self->_emit( debug => 'Torrent starting in METADATA mode' );
         }
         else {
-            $state = 'RUNNING';
+            $state = RUNNING;
             $self->_emit('started');
         }
     }
 
     method stop () {
-        return if $state eq 'STOPPED';
-        $state = 'STOPPED';
+        return if $state == STOPPED;
+        $state = STOPPED;
         $storage->explicit_flush() if $storage;
         $self->announce('stopped');
         for my $peer ( values %peer_objects ) {
@@ -204,14 +203,14 @@ class Net::BitTorrent::Torrent {
     }
 
     method pause () {
-        return if $state ne 'RUNNING' && $state ne 'METADATA';
-        $state = 'PAUSED';
+        return if $state != RUNNING && $state != METADATA;
+        $state = PAUSED;
         $self->_emit('paused');
     }
 
     method resume () {
-        return if $state ne 'PAUSED';
-        $state = 'RUNNING';
+        return if $state != PAUSED;
+        $state = RUNNING;
         $self->_emit('resumed');
     }
 
@@ -222,12 +221,11 @@ class Net::BitTorrent::Torrent {
         }
     }
     ADJUST {
-        warn "    [DEBUG] Torrent::ADJUST path=" .
-            ( $path         // 'undef' ) . " ih=" .
-            ( $info_hash    // 'undef' ) . " v1=" .
-            ( $info_hash_v1 // 'undef' ) . " v2=" .
-            ( $info_hash_v2 // 'undef' ) . "\n"
-            if $debug;
+        $self->_emit( 'Torrent::ADJUST path=' .
+                ( $path         // 'undef' ) . ' ih=' .
+                ( $info_hash    // 'undef' ) . ' v1=' .
+                ( $info_hash_v1 // 'undef' ) . ' v2=' .
+                ( $info_hash_v2 // 'undef' ) );
         builtin::weaken($client) if defined $client;
         $features = { %{ $client->features // {} } };
         $peer_id //= $client->node_id;
@@ -237,7 +235,7 @@ class Net::BitTorrent::Torrent {
         if ($path) {
             my $data = path($path)->slurp_raw;
             $metadata = bdecode($data);
-            croak 'Missing info dictionary' unless ref $metadata eq 'HASH' && ref $metadata->{info} eq 'HASH';
+            return !$self->_emit( debug => 'Missing info dictionary' ) unless ref $metadata eq 'HASH' && ref $metadata->{info} eq 'HASH';
             $self->_init_from_metadata();
         }
         elsif ( $info_hash || $info_hash_v1 || $info_hash_v2 ) {
@@ -249,7 +247,7 @@ class Net::BitTorrent::Torrent {
                     $info_hash_v2 = $info_hash;
                 }
                 else {
-                    croak 'Invalid info_hash length';
+                    return !$self->_emit( debug => 'Invalid info_hash length' );
                 }
             }
             my @tiers = map { [$_] } @$initial_trackers;
@@ -261,7 +259,8 @@ class Net::BitTorrent::Torrent {
             }
         }
         else {
-            croak 'Either path or info_hash required';
+            $self->_emit( debug => 'Either path or info_hash required' );
+            $self = undef;
         }
     }
 
@@ -366,7 +365,7 @@ class Net::BitTorrent::Torrent {
         $picker = Net::BitTorrent::Torrent::PiecePicker->new(
             bitfield         => $bitfield,
             piece_priorities => \@piece_priorities,
-            strategy         => $picking_strategy,
+            strategy         => $picking_strategy
         );
     }
 
@@ -403,7 +402,7 @@ class Net::BitTorrent::Torrent {
     }
 
     method tick ( $delta = 0.1 ) {
-        return if $state eq 'STOPPED' || $state eq 'PAUSED';
+        return if $state == STOPPED || $state == PAUSED;
         $limit_up->tick($delta);
         $limit_down->tick($delta);
         $storage->tick($delta) if $storage;
@@ -412,10 +411,10 @@ class Net::BitTorrent::Torrent {
         $self->_attempt_connections() if keys %peer_objects < 50;
         for my $peer ( values %peer_objects ) {
             $peer->tick();
-            if ( $state eq 'METADATA' ) {
+            if ( $state == METADATA ) {
                 $self->_request_metadata($peer);
             }
-            elsif ( $state eq 'RUNNING' ) {
+            elsif ( $state == RUNNING ) {
 
                 # Update interest
                 my $is_interesting = $picker->is_interesting($peer);
@@ -453,7 +452,7 @@ class Net::BitTorrent::Torrent {
         $dht_lookup_timer += $delta;
 
         # Accelerate DHT lookups during startup/metadata phase or if starved for peers
-        my $dht_interval = ( $state eq 'METADATA' || keys %peer_objects < 5 ) ? 2 : 120;
+        my $dht_interval = ( $state == METADATA || keys %peer_objects < 5 ) ? 2 : 120;
         if ( $dht_lookup_timer >= $dht_interval ) {
             $self->_update_dht_search();
             $dht_lookup_timer = 0;
@@ -655,7 +654,7 @@ class Net::BitTorrent::Torrent {
 
         # Initialize picker
         $picker = Net::BitTorrent::Torrent::PiecePicker->new( bitfield => $bitfield, );
-        $state  = 'RUNNING';
+        $state  = RUNNING;
         $self->_emit('started');
 
         # Re-initialize peer bitfields now that we have the size
@@ -796,7 +795,7 @@ class Net::BitTorrent::Torrent {
     }
 
     method get_next_request ($peer) {
-        return undef if $state ne 'RUNNING';
+        return undef if $state != RUNNING;
         my $p_bf = $peer_bitfields{$peer};
         if ( !$p_bf ) {
 
@@ -1217,7 +1216,7 @@ class Net::BitTorrent::Torrent {
             bitfield   => $bitfield->data,
             storage    => $storage->dump_state(),
             downloaded => $bytes_downloaded,
-            uploaded   => $bytes_uploaded,
+            uploaded   => $bytes_uploaded
         };
     }
 
@@ -1262,5 +1261,6 @@ class Net::BitTorrent::Torrent {
         }
         return $tree;
     }
-}
+};
+#
 1;

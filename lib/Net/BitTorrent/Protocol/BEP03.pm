@@ -2,18 +2,19 @@ use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
 #
-class Net::BitTorrent::Protocol::BEP03 {
-    use Carp qw[croak];
+class Net::BitTorrent::Protocol::BEP03 v2.0.0 : isa(Net::BitTorrent::Emitter) {
+    use constant { HANDSHAKE => 0, OPEN => 1, CLOSED => 2 };
     #
     field $info_hash : param = undef;
     field $peer_id   : param : reader;
-    field $reserved  : param : reader : writer = "\0" x 8;
+    field $reserved  : param : reader : writer //= "\0" x 8;
     field $debug     : param : reader = 0;
-    field $state     : reader = 'HANDSHAKE';    # HANDSHAKE, OPEN, CLOSED
+    field $state     : reader = HANDSHAKE;
     field $buffer_in            = '';
     field $buffer_out           = '';
     field $handshake_sent       = 0;
     field $detected_ih : reader = undef;
+    field $processing           = 0;
 
     # Message IDs
     use constant {
@@ -30,7 +31,7 @@ class Net::BitTorrent::Protocol::BEP03 {
         # BEP 52
         HASH_REQUEST => 21,
         HASHES       => 22,
-        HASH_REJECT  => 23,
+        HASH_REJECT  => 23
     };
 
     method set_reserved_bit ( $byte, $mask ) {
@@ -41,12 +42,12 @@ class Net::BitTorrent::Protocol::BEP03 {
     }
 
     method send_handshake () {
-        croak 'info_hash required to send handshake' unless defined $info_hash;
+        return $self->_emit( debug => 'info_hash required to send handshake' ) unless defined $info_hash;
         my $ih_len = CORE::length($info_hash);
-        croak 'Info hash must be 20 or 32 bytes'                                    if $ih_len != 20 && $ih_len != 32;
-        warn "    [DEBUG] Sending handshake (" . unpack( 'H*', $info_hash ) . ")\n" if $debug;
+        return $self - _emit( debug => 'Info hash must be 20 or 32 bytes' ) if $ih_len != 20 && $ih_len != 32;
+        $self->_emit( debug => 'Sending handshake (' . unpack( 'H*', $info_hash ) . ')' );
         my $raw = pack( 'C A19 a8', 19, 'BitTorrent protocol', $reserved ) . $info_hash . $peer_id;
-        warn "    [DEBUG] Handshake hex: " . unpack( 'H*', $raw ) . "\n" if $debug;
+        $self->_emit( debug => 'Handshake hex: ' . unpack( 'H*', $raw ) );
         $buffer_out .= $raw;
         $handshake_sent = 1;
     }
@@ -54,9 +55,8 @@ class Net::BitTorrent::Protocol::BEP03 {
     method write_buffer () {
         my $tmp = $buffer_out;
         $buffer_out = '';
-        return $tmp;
+        $tmp;
     }
-    field $processing = 0;
 
     method receive_data ($data) {
         $buffer_in .= $data;
@@ -67,17 +67,17 @@ class Net::BitTorrent::Protocol::BEP03 {
     }
 
     method _process_buffer () {
-        if ( $state eq 'OPEN' ) {
+        if ( $state != OPEN ) {
             $self->_process_messages();
             return;
         }
         my $old_state;
-        while ( $state ne 'CLOSED' && ( !$old_state || $old_state ne $state ) ) {
+        while ( $state != CLOSED && ( !$old_state || $old_state ne $state ) ) {
             $old_state = $state;
-            if ( $state eq 'HANDSHAKE' ) {
+            if ( $state == HANDSHAKE ) {
                 $self->_process_handshake();
             }
-            if ( $state eq 'OPEN' ) {
+            if ( $state == OPEN ) {
                 $self->_process_messages();
             }
         }
@@ -87,14 +87,15 @@ class Net::BitTorrent::Protocol::BEP03 {
         return if length($buffer_in) < 1;
         my $pstrlen = ord( substr( $buffer_in, 0, 1 ) );
         if ( $pstrlen != 19 ) {
-            $state = 'CLOSED';
-            croak 'Invalid protocol string (expected 19, got ' . $pstrlen . ') hex: ' . unpack( 'H*', substr( $buffer_in, 0, 20 ) );
+            $state = CLOSED;
+            $self->_emit(
+                debug => 'Invalid protocol string (expected 19, got ' . $pstrlen . ') hex: ' . unpack( 'H*', substr( $buffer_in, 0, 20 ) ) );
         }
         return if length($buffer_in) < 1 + $pstrlen + 8 + 20 + 20;    # Min v1 handshake (68 bytes)
         my $pstr = substr( $buffer_in, 1, $pstrlen );
         if ( $pstr ne 'BitTorrent protocol' ) {
-            $state = 'CLOSED';
-            croak 'Invalid protocol string';
+            $state = CLOSED;
+            $self->_emit( debug => 'Invalid protocol string: ' . $pstr );
         }
 
         # We have at least 68 bytes.
@@ -132,31 +133,29 @@ class Net::BitTorrent::Protocol::BEP03 {
         if ( defined $info_hash && $remote_ih ne $info_hash ) {
 
             # If we were expecting v2 but got v1, it might fail here.
-            $state = 'CLOSED';
-            croak 'Info hash mismatch';
+            $state = CLOSED;
+            $self->_emit( debug => 'Info hash mismatch' );
         }
         substr( $buffer_in, 0, $handshake_len, '' );
-        $state       = 'OPEN';
+        $state       = OPEN;
         $detected_ih = $remote_ih;
         $reserved    = $remote_res;
-        warn "    [DEBUG] Received handshake from " . unpack( 'H*', $remote_id ) . "\n" if $debug;
+        $self->_emit( debug => 'Received handshake from ' . unpack( 'H*', $remote_id ) );
         $self->on_handshake( $remote_ih, $remote_id );
     }
 
     method _process_messages () {
         while ( length($buffer_in) >= 4 ) {
-            my $msg_len = unpack( 'N', substr( $buffer_in, 0, 4 ) );
+            my $msg_len = unpack 'N', substr( $buffer_in, 0, 4 );
             if ( $msg_len == 0 ) {
-                substr( $buffer_in, 0, 4, '' );    # Keep-alive
+                substr $buffer_in, 0, 4, '';    # Keep-alive
                 next;
             }
-            if ( length($buffer_in) < 4 + $msg_len ) {
-                return;
-            }
+            return if length($buffer_in) < 4 + $msg_len;
             my $raw_msg = substr( $buffer_in, 0, 4 + $msg_len, '' );
             my $id      = unpack( 'C', substr( $raw_msg, 4, 1 ) );
             my $payload = substr( $raw_msg, 5 );
-            warn "    [DEBUG] Received message ID $id (len " . length($payload) . ")\n" if $debug;
+            $self->_emit( debug => "Received message ID $id (len " . length($payload) . ')' );
             $self->_handle_message( $id, $payload );
         }
     }
@@ -164,24 +163,14 @@ class Net::BitTorrent::Protocol::BEP03 {
     method _handle_message ( $id, $payload ) { }
 
     method send_message ( $id, $payload = '' ) {
-        warn "    [DEBUG] Sending message ID $id (len " . length($payload) . ")\n" if $debug;
+        $self->_emit( debug => "Sending message ID $id (len " . length($payload) . ')' );
         $buffer_out .= pack( 'N C a*', 1 + length($payload), $id, $payload );
     }
-
-    method send_keepalive () {
-        $buffer_out .= pack( 'N', 0 );
-    }
+    method send_keepalive ()      { $buffer_out .= pack( 'N', 0 ) }
     method send_choke ()          { $self->send_message(CHOKE) }
     method send_unchoke ()        { $self->send_message(UNCHOKE) }
     method send_interested ()     { $self->send_message(INTERESTED) }
     method send_not_interested () { $self->send_message(NOT_INTERESTED) }
-
-    method send_have ($index) {
-        $self->send_message( HAVE, pack( 'N', $index ) );
-    }
-
-    method send_bitfield ($data) {
-        $self->send_message( BITFIELD, $data );
-    }
-}
-1;
+    method send_have     ($index) { $self->send_message( HAVE,     pack( 'N', $index ) ) }
+    method send_bitfield ($data)  { $self->send_message( BITFIELD, $data ) }
+} 1;

@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Protocol::BEP09 - Metadata Exchange (Magnet Links) (v2.0.0)
+Net::BitTorrent::Protocol::BEP09 - Metadata Exchange (Magnet Links)
 
 =head1 SYNOPSIS
 
@@ -23,11 +23,11 @@ Net::BitTorrent::Protocol::BEP09 - Metadata Exchange (Magnet Links) (v2.0.0)
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Protocol::BEP09> implements the B<Extension for Peers to Send Metadata  Files (BEP 09)>. This is the
-protocol that makes B<Magnet Links> work by allowing a client  to download the torrent's C<info> dictionary directly
-from other peers when the local  C<.torrent> file is missing.
+C<Net::BitTorrent::Protocol::BEP09> implements the B<Extension for Peers to Send Metadata Files (BEP 09)>. This is the
+protocol that makes B<Magnet Links> work by allowing a client to download the torrent's C<info> dictionary directly
+from other peers when the local C<.torrent> file is missing.
 
-It works as a sub-protocol of the B<Extension Protocol (BEP 10)>, using the C<ut_metadata>  message name.
+It works as a sub-protocol of the B<Extension Protocol (BEP 10)>, using the C<ut_metadata> message name.
 
 =head1 METHODS
 
@@ -37,8 +37,20 @@ Sends a request for a 16KiB segment of the info dictionary.
 
 =head2 C<send_metadata_data( $piece_index, $total_size, $data )>
 
-Sends a metadata segment to a peer.  * C<$piece_index>: The segment index being sent. * C<$total_size>: The full length
-of the info dictionary. * C<$data>: The raw binary bencoded data for this segment.
+Sends a metadata segment to a peer.
+
+
+Parameters:
+
+=over
+
+=item * C<$piece_index>: The segment index being sent.
+
+=item * C<$total_size>: The full length of the info dictionary.
+
+=item * C<$data>: The raw binary bencoded data for this segment.
+
+=back
 
 =head2 C<send_metadata_reject( $piece_index )>
 
@@ -50,7 +62,7 @@ Informs the peer that the metadata request cannot be fulfilled.
 
 Overridable handlers for incoming metadata messages.
 
-=head1 SPECIFICATIONS
+=head1 Specifications
 
 =over
 

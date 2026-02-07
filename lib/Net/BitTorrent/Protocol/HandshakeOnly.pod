@@ -10,7 +10,7 @@ Net::BitTorrent::Protocol::HandshakeOnly - BitTorrent handshake-only protocol ha
         on_handshake_cb => sub ( $ih, $id ) {
             say "Received handshake for $ih from $id";
         },
-        peer_id => $my_id,
+        peer_id => $my_id
     );
 
 =head1 DESCRIPTION
@@ -21,9 +21,9 @@ used when the local client does not yet know which torrent an incoming connectio
 It processes the initial handshake and then triggers a callback, allowing the client to upgrade the connection to a
 full protocol handler once the info hash is known.
 
-=head1 ATTRIBUTES
+=head1 FIELDS
 
-=head2 on_handshake_cb
+=head2 C<on_handshake_cb>
 
 A coderef that is called when a valid handshake is received. It receives the info hash and peer ID as arguments.
 

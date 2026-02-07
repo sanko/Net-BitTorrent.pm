@@ -1,26 +1,27 @@
 use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
+#
 class Net::BitTorrent::Torrent::Generator v2.0.0 {
     use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode];
     use Digest::SHA qw[sha1 sha256];
     use Path::Tiny;
     use Carp qw[croak];
+    #
     field $base_path : param;
-    field $piece_length : param = 262144;    # 256KiB
+    field $piece_length : param //= 262144;    # 256KiB
     field @files;
     field @trackers;
     field @nodes;
-    field $private     = 0;
-    field $align_files = 0;
-    method set_align_files ($val)     { $align_files = $val }
-    method set_private     ($val)     { $private     = $val }
-    method add_tracker     ($url)     { push @trackers, $url }
-    method add_node        ( $h, $p ) { push @nodes,    [ $h, $p ] }
+    field $private     : param : writer //= 0;
+    field $align_files : param : writer //= 0;
+    #
+    method add_tracker ($url)     { push @trackers, $url }
+    method add_node    ( $h, $p ) { push @nodes,    [ $h, $p ] }
 
     method add_file ($rel_path) {
         my $abs = path($base_path)->child($rel_path);
-        croak "File does not exist: $abs" unless $abs->exists;
+        croak 'File does not exist: ' . $abs unless $abs->exists;
         if ( $align_files && @files && $files[-1]{size} % $piece_length != 0 ) {
             my $pad = $piece_length - ( $files[-1]{size} % $piece_length );
             push @files, { rel => ".pad/$pad", size => $pad, padding => 1 };
@@ -31,7 +32,7 @@ class Net::BitTorrent::Torrent::Generator v2.0.0 {
     method generate_v1 () {
         my $info = $self->_base_info();
         $info->{pieces} = $self->_generate_pieces_v1();
-        return $self->_wrap_torrent($info);
+        $self->_wrap_torrent($info);
     }
 
     method generate_v2 () {
@@ -41,9 +42,9 @@ class Net::BitTorrent::Torrent::Generator v2.0.0 {
             'piece length' => $piece_length,
             'file tree'    => $file_tree,
             'meta version' => 2,
-            private        => $private,
+            private        => $private
         };
-        return $self->_wrap_torrent( $info, $piece_layers );
+        $self->_wrap_torrent( $info, $piece_layers );
     }
 
     method generate_hybrid () {
@@ -52,7 +53,7 @@ class Net::BitTorrent::Torrent::Generator v2.0.0 {
         $info->{'file tree'}    = $file_tree;
         $info->{'meta version'} = 2;
         $info->{pieces}         = $self->_generate_pieces_v1();
-        return $self->_wrap_torrent( $info, $piece_layers );
+        $self->_wrap_torrent( $info, $piece_layers );
     }
 
     method _base_info () {
@@ -63,16 +64,16 @@ class Net::BitTorrent::Torrent::Generator v2.0.0 {
         else {
             $info->{files} = [ map { { length => $_->{size}, path => [ split m{/}, $_->{rel} ] } } @files ];
         }
-        return $info;
+        $info;
     }
 
     method _wrap_torrent ( $info, $piece_layers = undef ) {
-        my $torrent = { info => $info, 'created by' => 'Net::BitTorrent 2.0.0', 'creation date' => time(), };
+        my $torrent = { info => $info, 'created by' => 'Net::BitTorrent ' . our $VERSION, 'creation date' => time(), };
         $torrent->{'piece layers'}  = $piece_layers              if $piece_layers;
         $torrent->{announce}        = $trackers[0]               if @trackers;
         $torrent->{'announce-list'} = [ map { [$_] } @trackers ] if @trackers > 1;
         $torrent->{nodes}           = \@nodes                    if @nodes;
-        return bencode($torrent);
+        bencode($torrent);
     }
 
     method _generate_pieces_v1 () {
@@ -96,7 +97,7 @@ class Net::BitTorrent::Torrent::Generator v2.0.0 {
             }
         }
         $pieces .= sha1($buffer) if length($buffer) > 0;
-        return $pieces;
+        $pieces;
     }
 
     method _generate_v2_data () {
@@ -121,4 +122,6 @@ class Net::BitTorrent::Torrent::Generator v2.0.0 {
         }
         return ( $file_tree, \%piece_layers );
     }
-} 1;
+};
+#
+1;

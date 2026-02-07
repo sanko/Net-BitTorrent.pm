@@ -1,49 +1,50 @@
 use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
+#
 class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base) {
     use Net::BitTorrent::Protocol::BEP23;
     use IO::Socket::IP;
     use IO::Select;
-    use Carp qw[croak];
+    #
     field $connection_id;
     field $connection_id_time = 0;
     field $transaction_id;
     field $host;
     field $port;
+    #
     ADJUST {
         if ( $self->url =~ m{^udp://([^:/]+):(\d+)} ) {
             $host = $1;
             $port = $2;
         }
         else {
-            croak 'Invalid UDP tracker URL: ' . $self->url;
+            $self->_emit( 'Invalid UDP tracker URL: ' . $self->url );
+            $self = undef;
         }
     }
-
-    method _new_transaction_id () {
-        return $transaction_id = int( rand( 2**31 ) );
-    }
-
-    method _is_connected () {
-        return defined $connection_id && ( time() - $connection_id_time < 60 );
-    }
+    method _new_transaction_id () { $transaction_id = int( rand( 2**31 ) ) }
+    method _is_connected ()       { defined $connection_id && ( time() - $connection_id_time < 60 ) }
 
     method build_connect_packet () {
         $self->_new_transaction_id();
         no warnings 'portable';
-        return pack( 'Q> N N', 0x41727101980, 0, $transaction_id );
+        pack 'Q> N N', 0x41727101980, 0, $transaction_id;
     }
 
     method parse_connect_response ($data) {
         my ( $action, $tid, $cid ) = unpack( 'N N Q>', $data );
         if ( $action == 3 ) {
-            croak 'UDP Tracker error: ' . substr( $data, 8 );
+            $self->_emit( debug => 'UDP Tracker error: ' . substr( $data, 8 ) );
         }
-        croak 'Transaction ID mismatch' if $tid != $transaction_id;
-        $connection_id      = $cid;
-        $connection_id_time = time();
-        return $cid;
+        if ( $tid != $transaction_id ) {
+            $self->_emit( debug => 'Transaction ID mismatch' );
+        }
+        else {
+            $connection_id      = $cid;
+            $connection_id_time = time();
+            return $cid;
+        }
     }
 
     method build_announce_packet ($params) {
@@ -52,7 +53,7 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
         my $event     = $event_map{ $params->{event} // 'none' } // 0;
         my $ih        = $params->{info_hash};
         my $ih_len    = length($ih);
-        croak "Invalid info_hash length: $ih_len" if $ih_len != 20 && $ih_len != 32;
+        return !$self->_emit( debug => "Invalid info_hash length: $ih_len" ) if $ih_len != 20 && $ih_len != 32;
 
         # Mandatory key for tracker identification
         my $key = $params->{key} // int( rand( 2**31 ) );
@@ -71,21 +72,19 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
             # We truncate to 20 bytes if it's v2? No, that's wrong.
             # Actually, most trackers want the v1-equivalent IH if it's hybrid.
             # If it's pure v2, we might be out of luck with standard UDP trackers.
-            warn "  [WARNING] UDP Tracker announce with 32-byte info_hash might not be supported by remote\n";
+            $self->_emit( debug => 'UDP Tracker announce with 32-byte info_hash might not be supported by remote' );
         }
-        return pack(
-            'Q> N N a20 a20 Q> Q> Q> N N N l> n', $connection_id, 1, $transaction_id, substr( $ih, 0, 20 ), $params->{peer_id},
+        pack 'Q> N N a20 a20 Q> Q> Q> N N N l> n', $connection_id, 1, $transaction_id, substr( $ih, 0, 20 ), $params->{peer_id},
             $params->{downloaded} // 0, $params->{left} // 0, $params->{uploaded} // 0, $event, 0,    # ip
-            $key, $params->{num_want} // -1, $params->{port}
-        );
+            $key, $params->{num_want} // -1, $params->{port};
     }
 
     method parse_announce_response ($data) {
-        my ( $action, $tid, $interval, $leechers, $seeders ) = unpack( 'N N N N N', $data );
+        my ( $action, $tid, $interval, $leechers, $seeders ) = unpack 'N N N N N', $data;
         if ( $action == 3 ) {
-            croak 'UDP Tracker error: ' . substr( $data, 8 );
+            return !$self->_emit( debug => 'UDP Tracker error: ' . substr( $data, 8 ) );
         }
-        croak 'Transaction ID mismatch' if $tid != $transaction_id;
+        return !$self->_emit( debug => 'Transaction ID mismatch' ) if $tid != $transaction_id;
         my $peers_raw = substr( $data, 20 );
 
         # BEP 07: IPv6 peers are 18 bytes each. IPv4 are 6 bytes.
@@ -104,15 +103,15 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
         $self->_new_transaction_id();
 
         # BEP 52 note: scrape for v2 hashes also supported.
-        return pack( 'Q> N N a*', $connection_id, 2, $transaction_id, join( '', @$info_hashes ) );
+        pack 'Q> N N a*', $connection_id, 2, $transaction_id, join( '', @$info_hashes );
     }
 
     method parse_scrape_response ( $data, $num_hashes ) {
         my ( $action, $tid ) = unpack( 'N N', $data );
         if ( $action == 3 ) {
-            croak 'UDP Tracker error: ' . substr( $data, 8 );
+            return !$self->_emit( debug => 'UDP Tracker error: ' . substr( $data, 8 ) );
         }
-        croak 'Transaction ID mismatch' if $tid != $transaction_id;
+        return !$self->_emit('Transaction ID mismatch') if $tid != $transaction_id;
         my $results = { files => [] };
 
         # Scrape results are 12 bytes per hash: seeders(4), completed(4), leechers(4)
@@ -120,14 +119,15 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
             my ( $seeders, $completed, $leechers ) = unpack( 'N N N', substr( $data, 8 + ( $i * 12 ), 12 ) );
             push @{ $results->{files} }, { seeders => $seeders, completed => $completed, leechers => $leechers };
         }
-        return $results;
+        $results;
     }
 
     method perform_announce ( $params, $cb = undef ) {
-        my $sock = IO::Socket::IP->new( PeerAddr => $host, PeerPort => $port, Proto => 'udp' ) or croak "Could not create UDP socket: $!";
-        my $sel  = IO::Select->new($sock);
+        my $sock = IO::Socket::IP->new( PeerAddr => $host, PeerPort => $port, Proto => 'udp' ) or
+            return !$self->_emit( debug => 'Could not create UDP socket: ' . $! );
+        my $sel = IO::Select->new($sock);
 
-        # 1. Connect (if needed)
+        # Connect (if needed)
         if ( !$self->_is_connected() ) {
             my $conn_req = $self->build_connect_packet();
             my $buf;
@@ -144,10 +144,10 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
                     }
                 }
             }
-            croak "UDP connect failed after retries" unless $success;
+            return $self->_emit( debug => 'UDP connect failed after retries' ) unless $success;
         }
 
-        # 2. Announce
+        # Announce
         my $ann_req = $self->build_announce_packet($params);
         my $buf;
         my $res;
@@ -164,14 +164,15 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
                 }
             }
         }
-        croak "UDP announce failed after retries" unless $success;
+        return !$self->_emit( debug => 'UDP announce failed after retries' ) unless $success;
         $cb->($res) if $cb;
-        return $res;
+        $res;
     }
 
     method perform_scrape ( $info_hashes, $cb = undef ) {
-        my $sock = IO::Socket::IP->new( PeerAddr => $host, PeerPort => $port, Proto => 'udp' ) or croak "Could not create UDP socket: $!";
-        my $sel  = IO::Select->new($sock);
+        my $sock = IO::Socket::IP->new( PeerAddr => $host, PeerPort => $port, Proto => 'udp' ) or
+            return !$self->_emit( debug => 'Could not create UDP socket: ' . $! );
+        my $sel = IO::Select->new($sock);
         if ( !$self->_is_connected() ) {
             my $conn_req = $self->build_connect_packet();
             my $buf;
@@ -188,7 +189,7 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
                     }
                 }
             }
-            croak "UDP connect failed after retries" unless $success;
+            return !$self->_emit( debug => 'UDP connect failed after retries' ) unless $success;
         }
         my $scr_req = $self->build_scrape_packet($info_hashes);
         my $buf;
@@ -206,8 +207,10 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
                 }
             }
         }
-        croak "UDP scrape failed after retries" unless $success;
+        return !$self->_emit( debug => 'UDP scrape failed after retries' ) unless $success;
         $cb->($res) if $cb;
         return $res;
     }
-} 1;
+    }
+    #
+    1;

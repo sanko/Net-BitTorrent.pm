@@ -4,14 +4,14 @@
 
 =head1 NAME
 
-Net::BitTorrent::Tracker::HTTP - HTTP/HTTPS Tracker Protocol (v2.0.0)
+Net::BitTorrent::Tracker::HTTP - HTTP/HTTPS Tracker Protocol
 
 =head1 SYNOPSIS
 
     use Net::BitTorrent::Tracker::HTTP;
 
     my $tracker = Net::BitTorrent::Tracker::HTTP->new(
-        url => "https://tracker.example.com/announce"
+        url => 'https://tracker.example.com/announce'
     );
 
     # Perform synchronous announce
@@ -24,20 +24,21 @@ Net::BitTorrent::Tracker::HTTP - HTTP/HTTPS Tracker Protocol (v2.0.0)
         left => 1024
     });
 
-    say "Interval: " . $res->{interval};
+    say 'Interval: ' . $res->{interval};
 
 =head1 DESCRIPTION
 
 C<Net::BitTorrent::Tracker::HTTP> implements the original BitTorrent tracker protocol  over HTTP and HTTPS. It handles
-URL-encoding of binary info-hashes and parsing of  bencoded responses.
+URL encoding of binary infohashes and parsing of  bencoded responses.
 
 =head1 METHODS
 
 =head2 C<perform_announce( \%params, [$callback] )>
 
-Executes an C<HTTP GET> request to the tracker.  * Automatically handles compact peer lists (IPv4 and IPv6). * Supports
-B<Asynchronous Mode>: if C<$params-E<gt>{ua}> is provided (e.g., a    L<Mojo::UserAgent> instance), the request will be
-non-blocking.
+Executes an C<HTTP GET> request to the tracker.
+
+Automatically handles compact peer lists (IPv4 and IPv6) and supports asynchronous mode if C<$params-E<gt>{ua}> is
+provided. For example, you could hand us a L<Mojo::UserAgent> instance and the request will be non-blocking.
 
 =head2 C<perform_scrape( \@info_hashes, [$callback] )>
 

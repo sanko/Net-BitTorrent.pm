@@ -1,3 +1,7 @@
+=pod
+
+=encoding utf-8
+
 =head1 NAME
 
 Net::BitTorrent::Tracker::Base - Base class for BitTorrent tracker clients
@@ -10,19 +14,19 @@ etc.).
 It defines the interface that all tracker clients must implement to provide announcing and scraping functionality to
 the L<Net::BitTorrent> client.
 
-=head1 ATTRIBUTES
+=head1 PARAMS
 
 =head2 url
 
-The full URL of the tracker (read-only).
+The full URL of the tracker (read only).
 
 =head1 METHODS
 
-=head2 perform_announce ( $params, $cb = undef )
+=head2 C<perform_announce ( $params, [ $cb ] )>
 
 Abstract method. Implementation should request a list of peers from the tracker.
 
-=head2 perform_scrape ( $info_hashes, $cb = undef )
+=head2 C<perform_scrape ( $info_hashes, [ $cb ])>
 
 Abstract method. Implementation should request metadata statistics (seeders, leechers, completed) for the given info
 hashes.

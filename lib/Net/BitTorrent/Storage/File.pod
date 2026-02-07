@@ -4,34 +4,34 @@
 
 =head1 NAME
 
-Net::BitTorrent::Storage::File - File-level I/O and Block Verification (v2.0.0)
+Net::BitTorrent::Storage::File - File-level I/O and Block Verification
 
 =head1 SYNOPSIS
 
     use Net::BitTorrent::Storage::File;
 
     my $file = Net::BitTorrent::Storage::File->new(
-        path        => "./data/test.bin",
+        path        => './data/test.bin',
         size        => 1048576,
         pieces_root => $binary_merkle_root
     );
 
     # Write data to a specific offset
-    $file->write(0, $chunk);
+    $file->write( 0, $chunk );
 
     # Verify a 16KiB block against the Merkle tree (BEP 52)
-    my $is_valid = $file->verify_block($index, $data);
+    my $is_valid = $file->verify_block( $index, $data );
 
     # Read back data
-    my $data = $file->read($offset, $len);
+    my $data = $file->read( $offset, $len );
 
 =head1 DESCRIPTION
 
 C<Net::BitTorrent::Storage::File> represents a single physical file within a BitTorrent swarm. It handles the raw
-reading and writing of data and integrates with L<Digest::Merkle::SHA256> to provide block-level cryptographic
+reading and writing of data and integrates with L<Digest::Merkle::SHA256> to provide block level cryptographic
 verification.
 
-In BitTorrent v2 (B<BEP 52>), every file has its own Merkle tree. This class manages the mapping of block indices to
+In BitTorrent v2 (BEP 52), every file has its own Merkle tree. This class manages the mapping of block indices to
 Merkle tree leaves, ensuring that every 16KiB chunk written to disk is cryptographically verified against the swarm's
 trusted C<pieces root>.
 

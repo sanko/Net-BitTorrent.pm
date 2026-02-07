@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Protocol::BEP11 - Peer Exchange (PEX) (v2.0.0)
+Net::BitTorrent::Protocol::BEP11 - Peer Exchange (PEX)
 
 =head1 SYNOPSIS
 
@@ -19,9 +19,9 @@ Net::BitTorrent::Protocol::BEP11 - Peer Exchange (PEX) (v2.0.0)
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Protocol::BEP11> implements the B<Peer Exchange (PEX) (BEP 11)> protocol.  PEX allows peers to
-directly share the addresses of other peers they are connected to,  dramatically reducing the time it takes to find a
-healthy swarm and reducing load on  trackers and DHT nodes.
+C<Net::BitTorrent::Protocol::BEP11> implements the Peer Exchange (PEX, BEP 11) protocol. PEX allows peers to directly
+share the addresses of other peers they are connected to, dramatically reducing the time it takes to find a healthy
+swarm and reducing load on trackers and DHT nodes.
 
 It runs as a sub-protocol of the Extension Protocol (BEP 10) under the name C<ut_pex>.
 
@@ -29,23 +29,32 @@ It runs as a sub-protocol of the Extension Protocol (BEP 10) under the name C<ut
 
 =head2 C<send_pex( $added, $dropped, $added6, $dropped6 )>
 
-Sends a PEX update message.  * C<$added> / C<$dropped>: Arrayrefs of IPv4 peer hashrefs (C<{ip, port}>). * C<$added6> /
-C<$dropped6>: Arrayrefs of IPv6 peer hashrefs.
+Sends a PEX update message.
 
-Peer addresses are automatically compacted into the 6-byte (v4) or 18-byte (v6) binary  formats defined in B<BEP 23>.
-
-=head1 CALLBACKS
-
-=head2 C<on_pex( $added, $dropped, $added6, $dropped6 )>
-
-Triggered when a PEX message is received from a remote peer. The arguments are arrayrefs of  hashrefs containing C<ip>
-and C<port>.
-
-=head1 SPECIFICATIONS
+Params:
 
 =over
 
-=item * B<BEP 11>: Peer Exchange (PEX)
+=item * C<$added> / C<$dropped>: Arrayrefs of IPv4 peer hashrefs (C<{ip, port}>).
+
+=item * C<$added6> / C<$dropped6>: Arrayrefs of IPv6 peer hashrefs.
+
+=back
+
+Peer addresses are automatically compacted into the 6-byte (v4) or 18-byte (v6) binary formats defined in BEP 23.
+
+=head1 Callbacks
+
+=head2 C<on_pex( $added, $dropped, $added6, $dropped6 )>
+
+Triggered when a PEX message is received from a remote peer. The arguments are arrayrefs of hashrefs containing C<ip>
+and C<port>.
+
+=head1 Specifications
+
+=over
+
+=item * BEP 11: Peer Exchange (PEX)
 
 =back
 

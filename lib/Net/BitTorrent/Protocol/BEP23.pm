@@ -1,10 +1,10 @@
 use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
-
-class Net::BitTorrent::Protocol::BEP23 {
+#
+class Net::BitTorrent::Protocol::BEP23 v2.0.0 {
     use Socket qw[inet_aton inet_ntoa];
-    use Carp   qw[croak];
+    use Carp qw[croak];
 
     sub pack_peers_ipv4 (@peers) {
         my $packed = '';
@@ -15,7 +15,7 @@ class Net::BitTorrent::Protocol::BEP23 {
             croak "Invalid IPv4 address: $peer->{ip}" unless defined $ip;
             $packed .= $ip . pack( 'n', $peer->{port} );
         }
-        return $packed;
+        $packed;
     }
 
     sub unpack_peers_ipv4 ($data) {
@@ -26,7 +26,7 @@ class Net::BitTorrent::Protocol::BEP23 {
             my ( $ip_raw, $port ) = unpack( 'a4 n', $chunk );
             push @peers, { ip => inet_ntoa($ip_raw), port => $port };
         }
-        return \@peers;
+        \@peers;
     }
 
     sub pack_peers_ipv6 (@peers) {
@@ -37,7 +37,7 @@ class Net::BitTorrent::Protocol::BEP23 {
             croak "Invalid IPv6 address: $peer->{ip}" unless defined $ip;
             $packed .= $ip . pack( 'n', $peer->{port} );
         }
-        return $packed;
+        $packed;
     }
 
     sub unpack_peers_ipv6 ($data) {
@@ -49,50 +49,8 @@ class Net::BitTorrent::Protocol::BEP23 {
             my ( $ip_raw, $port ) = unpack( 'a16 n', $chunk );
             push @peers, { ip => inet_ntop( AF_INET6, $ip_raw ), port => $port };
         }
-        return \@peers;
+        \@peers;
     }
-}
+};
+#
 1;
-__END__
-
-=pod
-
-=head1 NAME
-
-Net::BitTorrent::Protocol::BEP23 - Compact Peer Lists (IPv4 and IPv6)
-
-=head1 SYNOPSIS
-
-    use Net::BitTorrent::Protocol::BEP23;
-
-    my $packed_v4 = Net::BitTorrent::Protocol::BEP23::pack_peers_ipv4(
-        { ip => '127.0.0.1', port => 6881 }
-    );
-
-    my $packed_v6 = Net::BitTorrent::Protocol::BEP23::pack_peers_ipv6(
-        { ip => '::1', port => 6881 }
-    );
-
-=head1 DESCRIPTION
-
-This module implements the compact peer list format defined in BEP 23 (IPv4) and BEP 07 (IPv6).
-
-=head1 FUNCTIONS
-
-=head2 pack_peers_ipv4(@peers)
-
-Returns a binary string of packed IPv4 addresses and ports.
-
-=head2 unpack_peers_ipv4($data)
-
-Returns an array reference of peer hashes from a binary string.
-
-=head2 pack_peers_ipv6(@peers)
-
-Returns a binary string of packed IPv6 addresses and ports.
-
-=head2 unpack_peers_ipv6($data)
-
-Returns an array reference of peer hashes from a binary string.
-
-=cut
