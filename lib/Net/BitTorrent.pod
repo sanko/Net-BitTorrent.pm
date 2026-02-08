@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent - Modern, loop-agnostic BitTorrent client library
+Net::BitTorrent - Complete, Modern BitTorrent Client Library
 
 =head1 SYNOPSIS
 
@@ -14,7 +14,6 @@ Net::BitTorrent - Modern, loop-agnostic BitTorrent client library
 
     # Initialize the client
     my $client = Net::BitTorrent->new(
-        user_agent   => "MyClient/1.0",
         upnp_enabled => 1,
         encryption   => ENCRYPTION_REQUIRED # or 'required'
     );

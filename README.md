@@ -1,6 +1,6 @@
 # NAME
 
-Net::BitTorrent - Modern, loop-agnostic BitTorrent client library
+Net::BitTorrent - Complete, Modern BitTorrent Client Library
 
 # SYNOPSIS
 
