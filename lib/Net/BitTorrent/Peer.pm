@@ -48,8 +48,8 @@ class Net::BitTorrent::Peer v2.0.0 : isa(Net::BitTorrent::Emitter) {
         if ( !$mse && $encryption != ENCRYPTION_NONE ) {
             use Net::BitTorrent::Protocol::MSE;
             $mse = Net::BitTorrent::Protocol::MSE->new(
-                info_hash       => $torrent ? ( $torrent->info_hash_v1 // $torrent->info_hash_v2 ) : undef,
-                is_initiator    => 1,                                                                         # Outgoing
+                infohash        => $torrent ? ( $torrent->infohash_v1 // $torrent->infohash_v2 ) : undef,
+                is_initiator    => 1,                                                                       # Outgoing
                 allow_plaintext => ( $encryption == ENCRYPTION_PREFERRED ? 1 : 0 ),
             );
             if ( $mse->supported ) {
@@ -264,7 +264,7 @@ class Net::BitTorrent::Peer v2.0.0 : isa(Net::BitTorrent::Emitter) {
         $self->_emit( log => "    [BEP 55] Instructed to connect to $ip:$port\n", level => 'info' ) if $debug;
 
         # Trigger uTP connection
-        $torrent->client->connect_to_peer( $ip, $port, $torrent->info_hash_v2 || $torrent->info_hash_v1 );
+        $torrent->client->connect_to_peer( $ip, $port, $torrent->infohash_v2 || $torrent->infohash_v1 );
     }
 
     method handle_hp_error ($err) {

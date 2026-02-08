@@ -20,8 +20,8 @@ subtest 'Hybrid Registration and Handshake' => sub {
     $torrent_path->spew_raw( bencode( { info => $info } ) );
     my $client = Net::BitTorrent->new();
     my $t      = $client->add_torrent( $torrent_path, $temp );
-    my $ih_v1  = $t->info_hash_v1;
-    my $ih_v2  = $t->info_hash_v2;
+    my $ih_v1  = $t->infohash_v1;
+    my $ih_v2  = $t->infohash_v2;
     ok $ih_v1, 'Has v1 info hash';
     ok $ih_v2, 'Has v2 info hash';
     is length($ih_v1), 20, 'v1 length is 20';

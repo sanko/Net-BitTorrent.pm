@@ -1,7 +1,7 @@
 use v5.42;
 use Test2::V1 -ipP;
 use Net::uTP;
-use lib '../lib';
+use lib 'lib';
 #
 subtest 'SACK Generation' => sub {
     my $utp = Net::uTP->new( conn_id_send => 100, conn_id_recv => 101 );

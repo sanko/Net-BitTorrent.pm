@@ -18,7 +18,7 @@ subtest 'Feature Toggles' => sub {
     is $features->{bep05}, 1, 'BEP 05 still enabled';
 
     # Test PeerHandler reserved bits
-    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => 'A' x 20, peer_id => 'B' x 20, features => $features );
+    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( infohash => 'A' x 20, peer_id => 'B' x 20, features => $features );
     my $reserved  = $p_handler->reserved;
 
     # byte 5, bit 0x10 should NOT be set
@@ -32,7 +32,7 @@ subtest 'Feature Toggles' => sub {
 };
 subtest 'Message Blocking' => sub {
     my $client    = Net::BitTorrent->new( bep06 => 0 );
-    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => 'A' x 20, peer_id => 'B' x 20, features => $client->features );
+    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( infohash => 'A' x 20, peer_id => 'B' x 20, features => $client->features );
     my $called    = 0;
 
     # Mock peer to see if handle_message is called
@@ -42,7 +42,7 @@ subtest 'Message Blocking' => sub {
     $p_handler->set_peer($mock_peer);
 
     # Put handler in OPEN state by simulating handshake
-    # 19 + 'BitTorrent protocol' + 8 reserved + 20 info_hash + 20 peer_id
+    # 19 + 'BitTorrent protocol' + 8 reserved + 20 infohash + 20 peer_id
     my $ih        = 'A' x 20;
     my $id        = 'B' x 20;
     my $handshake = pack( 'C A19 a8 a20 a20', 19, 'BitTorrent protocol', "\0" x 8, $ih, $id );

@@ -7,21 +7,30 @@ Net::BitTorrent - Modern, loop-agnostic BitTorrent client library
 ```perl
 use v5.40;
 use Net::BitTorrent;
+use Net::BitTorrent::Types qw[:encryption];
 
 # Initialize the client
 my $client = Net::BitTorrent->new(
     user_agent   => "MyClient/1.0",
-    upnp_enabled => 1
+    upnp_enabled => 1,
+    encryption   => ENCRYPTION_REQUIRED # or 'required'
 );
 
-# Unified add() handles magnets, .torrents, or info-hashes
+# Unified add() handles magnets, .torrents, or v1/v2 infohashes
+# Supports 20/32-byte binary or 40/64-character hex strings
 my $torrent = $client->add("magnet:?xt=urn:btih:...", "./downloads");
 
 # Simple event handling
-$client->on(torrent_added => sub ($t) {
+$client->on(torrent_added => sub ($nb, $t) {
     say "New swarm added: " . $t->name;
     $t->start();
 });
+
+# Advanced: Manual event loop integration
+# while (1) {
+#     $client->tick(0.1);
+#     select(undef, undef, undef, 0.1);
+# }
 
 # Wait for all downloads to finish
 $client->wait();
@@ -74,7 +83,7 @@ Creates a new client instance.
 ```perl
 my $client = Net::BitTorrent->new(
     port         => 6881,
-    encryption   => 'required',
+    encryption   => 'required', # 'none', 'preferred', or 'required'
     upnp_enabled => 1
 );
 ```
@@ -83,9 +92,9 @@ my $client = Net::BitTorrent->new(
 - **Parameters**:
 `port` (Int),
 `user_agent` (Str),
-`encryption` (Str: none, preferred, required),
+`encryption` (Str or Constant: ENCRYPTION\_NONE, ENCRYPTION\_PREFERRED, ENCRYPTION\_REQUIRED),
 `upnp_enabled` (Bool),
-and various `bepXX` toggles.
+and various `bepXX` toggles (e.g., `bep05 =` 0> to disable DHT).
 - **Returns**: A new `Net::BitTorrent` instance.
 
 ## `on( $event, $callback )`
@@ -93,7 +102,7 @@ and various `bepXX` toggles.
 Registers a global callback for client-level events.
 
 ```perl
-$client->on(torrent_added => sub ($torrent) {
+$client->on(torrent_added => sub ($nb, $torrent) {
     warn "Added: " . $torrent->name;
 });
 ```
@@ -115,12 +124,15 @@ $client->add("ubuntu.torrent", "./iso");
 # Add a magnet link
 $client->add("magnet:?xt=urn:btih:...", "./data");
 
-# Add a raw info-hash (hex)
+# Add a v1 infohash (hex or binary)
 $client->add("1bd088ee9166a062cf4af09cf99720fa6e1a3133", "./downloads");
+
+# Add a v2 infohash (64-char hex or 32-byte binary)
+$client->add("6a1259ca5ca00680...64chars...", "./downloads");
 ```
 
 - **Use Case**: Easily adding any BitTorrent resource without worrying about its format.
-- **Parameters**: `$thing` (Str: path, URI, or hex hash), `$base_path` (Str: directory for data), `%args` (Optional Torrent parameters).
+- **Parameters**: `$thing` (Str: path, URI, or hex/binary hash), `$base_path` (Str: directory for data), `%args` (Optional Torrent parameters).
 - **Returns**: A [Net::BitTorrent::Torrent](https://metacpan.org/pod/Net%3A%3ABitTorrent%3A%3ATorrent) object.
 
 ## `add_torrent( $path, $base_path, [%args] )`
@@ -135,12 +147,12 @@ my $t = $client->add_torrent("linux.torrent", "/downloads");
 - **Parameters**: `$path` (Str), `$base_path` (Str), `%args` (Optional parameters).
 - **Returns**: A [Net::BitTorrent::Torrent](https://metacpan.org/pod/Net%3A%3ABitTorrent%3A%3ATorrent) object.
 
-## `add_info_hash( $ih, $base_path, [%args] )`
+## `add_infohash( $ih, $base_path, [%args] )`
 
 Adds a torrent by its info hash (binary or hex).
 
 ```perl
-my $t = $client->add_info_hash(pack('H*', '...'), './data');
+my $t = $client->add_infohash(pack('H*', '...'), './data');
 ```
 
 - **Use Case**: Bootstrapping a swarm when only the hash is known (e.g., from a crawler).
@@ -213,7 +225,7 @@ High-level **BEP 44** API for storing and retrieving arbitrary data in the DHT.
 $client->dht_put('My Shared Note', sub { say "Stored!" });
 ```
 
-## `dht_scrape( $info_hash, $callback )`
+## `dht_scrape( $infohash, $callback )`
 
 Performs a decentralized scrape (**BEP 33**) to find seeder/leecher counts.
 
@@ -241,6 +253,6 @@ Sanko Robinson <sanko@cpan.org>
 
 # COPYRIGHT
 
-Copyright (C) 2026 by Sanko Robinson.
+Copyright (C) 2008-2026 by Sanko Robinson.
 
 This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.

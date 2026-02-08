@@ -7,7 +7,7 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.0 : isa(Net::BitTorrent::
     use Math::BigInt try => 'GMP';
 
     # -- Parameters --
-    field $info_hash    : param : reader;
+    field $infohash     : param : reader;
     field $is_initiator : param : reader;
 
     # -- Internal State --
@@ -71,7 +71,7 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.0 : isa(Net::BitTorrent::
     method get_secret () { return $shared_secret }
 
     method get_sync_data ( $override_ih = undef ) {
-        my $ih = $override_ih // $info_hash;
+        my $ih = $override_ih // $infohash;
         return undef unless $ih;
         my $s         = $shared_secret;
         my $sk        = $ih;
@@ -91,9 +91,9 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.0 : isa(Net::BitTorrent::
     }
 
     method init_rc4 ($ih) {
-        $info_hash = $ih;
-        my $keyA = sha1( "keyA" . $shared_secret . $info_hash );
-        my $keyB = sha1( "keyB" . $shared_secret . $info_hash );
+        $infohash = $ih;
+        my $keyA = sha1( "keyA" . $shared_secret . $infohash );
+        my $keyB = sha1( "keyB" . $shared_secret . $infohash );
         my ( $key_enc, $key_dec );
         if ($is_initiator) {
             $key_enc = $keyA;

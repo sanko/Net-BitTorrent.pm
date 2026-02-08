@@ -5,11 +5,11 @@ no warnings 'experimental::class';
 use Net::BitTorrent::Emitter;
 class Net::BitTorrent::Protocol::BEP03 v2.0.0 : isa(Net::BitTorrent::Emitter) {
     #
-    field $info_hash : param = undef;
-    field $peer_id   : param : reader;
-    field $reserved  : param : reader : writer = "\0" x 8;
-    field $debug     : param : reader = 0;
-    field $state     : reader = 'HANDSHAKE';    # HANDSHAKE, OPEN, CLOSED
+    field $infohash : param = undef;
+    field $peer_id  : param : reader;
+    field $reserved : param : reader : writer = "\0" x 8;
+    field $debug    : param : reader = 0;
+    field $state    : reader = 'HANDSHAKE';    # HANDSHAKE, OPEN, CLOSED
     field $buffer_in            = '';
     field $buffer_out           = '';
     field $handshake_sent       = 0;
@@ -41,17 +41,17 @@ class Net::BitTorrent::Protocol::BEP03 v2.0.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method send_handshake () {
-        if ( !defined $info_hash ) {
-            $self->_emit( log => 'info_hash required to send handshake', level => 'fatal' );
+        if ( !defined $infohash ) {
+            $self->_emit( log => 'infohash required to send handshake', level => 'fatal' );
             return;
         }
-        my $ih_len = CORE::length($info_hash);
+        my $ih_len = CORE::length($infohash);
         if ( $ih_len != 20 && $ih_len != 32 ) {
             $self->_emit( log => 'Info hash must be 20 or 32 bytes', level => 'fatal' );
             return;
         }
-        $self->_emit( log => "    [DEBUG] Sending handshake (" . unpack( 'H*', $info_hash ) . ")\n", level => 'debug' ) if $debug;
-        my $raw = pack( 'C A19 a8', 19, 'BitTorrent protocol', $reserved ) . $info_hash . $peer_id;
+        $self->_emit( log => "    [DEBUG] Sending handshake (" . unpack( 'H*', $infohash ) . ")\n", level => 'debug' ) if $debug;
+        my $raw = pack( 'C A19 a8', 19, 'BitTorrent protocol', $reserved ) . $infohash . $peer_id;
         $self->_emit( log => "    [DEBUG] Handshake hex: " . unpack( 'H*', $raw ) . "\n", level => 'debug' ) if $debug;
         $buffer_out .= $raw;
         $handshake_sent = 1;
@@ -110,8 +110,8 @@ class Net::BitTorrent::Protocol::BEP03 v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
         # We have at least 68 bytes.
         my $ih_len;
-        if ( defined $info_hash ) {
-            $ih_len = length($info_hash);
+        if ( defined $infohash ) {
+            $ih_len = length($infohash);
         }
         else {
             # If we have exactly 80 bytes, or more than 80, it MIGHT be a v2 handshake.
@@ -140,7 +140,7 @@ class Net::BitTorrent::Protocol::BEP03 v2.0.0 : isa(Net::BitTorrent::Emitter) {
         my $remote_res = substr( $buffer_in, 1 + $pstrlen,               8 );
         my $remote_ih  = substr( $buffer_in, 1 + $pstrlen + 8,           $ih_len );
         my $remote_id  = substr( $buffer_in, 1 + $pstrlen + 8 + $ih_len, 20 );
-        if ( defined $info_hash && $remote_ih ne $info_hash ) {
+        if ( defined $infohash && $remote_ih ne $infohash ) {
 
             # If we were expecting v2 but got v1, it might fail here.
             $state = 'CLOSED';

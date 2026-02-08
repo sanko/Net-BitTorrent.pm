@@ -2,6 +2,7 @@ use v5.42;
 use feature 'class';
 use Test2::V1 -ipP;
 no warnings;
+use lib 'lib';
 use Net::BitTorrent;
 use Net::BitTorrent::Peer;
 use Net::BitTorrent::Protocol::PeerHandler;
@@ -47,9 +48,9 @@ subtest 'Full Stack Verification' => sub {
     my $t_l         = $client_l->add( $torrent_file, $leecher_dir );
     $t_s->start();
     $t_l->start();
-    my $ih      = $t_s->info_hash_v2 || $t_s->info_hash_v1;
-    my $p_s     = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => $ih, peer_id => 'S' x 20, features => $t_s->features );
-    my $p_l     = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => $ih, peer_id => 'L' x 20, features => $t_l->features );
+    my $ih      = $t_s->infohash_v2 || $t_s->infohash_v1;
+    my $p_s     = Net::BitTorrent::Protocol::PeerHandler->new( infohash => $ih, peer_id => 'S' x 20, features => $t_s->features );
+    my $p_l     = Net::BitTorrent::Protocol::PeerHandler->new( infohash => $ih, peer_id => 'L' x 20, features => $t_l->features );
     my $trans_s = MockTransport->new();
     my $trans_l = MockTransport->new();
     my $peer_s  = Net::BitTorrent::Peer->new(

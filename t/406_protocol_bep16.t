@@ -42,7 +42,7 @@ subtest 'Superseeding (BEP 16)' => sub {
     $t->bitfield->fill();
     $t->set_superseed(1);
     $t->start();
-    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => $t->info_hash_v1, peer_id => 'B' x 20, features => $t->features );
+    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( infohash => $t->infohash_v1, peer_id => 'B' x 20, features => $t->features );
     my $transport = MockTransport->new();
     my $peer      = Net::BitTorrent::Peer->new(
         protocol   => $p_handler,

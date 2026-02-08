@@ -5,7 +5,7 @@ use Net::BitTorrent::Protocol::BEP03;
 subtest 'Handshake' => sub {
     my $ih  = 'A' x 20;
     my $id  = 'B' x 20;
-    my $pwp = Net::BitTorrent::Protocol::BEP03->new( info_hash => $ih, peer_id => $id );
+    my $pwp = Net::BitTorrent::Protocol::BEP03->new( infohash => $ih, peer_id => $id );
     is $pwp->state, 'HANDSHAKE', 'Initial state is HANDSHAKE';
     $pwp->send_handshake();
     my $out = $pwp->write_buffer;
@@ -22,7 +22,7 @@ subtest 'Handshake' => sub {
 subtest 'Messages' => sub {
     my $ih  = 'A' x 20;
     my $id  = 'B' x 20;
-    my $pwp = Net::BitTorrent::Protocol::BEP03->new( info_hash => $ih, peer_id => $id );
+    my $pwp = Net::BitTorrent::Protocol::BEP03->new( infohash => $ih, peer_id => $id );
     $pwp->send_handshake();
     $pwp->receive_data( $pwp->write_buffer );    # Open it
     $pwp->send_message(Net::BitTorrent::Protocol::BEP03::CHOKE);

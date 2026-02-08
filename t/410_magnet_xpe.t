@@ -13,8 +13,8 @@ subtest 'Magnet x.pe support' => sub {
     my $uri    = 'magnet:?xt=urn:btih:' . unpack( 'H*', $ih1 ) . '&xt=urn:btmh:1220' . unpack( 'H*', $ih2 ) . "&x.pe=$peer1&x.pe=$peer2";
     my $client = Net::BitTorrent->new();
     my $t      = $client->add_magnet( $uri, '.' );
-    is $t->info_hash_v1, $ih1, 'v1 hash correct';
-    is $t->info_hash_v2, $ih2, 'v2 hash correct';
+    is $t->infohash_v1, $ih1, 'v1 hash correct';
+    is $t->infohash_v2, $ih2, 'v2 hash correct';
     my $discovered = $t->discovered_peers;
     is scalar @$discovered, 2, 'Found 2 peers from x.pe';
     my %found;

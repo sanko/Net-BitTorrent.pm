@@ -5,7 +5,7 @@ use Net::BitTorrent::Protocol::BEP52;
 subtest 'v2 Handshake' => sub {
     my $ih  = 'A' x 32;
     my $id  = 'B' x 20;
-    my $pwp = Net::BitTorrent::Protocol::BEP52->new( info_hash => $ih, peer_id => $id );
+    my $pwp = Net::BitTorrent::Protocol::BEP52->new( infohash => $ih, peer_id => $id );
     $pwp->send_handshake();
     my $out = $pwp->write_buffer;
     is length($out), 80, 'v2 Handshake length is 80';
@@ -15,7 +15,7 @@ subtest 'v2 Handshake' => sub {
 subtest 'BEP 52 Messages' => sub {
     my $ih  = 'A' x 32;
     my $id  = 'B' x 20;
-    my $pwp = Net::BitTorrent::Protocol::BEP52->new( info_hash => $ih, peer_id => $id );
+    my $pwp = Net::BitTorrent::Protocol::BEP52->new( infohash => $ih, peer_id => $id );
     $pwp->send_handshake();
     $pwp->receive_data( $pwp->write_buffer );
     my $root = 'R' x 32;

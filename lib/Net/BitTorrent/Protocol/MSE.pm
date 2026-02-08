@@ -5,22 +5,25 @@ use Net::BitTorrent::Emitter;
 class Net::BitTorrent::Protocol::MSE v2.0.0 : isa(Net::BitTorrent::Emitter) {
     use Net::BitTorrent::Protocol::MSE::KeyExchange;
     use Digest::SHA qw[sha1];
-    field $info_hash          : param = undef;
-    field $is_initiator       : param = 0;
-    field $on_info_hash_probe : param = undef;
-    field $allow_plaintext    : param = 1;
+    #
+    field $infohash          : param = undef;
+    field $is_initiator      : param = 0;
+    field $on_infohash_probe : param = undef;
+    field $allow_plaintext   : param = 1;
     field $kx;
     field $state      : reader;
     field $buffer_in  : reader = '';
     field $buffer_out : reader = '';
     field $wait_len      = 0;
     field $crypto_select = 0;
+    #
     my $VC               = "\0" x 8;
     my $CRYPTO_PLAINTEXT = 0x01;
     my $CRYPTO_RC4       = 0x02;
-    method supported () { return 1; }
+    #
+    method supported () { 1; }
     ADJUST {
-        $kx = Net::BitTorrent::Protocol::MSE::KeyExchange->new( info_hash => $info_hash, is_initiator => $is_initiator );
+        $kx = Net::BitTorrent::Protocol::MSE::KeyExchange->new( infohash => $infohash, is_initiator => $is_initiator );
         if ($is_initiator) {
             $buffer_out .= $kx->public_key;
             $buffer_out .= $self->_random_pad();
@@ -89,7 +92,7 @@ class Net::BitTorrent::Protocol::MSE v2.0.0 : isa(Net::BitTorrent::Emitter) {
         $kx->compute_secret($remote_pub);
         my ( $req1, $xor_part ) = $kx->get_sync_data();
         $buffer_out .= $req1 . $xor_part;
-        $kx->init_rc4($info_hash);
+        $kx->init_rc4($infohash);
         my $payload = $VC;
         $payload    .= pack( 'N', $CRYPTO_RC4 | $CRYPTO_PLAINTEXT );
         $payload    .= pack( 'n', 0 );
@@ -134,7 +137,7 @@ class Net::BitTorrent::Protocol::MSE v2.0.0 : isa(Net::BitTorrent::Emitter) {
         if ( $wait_len > 0 ) {
             $kx->decrypt_rc4->crypt( substr( $buffer_in, 0, $wait_len, '' ) );
         }
-        $self->_emit( 'info_hash_identified', $info_hash );
+        $self->_emit( 'infohash_identified', $infohash );
         $state = 'PAYLOAD';
         return 0;
     }
@@ -160,19 +163,19 @@ class Net::BitTorrent::Protocol::MSE v2.0.0 : isa(Net::BitTorrent::Emitter) {
         substr( $buffer_in, 0, $idx + 20, '' );
         if ( length($buffer_in) < 20 ) { return 0; }
         my $xor_block = substr( $buffer_in, 0, 20, '' );
-        if ( defined $info_hash ) {
-            if ( !$kx->verify_skey( $xor_block, $info_hash ) ) {
+        if ( defined $infohash ) {
+            if ( !$kx->verify_skey( $xor_block, $infohash ) ) {
                 $state = 'FAILED';
                 return 0;
             }
         }
-        elsif ($on_info_hash_probe) {
+        elsif ($on_infohash_probe) {
             my $req3_hash = sha1( 'req3' . $s );
 
             # FIX: Use ^. for string XOR
             my $target = $xor_block^.$req3_hash;
-            $info_hash = $on_info_hash_probe->( $self, $target );
-            if ( !$info_hash ) {
+            $infohash = $on_infohash_probe->( $self, $target );
+            if ( !$infohash ) {
                 $state = 'FAILED';
                 return 0;
             }
@@ -181,8 +184,8 @@ class Net::BitTorrent::Protocol::MSE v2.0.0 : isa(Net::BitTorrent::Emitter) {
             $state = 'FAILED';
             return 0;
         }
-        $kx->init_rc4($info_hash);
-        $self->_emit( 'info_hash_identified', $info_hash );
+        $kx->init_rc4($infohash);
+        $self->_emit( 'infohash_identified', $infohash );
         $state = 'B_WAIT_VC';
         return 1;
     }

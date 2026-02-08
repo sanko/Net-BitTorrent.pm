@@ -16,7 +16,7 @@ Net::BitTorrent::Tracker::HTTP - HTTP/HTTPS Tracker Protocol
 
     # Perform synchronous announce
     my $res = $tracker->perform_announce({
-        info_hash => $ih,
+        infohash  => $ih,
         peer_id   => $id,
         port      => 6881,
         downloaded => 0,
@@ -40,18 +40,18 @@ Executes an C<HTTP GET> request to the tracker.
 Automatically handles compact peer lists (IPv4 and IPv6) and supports asynchronous mode if C<$params-E<gt>{ua}> is
 provided. For example, you could hand us a L<Mojo::UserAgent> instance and the request will be non-blocking.
 
-=head2 C<perform_scrape( \@info_hashes, [$callback] )>
+=head2 C<perform_scrape( \@infohashes, [$callback] )>
 
 Executes a tracker scrape (B<BEP 48>) by converting the C<announce> URL to a C<scrape> URL  and requesting statistics
 for the provided hashes.
 
 =head2 C<build_announce_url( \%params )>
 
-Generates the full URL with query parameters. Correctly percent-encodes the binary  C<info_hash> and C<peer_id> fields.
+Generates the full URL with query parameters. Correctly percent-encodes the binary C<info_hash> and C<peer_id> fields.
 
 =head2 C<parse_response( $bencoded_data )>
 
-Parses and validates the tracker's response. Automatically expands compact peer lists  into user-friendly hashrefs.
+Parses and validates the tracker's response. Automatically expands compact peer lists into user-friendly hashrefs.
 
 =head1 SPECIFICATIONS
 
@@ -73,7 +73,7 @@ Sanko Robinson E<lt>sanko@cpan.orgE<gt>
 
 =head1 COPYRIGHT
 
-Copyright (C) 2026 by Sanko Robinson.
+Copyright (C) 2008-2026 by Sanko Robinson.
 
 This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
 

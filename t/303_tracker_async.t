@@ -1,7 +1,7 @@
 use v5.42;
 use Test2::V1 -ipP;
 no warnings 'experimental::class';
-use lib '../lib';
+use lib 'lib';
 use Net::BitTorrent::Tracker::HTTP;
 use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode];
 #

@@ -12,14 +12,14 @@ class MockBEP10 : isa(Net::BitTorrent::Protocol::BEP10) {
 subtest 'Reserved Bit' => sub {
     my $ih  = 'A' x 20;
     my $id  = 'B' x 20;
-    my $pwp = MockBEP10->new( info_hash => $ih, peer_id => $id );
+    my $pwp = MockBEP10->new( infohash => $ih, peer_id => $id );
     my $res = $pwp->reserved;
     ok ord( substr( $res, 5, 1 ) ) & 0x10, 'Extension protocol bit set in reserved bytes';
 };
 subtest 'Extended Handshake' => sub {
     my $ih  = 'A' x 20;
     my $id  = 'B' x 20;
-    my $pwp = MockBEP10->new( info_hash => $ih, peer_id => $id, local_extensions => { ut_pex => 1 } );
+    my $pwp = MockBEP10->new( infohash => $ih, peer_id => $id, local_extensions => { ut_pex => 1 } );
 
     # Open the connection
     $pwp->send_handshake();

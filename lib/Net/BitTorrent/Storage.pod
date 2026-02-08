@@ -12,11 +12,12 @@ Net::BitTorrent::Storage - Modular BitTorrent Storage Layer (v2.0.0)
 
     my $storage = Net::BitTorrent::Storage->new(
         base_path  => "./downloads",
-        file_tree  => $bencoded_tree, # From BEP 52
+        file_tree  => $metadata->{info}{'file tree'}, # From BEP 52
         piece_size => 262144
     );
 
     # Write a block (16KiB) to the async cache
+    # $pieces_root is the SHA-256 Merkle root from the metadata
     $storage->write_block($pieces_root, $offset, $data);
 
     # Periodically flush the cache to disk
@@ -38,7 +39,9 @@ B<BitTorrent v2 (BEP 52)> and hybrid torrents, where file alignment and padding 
 
 =over
 
-=item * B<BitTorrent v2 (BEP 52)>: Uses C<pieces root> (Merkle roots) to identify and verify files. Each file is verified independently.
+=item * B<BitTorrent v2 (BEP 52)>: Uses C<pieces root> (SHA-256 Merkle roots) to identify and verify files. Each file is verified independently.
+
+=item * B<Merkle Trees>: Maintains internal Merkle trees for each file, allowing per-block (16KiB) verification as data arrives from the network.
 
 =item * B<Hybrid Mapping>: Automatically handles the padding required to align v1 pieces with v2 file boundaries. This ensures that a single v1 piece never spans multiple v2 files, which simplifies verification.
 
@@ -53,7 +56,17 @@ cycle, preventing synchronous I/O from blocking the network logic.
 
 =head2 C<verify_block( $root, $index, $data )>
 
-Verifies a 16KiB block against the Merkle tree for the file identified by C<$root>. Returns boolean. Part of B<BEP 52>.
+Verifies a 16KiB block against the Merkle tree for the file identified by C<$root>. C<$index> is the block index within
+the file. Returns boolean. Part of B<BEP 52>.
+
+=head2 C<verify_block_audit( $root, $index, $data, $audit_path )>
+
+Verifies a block using an audit path (branch nodes of the Merkle tree). Useful when the full piece layer hasn't been
+downloaded yet.
+
+=head2 C<verify_piece_v2( $root, $index, $data )>
+
+Verifies an entire v2 piece against the cached piece layers.
 
 =head2 C<write_block( $root, $offset, $data )>
 
@@ -71,12 +84,12 @@ Legacy methods for accessing the swarm as a single contiguous virtual file. Esse
 =head2 C<map_v1_piece( $index )>
 
 Calculates which files and segments are contained within a v1 piece index. In hybrid torrents, this accounts for the
-padding files/space defined in B<BEP 52>.
+padding files/space defined in B<BEP 52>. Returns an arrayref of segment hashes.
 
 =head2 C<map_v2_piece( $index )>
 
-Returns the C<pieces_root> and relative index for a v2 piece. Since v2 pieces are aligned to files, a piece always
-belongs to exactly one file (or padding).
+Returns a list containing the C<pieces_root> and relative index for a v2 piece. Since v2 pieces are aligned to files, a
+piece always belongs to exactly one file (or padding).
 
 =head2 C<get_hashes( $root, $base_layer, $index, $count )>
 
@@ -102,7 +115,7 @@ Sanko Robinson E<lt>sanko@cpan.orgE<gt>
 
 =head1 COPYRIGHT
 
-Copyright (C) 2026 by Sanko Robinson.
+Copyright (C) 2008-2026 by Sanko Robinson.
 
 This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
 

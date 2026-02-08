@@ -9,7 +9,7 @@ class Net::BitTorrent::Tracker::Base v2.0.0 : isa(Net::BitTorrent::Emitter) {
         $self->_emit( log => 'Not implemented in base class', level => 'fatal' );
     }
 
-    method perform_scrape ( $info_hashes, $cb = undef ) {
+    method perform_scrape ( $infohashes, $cb = undef ) {
         $self->_emit( log => 'Not implemented in base class', level => 'fatal' );
     }
 } 1;

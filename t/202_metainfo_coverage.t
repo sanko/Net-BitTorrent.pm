@@ -11,21 +11,21 @@ my $torrent_dir = path('t/900_data/test_torrents');
 subtest 'Standard v1 (base.torrent)' => sub {
     my $path = $torrent_dir->child('base.torrent');
     my $t    = Net::BitTorrent::Torrent->new( path => $path, base_path => '.', client => Net::BitTorrent->new() );
-    ok $t->info_hash_v1,  'Has v1 info_hash';
-    ok !$t->info_hash_v2, 'No v2 info_hash';
+    ok $t->infohash_v1,  'Has v1 infohash';
+    ok !$t->infohash_v2, 'No v2 infohash';
     is $t->piece_length(0), 425, 'Correct piece length for small file';
 };
 subtest 'v2 Only' => sub {
     my $path = $torrent_dir->child('v2_only.torrent');
     my $t    = Net::BitTorrent::Torrent->new( path => $path, base_path => '.', client => Net::BitTorrent->new() );
-    ok !$t->info_hash_v1, 'No v1 info_hash';
-    ok $t->info_hash_v2,  'Has v2 info_hash';
+    ok !$t->infohash_v1, 'No v1 infohash';
+    ok $t->infohash_v2,  'Has v2 infohash';
 };
 subtest 'Hybrid v1/v2' => sub {
     my $path = $torrent_dir->child('v2_hybrid.torrent');
     my $t    = Net::BitTorrent::Torrent->new( path => $path, base_path => '.', client => Net::BitTorrent->new() );
-    ok $t->info_hash_v1, 'Has v1 info_hash';
-    ok $t->info_hash_v2, 'Has v2 info_hash';
+    ok $t->infohash_v1, 'Has v1 infohash';
+    ok $t->infohash_v2, 'Has v2 infohash';
 };
 subtest 'Malformed: Negative File Size' => sub {
     my $path = $torrent_dir->child('negative_file_size.torrent');

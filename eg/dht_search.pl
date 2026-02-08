@@ -1,19 +1,19 @@
 use v5.40;
-use lib '../lib';
+use lib 'lib';
 use Net::BitTorrent::DHT;
 use Net::BitTorrent::DHT::Security;
 $|++;
 
 # The Linux ISO hash provided
-my $info_hash_hex = '1bd088ee9166a062cf4af09cf99720fa6e1a3133';
-my $info_hash     = pack( 'H*', $info_hash_hex );
+my $infohash_hex = '1bd088ee9166a062cf4af09cf99720fa6e1a3133';
+my $infohash     = pack( 'H*', $infohash_hex );
 
 # Generate a valid BEP 42 Node ID (though we disable validation for incoming)
 my $sec = Net::BitTorrent::DHT::Security->new();
 my $id  = $sec->generate_node_id('127.0.0.1');
 $ENV{DEBUG} //= 1;
 my $dht = Net::BitTorrent::DHT->new( node_id_bin => $id, port => 6881 + int( rand(100) ), bep42 => 0 );
-say '[DEMO] Seeking peers for hash: ' . $info_hash_hex;
+say '[DEMO] Seeking peers for hash: ' . $infohash_hex;
 $dht->bootstrap();
 
 # The 'Frontier': nodes close to target that we haven't queried yet
@@ -44,7 +44,7 @@ while (1) {
     if ( time - $timer > 2 ) {
 
         # Merge routing table nodes into our search frontier
-        my @closest_in_table = $dht->routing_table->find_closest( $info_hash, 50 );
+        my @closest_in_table = $dht->routing_table->find_closest( $infohash, 50 );
         for my $node (@closest_in_table) {
             my $nid_hex = unpack( 'H*', $node->{id} );
             next if exists $candidates{$nid_hex};
@@ -52,16 +52,16 @@ while (1) {
         }
 
         # Pick the top N closest unvisited candidates
-        my @to_query = sort { ( $a->{id} ^.$info_hash ) cmp( $b->{id} ^.$info_hash ) } grep { !$_->{visited} && $_->{ip} } values %candidates;
+        my @to_query = sort { ( $a->{id} ^.$infohash ) cmp( $b->{id} ^.$infohash ) } grep { !$_->{visited} && $_->{ip} } values %candidates;
         if (@to_query) {
-            my $best_dist = unpack( 'H*', $to_query[0]{id} ^.$info_hash );
+            my $best_dist = unpack( 'H*', $to_query[0]{id} ^.$infohash );
             say sprintf( '[DEMO] Frontier: %d nodes. Best dist: %s', scalar( keys %candidates ), $best_dist );
             my $count = 0;
             for my $c (@to_query) {
                 if ( $ENV{DEBUG} ) {
                     say '[DEMO] Querying: ' . unpack( 'H*', $c->{id} ) . ' at ' . $c->{ip} . ':' . $c->{port};
                 }
-                $dht->get_peers( $info_hash, $c->{ip}, $c->{port} );
+                $dht->get_peers( $infohash, $c->{ip}, $c->{port} );
                 $c->{visited} = 1;
                 last if ++$count >= 8;
             }

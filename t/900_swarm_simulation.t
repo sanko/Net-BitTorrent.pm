@@ -49,8 +49,8 @@ subtest 'Seeder and Leecher Simulation' => sub {
     my $t_l         = $client_l->add( $torrent_file, $leecher_dir );
     $t_s->start();
     $t_l->start();
-    my $p_s     = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => $ih, peer_id => $id_s, features => $t_s->features );
-    my $p_l     = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => $ih, peer_id => $id_l, features => $t_l->features );
+    my $p_s     = Net::BitTorrent::Protocol::PeerHandler->new( infohash => $ih, peer_id => $id_s, features => $t_s->features );
+    my $p_l     = Net::BitTorrent::Protocol::PeerHandler->new( infohash => $ih, peer_id => $id_l, features => $t_l->features );
     my $trans_s = MockTransport->new();
     my $trans_l = MockTransport->new();
     my $peer_s  = Net::BitTorrent::Peer->new(

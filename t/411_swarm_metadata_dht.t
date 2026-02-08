@@ -57,13 +57,13 @@ subtest 'Metadata Exchange' => sub {
     my $trans_s = MockTransport->new( ip => '1.1.1.1', port => 1111, name => 'S' );
     my $trans_l = MockTransport->new( ip => '2.2.2.2', port => 2222, name => 'L' );
     my $p_s     = Net::BitTorrent::Protocol::PeerHandler->new(
-        info_hash     => $ih,
+        infohash      => $ih,
         peer_id       => 'S' x 20,
         features      => $client_s->features,
         debug         => 0,
         metadata_size => length( bencode($info) )
     );
-    my $p_l    = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => $ih, peer_id => 'L' x 20, features => $client_l->features, debug => 0 );
+    my $p_l    = Net::BitTorrent::Protocol::PeerHandler->new( infohash => $ih, peer_id => 'L' x 20, features => $client_l->features, debug => 0 );
     my $peer_s = Net::BitTorrent::Peer->new(
         protocol   => $p_s,
         torrent    => $t_s,
@@ -156,12 +156,12 @@ subtest 'Bridge Node (Metadata only)' => sub {
     my $trans_b = MockTransport->new( ip => '1.2.3.4', port => 80, name => 'B' );
     my $trans_c = MockTransport->new( ip => '4.3.2.1', port => 80, name => 'C' );
     my $p_b     = Net::BitTorrent::Protocol::PeerHandler->new(
-        info_hash     => $ih,
+        infohash      => $ih,
         peer_id       => 'B' x 20,
         features      => $client_b->features,
         metadata_size => length( bencode($info) )
     );
-    my $p_c    = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => $ih, peer_id => 'C' x 20, features => $client_c->features );
+    my $p_c    = Net::BitTorrent::Protocol::PeerHandler->new( infohash => $ih, peer_id => 'C' x 20, features => $client_c->features );
     my $peer_b = Net::BitTorrent::Peer->new(
         protocol   => $p_b,
         torrent    => $t_b,

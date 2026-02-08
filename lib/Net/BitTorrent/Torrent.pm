@@ -19,9 +19,9 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
     field $base_path        : param;
     field $client           : param : reader;
     field $metadata         : reader = undef;
-    field $info_hash        : param  = undef;
-    field $info_hash_v1     : writer : param = undef;
-    field $info_hash_v2     : param = undef;
+    field $infohash         : param  = undef;
+    field $infohash_v1      : writer : param = undef;
+    field $infohash_v2      : param = undef;
     field $initial_trackers : param = [];
     field $initial_peers    : param = [];
     field $storage          : reader;
@@ -146,7 +146,7 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
     method name () {
         return $metadata->{info}{name} if $metadata && $metadata->{info} && $metadata->{info}{name};
-        return unpack( 'H*', $self->info_hash_v1 // $self->info_hash_v2 // '' );
+        return unpack( 'H*', $self->infohash_v1 // $self->infohash_v2 // '' );
     }
 
     method progress () {
@@ -168,7 +168,7 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
             my $weak_self = $self;
             builtin::weaken($weak_self);
             $client->dht_scrape(
-                $info_hash_v2 || $info_hash_v1,
+                $infohash_v2 || $infohash_v1,
                 sub ($res) {
                     $weak_self->handle_dht_scrape($res) if $weak_self;
                 }
@@ -189,7 +189,7 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         $state = STATE_STOPPED;
         $storage->explicit_flush() if $storage;
         $self->announce('stopped');
-        for my $peer ( values %peer_objects ) {
+        for my $peer ( grep {defined} values %peer_objects ) {
             $peer->disconnected();
         }
         %peer_objects = ();
@@ -212,10 +212,10 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         $self->set_parent_emitter($client);
         $self->_emit(
             log => "    [DEBUG] Torrent::ADJUST path=" .
-                ( $path         // 'undef' ) . " ih=" .
-                ( $info_hash    // 'undef' ) . " v1=" .
-                ( $info_hash_v1 // 'undef' ) . " v2=" .
-                ( $info_hash_v2 // 'undef' ) . "\n",
+                ( $path        // 'undef' ) . " ih=" .
+                ( $infohash    // 'undef' ) . " v1=" .
+                ( $infohash_v1 // 'undef' ) . " v2=" .
+                ( $infohash_v2 // 'undef' ) . "\n",
             level => 'debug'
         ) if $debug;
         builtin::weaken($client) if defined $client;
@@ -231,16 +231,16 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
             $self->_emit( log => 'Missing info dictionary', level => 'fatal' ) unless ref $metadata eq 'HASH' && ref $metadata->{info} eq 'HASH';
             $self->_init_from_metadata();
         }
-        elsif ( $info_hash || $info_hash_v1 || $info_hash_v2 ) {
-            if ($info_hash) {
-                if ( length($info_hash) == 20 ) {
-                    $info_hash_v1 = $info_hash;
+        elsif ( $infohash || $infohash_v1 || $infohash_v2 ) {
+            if ($infohash) {
+                if ( length($infohash) == 20 ) {
+                    $infohash_v1 = $infohash;
                 }
-                elsif ( length($info_hash) == 32 ) {
-                    $info_hash_v2 = $info_hash;
+                elsif ( length($infohash) == 32 ) {
+                    $infohash_v2 = $infohash;
                 }
                 else {
-                    $self->_emit( log => 'Invalid info_hash length', level => 'fatal' );
+                    $self->_emit( log => 'Invalid infohash length', level => 'fatal' );
                 }
             }
             my @tiers = map { [$_] } @$initial_trackers;
@@ -252,7 +252,7 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
             }
         }
         else {
-            $self->_emit( log => 'Either path or info_hash required', level => 'fatal' );
+            $self->_emit( log => 'Either path or infohash required', level => 'fatal' );
         }
     }
 
@@ -346,10 +346,10 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
             }
         }
         my $info_encoded = bencode($info);
-        $info_hash_v1 = sha1($info_encoded)   if $info->{pieces};
-        $info_hash_v2 = sha256($info_encoded) if $info->{'file tree'};
-        $is_private   = $info->{private}   // 0;
-        $dht_nodes    = $metadata->{nodes} // [];
+        $infohash_v1 = sha1($info_encoded)   if $info->{pieces};
+        $infohash_v2 = sha256($info_encoded) if $info->{'file tree'};
+        $is_private  = $info->{private}   // 0;
+        $dht_nodes   = $metadata->{nodes} // [];
         my $tree = $self->file_tree;
         $storage = Net::BitTorrent::Storage->new(
             base_path  => $base_path,
@@ -507,7 +507,7 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
             # Try to connect
             $attempted_connections{$key} = time();
-            my $ih = $info_hash_v2 || $info_hash_v1;
+            my $ih = $infohash_v2 || $infohash_v1;
             $client->connect_to_peer( $p->{ip}, $p->{port}, $ih );
             $count++;
             last if $count >= 5;    # Limit concurrent attempts
@@ -633,7 +633,7 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
             # Verify hash
             my $calculated_ih = sha1($full_info);
-            if ( $calculated_ih ne $info_hash_v1 ) {
+            if ( $calculated_ih ne $infohash_v1 ) {
                 $self->_emit( log => "  [ERROR] Metadata verification FAILED! Hash mismatch.\n", level => 'error' );
                 %metadata_pieces = ();
                 return;
@@ -700,7 +700,7 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
             $self->init_peer_bitfield($peer);
         }
 
-        # Announce to trackers now that we have full info_hash info
+        # Announce to trackers now that we have full infohash info
         $self->announce();
     }
 
@@ -878,12 +878,7 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
             }
         }
         delete $peer_bitfields{$peer};
-        for my $k ( keys %peer_objects ) {
-            if ( $peer_objects{$k} == $peer ) {
-                delete $peer_objects{$k};
-                last;
-            }
-        }
+        delete $peer_objects{$ip_port};
     }
 
     method set_peer_bitfield ( $peer, $data ) {
@@ -1045,10 +1040,10 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
     method announce ( $event = undef, $cb = undef ) {
         my @ihs;
-        push @ihs, $info_hash_v2 if $info_hash_v2;
-        push @ihs, $info_hash_v1 if $info_hash_v1;
+        push @ihs, $infohash_v2 if $infohash_v2;
+        push @ihs, $infohash_v1 if $infohash_v1;
         my $params = {
-            info_hash  => \@ihs,
+            infohash   => \@ihs,
             peer_id    => $peer_id,
             port       => 6881,
             uploaded   => $bytes_uploaded,
@@ -1159,8 +1154,8 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         my $dht = $client->dht();
         return unless $dht;
         my @ihs;
-        push @ihs, $info_hash_v2 if $info_hash_v2;
-        push @ihs, $info_hash_v1 if $info_hash_v1;
+        push @ihs, $infohash_v2 if $infohash_v2;
+        push @ihs, $infohash_v1 if $infohash_v1;
 
         # Explicitly ask bootstrap nodes.
         # This forces a query even if the local routing table is empty.
@@ -1191,8 +1186,8 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         my $dht = $client->dht();
         return unless $dht;
         my @ihs;
-        push @ihs, $info_hash_v2 if $info_hash_v2;
-        push @ihs, $info_hash_v1 if $info_hash_v1;
+        push @ihs, $infohash_v2 if $infohash_v2;
+        push @ihs, $infohash_v1 if $infohash_v1;
         for my $ih (@ihs) {
 
             # Merge routing table nodes into our search frontier
@@ -1269,10 +1264,10 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         my @list = values %peers;
         return $self->_sort_peers_rfc6724( \@list );
     }
-    method info_hash_v1 () {$info_hash_v1}
-    method info_hash_v2 () {$info_hash_v2}
-    method peer_id ()      {$peer_id}
-    method trackers ()     { return $tracker_manager->trackers() }
+    method infohash_v1 () {$infohash_v1}
+    method infohash_v2 () {$infohash_v2}
+    method peer_id ()     {$peer_id}
+    method trackers ()    { return $tracker_manager->trackers() }
 
     method files () {
         return [] unless $storage;

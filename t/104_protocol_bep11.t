@@ -9,7 +9,7 @@ class MockPEX : isa(Net::BitTorrent::Protocol::BEP11) {
     method on_pex ( $a, $d, $a6, $d6 ) { $got_pex = { added => $a, dropped => $d, added6 => $a6, dropped6 => $d6 } }
 }
 subtest 'PEX Packing and Unpacking' => sub {
-    my $pwp = MockPEX->new( info_hash => 'A' x 20, peer_id => 'B' x 20, local_extensions => { ut_pex => 1 } );
+    my $pwp = MockPEX->new( infohash => 'A' x 20, peer_id => 'B' x 20, local_extensions => { ut_pex => 1 } );
     $pwp->send_handshake();
     $pwp->receive_data( $pwp->write_buffer );    # Open
 

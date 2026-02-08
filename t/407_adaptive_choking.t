@@ -18,7 +18,7 @@ subtest 'Adaptive Choking (Leecher Mode)' => sub {
     my @peers;
 
     for ( 1 .. 6 ) {
-        my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => 'A' x 20, peer_id => 'B' x 20, features => $t->features );
+        my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( infohash => 'A' x 20, peer_id => 'B' x 20, features => $t->features );
 
         # Mock socket for registration
         my $ip        = "1.2.3.$_";

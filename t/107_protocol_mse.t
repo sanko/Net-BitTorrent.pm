@@ -1,7 +1,7 @@
 use v5.40;
 use Test2::V1 -ipP;
 no warnings;
-use lib '../lib';
+use lib 'lib';
 
 BEGIN {
     try {
@@ -15,8 +15,8 @@ BEGIN {
 use Net::BitTorrent::Protocol::MSE;
 #
 my $ih        = 'I' x 20;
-my $initiator = Net::BitTorrent::Protocol::MSE->new( info_hash => $ih, is_initiator => 1 );
-my $receiver  = Net::BitTorrent::Protocol::MSE->new( info_hash => $ih, is_initiator => 0 );
+my $initiator = Net::BitTorrent::Protocol::MSE->new( infohash => $ih, is_initiator => 1 );
+my $receiver  = Net::BitTorrent::Protocol::MSE->new( infohash => $ih, is_initiator => 0 );
 
 # Initiator sends PubKeyA
 my $buf_a = $initiator->write_buffer;

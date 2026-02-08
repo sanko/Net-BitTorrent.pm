@@ -1,7 +1,6 @@
 use v5.40;
 use feature 'class', 'try';
 no warnings 'experimental::class', 'experimental::try';
-use lib '../lib';
 class Net::BitTorrent::Protocol::BEP10 v2.0.0 : isa(Net::BitTorrent::Protocol::BEP52) {
     use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode bdecode];
     field $local_extensions  : param : reader = {};

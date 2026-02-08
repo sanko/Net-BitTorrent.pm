@@ -1,5 +1,5 @@
 use v5.40;
-use lib '../lib';
+use lib 'lib';
 use Net::BitTorrent;
 use Net::BitTorrent::Types qw[:encryption];
 use Path::Tiny;
@@ -17,7 +17,7 @@ path($data_dir)->mkpath;
 say "Data directory: " . path($data_dir)->absolute;
 my $client  = Net::BitTorrent->new( debug => 0, encryption => ENCRYPTION_REQUIRED );
 my $torrent = $client->add( $magnet_uri, $data_dir );
-my $ih_hex  = unpack( 'H*', $torrent->info_hash_v2 || $torrent->info_hash_v1 );
+my $ih_hex  = unpack( 'H*', $torrent->infohash_v2 || $torrent->infohash_v1 );
 say "Added magnet: $ih_hex";
 say "Waiting for metadata...";
 $torrent->on(

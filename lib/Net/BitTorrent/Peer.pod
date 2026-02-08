@@ -8,6 +8,8 @@ Net::BitTorrent::Peer - Individual Peer Connection & State Tracking
 
 =head1 SYNOPSIS
 
+    use Net::BitTorrent::Types qw[:encryption];
+
     # Usually managed automatically by Net::BitTorrent::Torrent
     my $peer = Net::BitTorrent::Peer->new(
         protocol   => $handler,
@@ -15,7 +17,7 @@ Net::BitTorrent::Peer - Individual Peer Connection & State Tracking
         transport  => $tcp_transport,
         ip         => '1.2.3.4',
         port       => 6881,
-        encryption => REQUIRED
+        encryption => ENCRYPTION_REQUIRED
     );
 
     # Access transport layer
@@ -26,7 +28,7 @@ Net::BitTorrent::Peer - Individual Peer Connection & State Tracking
 
     # Check peer state
     say 'Peer is interested' if $peer->peer_interested;
-    say 'Download rate: ' . $peer->rate_down . ' KB/s';
+    say 'Download rate: ' . ($peer->rate_down / 1024) . ' KB/s';
 
 =head1 DESCRIPTION
 
@@ -35,17 +37,19 @@ choking/interested state machine and handles all message routing for a specific 
 
 =head2 Reputation & Security
 
-This class implements peer reputation tracking:
+This class implements peer reputation tracking to protect the swarm from malicious or buggy clients:
 
 =over
 
-=item Peers start with a reputation of 100.
+=item * Peers start with a reputation of 100.
 
-=item Providing a verified piece increases reputation by 1.
+=item * Providing a verified piece increases reputation by 1.
 
-=item Providing a corrupt piece (failed hash) decreases reputation by 20.
+=item * Providing a corrupt piece (failed hash) decreases reputation by 20.
 
-=item If reputation falls to B<50 or below>, the peer is automatically disconnected and blacklisted for the session.
+=item * If reputation falls to B<50 or below>, the peer is automatically disconnected and blacklisted for the session.
+
+=item * The score is capped only by the number of successful transfers (can exceed 100).
 
 =back
 
@@ -57,7 +61,7 @@ Parameters;
 
 =over
 
-=item * C<encryption>: (default C<"preferred">) Connection security policy (C<none>, C<preferred>, C<required>).
+=item * C<encryption>: (default C<ENCRYPTION_PREFERRED>) Connection security policy (C<ENCRYPTION_NONE>, C<ENCRYPTION_PREFERRED>, C<ENCRYPTION_REQUIRED>). Supports both constants and strings ('none', 'preferred', 'required').
 
 =item * C<transport>: An instance of L<Net::BitTorrent::Transport::TCP> or L<Net::uTP::Connection>.
 
@@ -76,11 +80,11 @@ Sends B<BEP 06> Fast Extension hints to the peer.
 
 =head2 C<rate_down( )> / C<rate_up( )>
 
-Returns the current transfer rates in bytes per second, calculated via a 20% moving average decay.
+Returns the current transfer rates in B<bytes per second>, calculated via a 20% moving average decay.
 
 =head2 C<reputation( )>
 
-Returns the current reputation score (51-101).
+Returns the current reputation score.
 
 =head2 C<am_choking( )> / C<peer_choking( )>
 
@@ -116,7 +120,7 @@ Sanko Robinson E<lt>sanko@cpan.orgE<gt>
 
 =head1 COPYRIGHT
 
-Copyright (C) 2026 by Sanko Robinson.
+Copyright (C) 2008-2026 by Sanko Robinson.
 
 This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
 

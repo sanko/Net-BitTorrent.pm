@@ -12,7 +12,7 @@ Net::BitTorrent::Protocol::PeerHandler - Integrated Protocol Extension Orchestra
     use Net::BitTorrent::Protocol::PeerHandler;
 
     my $handler = Net::BitTorrent::Protocol::PeerHandler->new(
-        info_hash => $ih,
+        infohash => $ih,
         peer_id   => $id,
         features  => { bep06 => 1, bep10 => 1 }
     );
@@ -94,7 +94,7 @@ Sanko Robinson E<lt>sanko@cpan.orgE<gt>
 
 =head1 COPYRIGHT
 
-Copyright (C) 2026 by Sanko Robinson.
+Copyright (C) 2008-2026 by Sanko Robinson.
 
 This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
 

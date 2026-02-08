@@ -9,7 +9,7 @@ if ( !$source_dir || !$output_file ) {
 $type //= 'hybrid';
 my $gen = Net::BitTorrent::Torrent::Generator->new(
     base_path    => $source_dir,
-    piece_length => 262144,        # 256 KiB
+    piece_length => 262144         # 256 KiB
 );
 say "Adding files from $source_dir...";
 my $dir = path($source_dir);

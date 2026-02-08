@@ -19,7 +19,7 @@ Net::BitTorrent::Tracker - Multi-tier Tracker Manager
 
     # Announce presence and get peers
     $manager->announce_all({
-        info_hash  => $bin_ih,
+        infohash   => $bin_ih,
         peer_id    => $my_id,
         port       => 6881,
         downloaded => 0,
@@ -57,7 +57,7 @@ Implements BEP 12 logic: iterates through trackers in a tier until one succeeds,
 Automatically handles tracker-provided C<interval> and C<min interval>, and supports hybrid torrent announces by
 sending requests for both v1 and v2 infohashes.
 
-=head2 C<scrape_all( \@info_hashes, [$callback] )>
+=head2 C<scrape_all( \@infohashes, [$callback] )>
 
 Performs a scrape (BEP 48) across all trackers to gather swarm statistics (seeders, leechers, completed downloads)
 without registering as a peer.
@@ -76,7 +76,7 @@ Sanko Robinson E<lt>sanko@cpan.orgE<gt>
 
 =head1 COPYRIGHT
 
-Copyright (C) 2026 by Sanko Robinson.
+Copyright (C) 2008-2026 by Sanko Robinson.
 
 This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
 

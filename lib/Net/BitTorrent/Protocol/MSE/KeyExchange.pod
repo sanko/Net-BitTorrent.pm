@@ -11,7 +11,7 @@ Net::BitTorrent::Protocol::MSE::KeyExchange - Diffie-Hellman Exchange for MSE
     use Net::BitTorrent::Protocol::MSE::KeyExchange;
 
     my $kx = Net::BitTorrent::Protocol::MSE::KeyExchange->new(
-        info_hash    => $bin_ih,
+        infohash    => $bin_ih,
         is_initiator => 1
     );
 
@@ -36,7 +36,7 @@ It uses a fixed 768-bit safe prime (P) and generator (G=2) as defined in the MSE
 
 =head2 C<compute_secret( $remote_public_key )>
 
-Computes the shared Diffie-Hellman secret and derives the RC4 encryption and decryption keys using the info-hash as a
+Computes the shared Diffie-Hellman secret and derives the RC4 encryption and decryption keys using the infohash as a
 salt.
 
 This method automatically discards the first B<1024 bytes> of both RC4 keystreams to mitigate known weaknesses in the
@@ -60,7 +60,7 @@ Sanko Robinson E<lt>sanko@cpan.orgE<gt>
 
 =head1 COPYRIGHT
 
-Copyright (C) 2026 by Sanko Robinson.
+Copyright (C) 2008-2026 by Sanko Robinson.
 
 This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
 

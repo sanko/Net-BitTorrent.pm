@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Protocol::BEP53 - Magnet URI extension (v2 support)
+Net::BitTorrent::Protocol::BEP53 - Magnet URI extension
 
 =head1 SYNOPSIS
 
@@ -14,11 +14,11 @@ Net::BitTorrent::Protocol::BEP53 - Magnet URI extension (v2 support)
     my $m = Net::BitTorrent::Protocol::BEP53->parse( $uri_string );
 
     say 'Name: ' . $m->name;
-    say 'V2 Hash: ' . unpack('H*', $m->info_hash_v2) if $m->info_hash_v2;
+    say 'V2 Hash: ' . unpack('H*', $m->infohash_v2) if $m->infohash_v2;
 
     # Generate a new URI
     my $new_uri = Net::BitTorrent::Protocol::BEP53->new(
-        info_hash_v2 => $ih2,
+        inf_hash_v2  => $ih2,
         name         => 'Special Linux Distro',
         trackers     => ['udp://tracker.example.com:80']
     )->to_string();
@@ -51,10 +51,9 @@ Class method. Deconstructs a magnet string into an object. Supports both C<&> an
 
 Generates a URI-encoded magnet string based on the object's current state.
 
-=head2 C<info_hash_v1( )> / C<info_hash_v2( )>
+=head2 C<infohash_v1( )> / C<infohash_v2( )>
 
-Returns the binary info-hash strings. C<info_hash_v2> is returned B<without> the 4-byte multihash prefix (C<0x12
-0x20>).
+Returns the binary infohash strings. C<infohash_v2> is returned B<without> the 4-byte multihash prefix (C<0x12 0x20>).
 
 =head2 C<trackers( )>
 
@@ -81,7 +80,7 @@ Sanko Robinson E<lt>sanko@cpan.orgE<gt>
 
 =head1 COPYRIGHT
 
-Copyright (C) 2026 by Sanko Robinson.
+Copyright (C) 2008-2026 by Sanko Robinson.
 
 This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
 

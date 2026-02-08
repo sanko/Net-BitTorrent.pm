@@ -11,7 +11,7 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
     use Time::HiRes            qw[time];
     use Net::BitTorrent::Types qw[:encryption];
     #
-    field %torrents;          # info_hash => Torrent object
+    field %torrents;          # infohash => Torrent object
     field %pending_peers;     # transport => Peer object
     field $dht;
     field $tcp_listener;
@@ -20,7 +20,7 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
     field $lpd;
     field $node_id : reader : writer;
     field %dht_queries;       # tid => { cb => sub, type => ... }
-    field %dht_index;         # info_hash_hex => timestamp (BEP 51 crawling)
+    field %dht_index;         # infohash_hex => timestamp (BEP 51 crawling)
     field $port_mapper : reader;
     field $port       : param : reader = 49152 + int( rand(10000) );
     field $user_agent : param : reader //= join '/', __CLASS__, our $VERSION;
@@ -49,6 +49,13 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
     }
     ADJUST {
         $node_id //= _generate_peer_id();
+
+        # Normalize encryption param
+        if ( defined $encryption && $encryption !~ /^\d+$/ ) {
+            if    ( $encryption eq 'none' )      { $encryption = ENCRYPTION_NONE }
+            elsif ( $encryption eq 'preferred' ) { $encryption = ENCRYPTION_PREFERRED }
+            elsif ( $encryption eq 'required' )  { $encryption = ENCRYPTION_REQUIRED }
+        }
         my $weak_self = $self;
         builtin::weaken($weak_self);
 
@@ -70,7 +77,7 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
                 use Net::BitTorrent::Protocol::HandshakeOnly;
                 use Net::BitTorrent::Peer;
                 my $proto = Net::BitTorrent::Protocol::HandshakeOnly->new(
-                    info_hash       => undef,                  # Dummy, will be overwritten by any incoming
+                    infohash        => undef,                  # Dummy, will be overwritten by any incoming
                     peer_id         => $weak_self->node_id,    # Dummy
                     on_handshake_cb => sub ( $ih, $id ) {
                         $weak_self->_upgrade_pending_peer( $utp_conn, $ih, $id, $ip, $port );
@@ -95,8 +102,7 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         use Net::Multicast::PeerDiscovery;
         $lpd = Net::Multicast::PeerDiscovery->new();
         $lpd->on(
-            'peer_found',
-            sub ($p_info) {
+            peer_found => sub ($p_info) {
                 return unless $weak_self;
                 if ( my $t = $torrents{ $p_info->{info_hash} } ) {
                     $t->add_peer( { ip => $p_info->{ip}, port => $p_info->{port} } );
@@ -191,8 +197,7 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
         # We wait for the first chunk of data to decide if it's PWP or MSE
         $transport->on(
-            'data',
-            sub ( $trans, $data ) {
+            data => sub ( $trans, $data ) {
                 return unless $weak_self && $weak_transport;
                 my $entry = $weak_self->pending_peers_hash->{$weak_transport};
                 return unless $entry;
@@ -230,7 +235,7 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
             $self->_emit( log => "    [DEBUG] Autodetected PWP handshake\n", level => 'debug' ) if $debug;
             use Net::BitTorrent::Protocol::HandshakeOnly;
             my $proto = Net::BitTorrent::Protocol::HandshakeOnly->new(
-                info_hash       => undef,
+                infohash        => undef,
                 peer_id         => $self->node_id,
                 on_handshake_cb => sub ( $ih, $id ) {
                     $self->_upgrade_pending_peer( $transport, $ih, $id, $transport->socket->peerhost, $transport->socket->peerport );
@@ -251,9 +256,9 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         else {
             $self->_emit( log => "    [DEBUG] Autodetected potential MSE handshake\n", level => 'debug' ) if $debug;
 
-            # MSE handling will be complex because we don't know the info_hash yet
-            # We need an MSE object that can try ALL our hosted info_hashes?
-            # No, MSE spec says Req2 is XORed with the info_hash.
+            # MSE handling will be complex because we don't know the infohash yet
+            # We need an MSE object that can try ALL our hosted infohashes?
+            # No, MSE spec says Req2 is XORed with the infohash.
             # We must wait until we have Req2, then XOR it with each IH we have until one matches.
             $self->_handle_incoming_mse( $transport, $data );
         }
@@ -264,18 +269,18 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         my $weak_self = $self;
         builtin::weaken($weak_self);
         my $mse = Net::BitTorrent::Protocol::MSE->new(
-            info_hash          => undef,                              # Not known yet
-            is_initiator       => 0,
-            on_info_hash_probe => sub ( $mse_obj, $xor_part, $s ) {
+            infohash          => undef,                              # Not known yet
+            is_initiator      => 0,
+            on_infohash_probe => sub ( $mse_obj, $xor_part, $s ) {
                 return undef unless $weak_self;
                 my $torrents = $weak_self->torrents();
                 for my $t (@$torrents) {
-                    my $ih1 = $t->info_hash_v1;
-                    my $ih2 = $t->info_hash_v2;
+                    my $ih1 = $t->infohash_v1;
+                    my $ih2 = $t->infohash_v2;
                     for my $ih ( grep {defined} ( $ih1, $ih2 ) ) {
                         my $expected_xor = $mse_obj->_xor_strings( sha1( 'req2' . $ih ), sha1( 'req3' . $s ) );
                         if ( $xor_part eq $expected_xor ) {
-                            $weak_self->_emit( log => "    [DEBUG] MSE matched info_hash: " . unpack( 'H*', $ih ) . "\n", level => 'debug' )
+                            $weak_self->_emit( log => "    [DEBUG] MSE matched infohash: " . unpack( 'H*', $ih ) . "\n", level => 'debug' )
                                 if $weak_self->debug;
                             return $ih;
                         }
@@ -287,7 +292,7 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         my $weak_transport = $transport;
         builtin::weaken($weak_transport);
         $mse->on(
-            'info_hash_identified',
+            'infohash_identified',
             sub ( $mse_obj, $ih ) {
                 return unless $weak_self && $weak_transport;
                 $weak_self->_upgrade_pending_peer( $weak_transport, $ih, undef, $weak_transport->socket->peerhost,
@@ -320,7 +325,7 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         }
         use Net::BitTorrent::Protocol::PeerHandler;
         my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new(
-            info_hash     => $ih,
+            infohash      => $ih,
             peer_id       => $self->node_id,
             features      => $torrent->features,
             debug         => $debug,
@@ -403,16 +408,16 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         $dht_queries{$target} = { cb => $cb, type => 'put', value => $value };
     }
 
-    method dht_scrape ( $info_hash, $cb ) {
+    method dht_scrape ( $infohash, $cb ) {
         return unless $self->dht;
-        $self->dht->scrape($info_hash);
-        $dht_queries{$info_hash} = { cb => $cb, type => 'scrape' };
+        $self->dht->scrape($infohash);
+        $dht_queries{$infohash} = { cb => $cb, type => 'scrape' };
     }
 
     method dht_crawl () {
         return unless $self->dht;
 
-        # Random sample to discover new info-hashes
+        # Random sample to discover new infohashes
         my $random_target = pack( 'H*', join( '', map { sprintf( '%02x', rand(256) ) } 1 .. 20 ) );
         $self->dht->sample($random_target);
     }
@@ -434,9 +439,9 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         builtin::weaken($weak_transport);
         if ( $encryption == ENCRYPTION_REQUIRED || $encryption == ENCRYPTION_PREFERRED ) {
             use Net::BitTorrent::Protocol::MSE;
-            my $mse = Net::BitTorrent::Protocol::MSE->new( info_hash => $ih, is_initiator => 1, );
+            my $mse = Net::BitTorrent::Protocol::MSE->new( infohash => $ih, is_initiator => 1, );
             $mse->on(
-                'info_hash_identified',
+                'infohash_identified',
                 sub ( $mse_obj, $ih ) {
                     return unless $weak_self && $weak_transport;
                     $weak_self->_upgrade_pending_peer(
@@ -491,7 +496,10 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
             return $self->add_magnet( $thing, $base_path, %args );
         }
         elsif ( length($thing) == 20 || ( length($thing) == 40 && $thing =~ /^[0-9a-f]+$/i ) ) {
-            return $self->add_info_hash( $thing, $base_path, %args );
+            return $self->add_infohash( $thing, $base_path, %args );
+        }
+        elsif ( length($thing) == 32 || ( length($thing) == 64 && $thing =~ /^[0-9a-f]+$/i ) ) {
+            return $self->add_infohash( $thing, $base_path, %args );
         }
         elsif ( -f $thing ) {
             return $self->add_torrent( $thing, $base_path, %args );
@@ -502,17 +510,17 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
     method add_torrent ( $path, $base_path, %args ) {
         my $t = Net::BitTorrent::Torrent->new( path => $path, base_path => $base_path, client => $self, debug => $debug, peer_id => $node_id, %args );
-        $torrents{ $t->info_hash_v1 } = $t if $t->info_hash_v1;
-        $torrents{ $t->info_hash_v2 } = $t if $t->info_hash_v2;
+        $torrents{ $t->infohash_v1 } = $t if $t->infohash_v1;
+        $torrents{ $t->infohash_v2 } = $t if $t->infohash_v2;
         $self->_emit( 'torrent_added', $t );
         return $t;
     }
 
-    method add_info_hash ( $ih, $base_path, %args ) {
-        my $t = Net::BitTorrent::Torrent->new( info_hash => $ih, base_path => $base_path, client => $self, debug => $debug, peer_id => $node_id,
-            %args );
-        $torrents{ $t->info_hash_v1 } = $t if $t->info_hash_v1;
-        $torrents{ $t->info_hash_v2 } = $t if $t->info_hash_v2;
+    method add_infohash ( $ih, $base_path, %args ) {
+        my $t
+            = Net::BitTorrent::Torrent->new( infohash => $ih, base_path => $base_path, client => $self, debug => $debug, peer_id => $node_id, %args );
+        $torrents{ $t->infohash_v1 } = $t if $t->infohash_v1;
+        $torrents{ $t->infohash_v2 } = $t if $t->infohash_v2;
         $self->_emit( 'torrent_added', $t );
         return $t;
     }
@@ -521,18 +529,18 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         use Net::BitTorrent::Protocol::BEP53;
         my $m = Net::BitTorrent::Protocol::BEP53->parse($uri);
         my $t = Net::BitTorrent::Torrent->new(
-            info_hash_v1     => $m->info_hash_v1,
-            info_hash_v2     => $m->info_hash_v2,
+            infohash_v1      => $m->infohash_v1,
+            infohash_v2      => $m->infohash_v2,
             initial_trackers => $m->trackers,
-            initial_peers    => $m->nodes,          # x.pe
+            initial_peers    => $m->nodes,         # x.pe
             base_path        => $base_path,
             client           => $self,
             debug            => $debug,
             peer_id          => $node_id,
             %args
         );
-        $torrents{ $t->info_hash_v1 } = $t if $t->info_hash_v1;
-        $torrents{ $t->info_hash_v2 } = $t if $t->info_hash_v2;
+        $torrents{ $t->infohash_v1 } = $t if $t->infohash_v1;
+        $torrents{ $t->infohash_v2 } = $t if $t->infohash_v2;
         $self->_emit( 'torrent_added', $t );
         return $t;
     }
@@ -718,7 +726,7 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
             # Dispatch peers to relevant torrents
             # Net::BitTorrent::DHT::handle_incoming returns (nodes, peers, data)
-            # The 'data' (result) hash contains 'queried_target' which is the info_hash
+            # The 'data' (result) hash contains 'queried_target' which is the infohash
             # we were looking for when these peers were returned.
             for my $d (@all_data) {
                 my $ih = $d->{queried_target};
@@ -734,7 +742,7 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
                     }
                 }
                 elsif ( $debug && $ih ) {
-                    $self->_emit( log => "    [DEBUG] DHT result for unknown info_hash " . unpack( "H*", $ih ) . "\n", level => 'debug' );
+                    $self->_emit( log => "    [DEBUG] DHT result for unknown infohash " . unpack( "H*", $ih ) . "\n", level => 'debug' );
                 }
             }
 
@@ -780,8 +788,8 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
             # (Simplified: every ~60s if we tracked a timer, here we just do it occasionally)
             if ( rand() < 0.01 ) {    # Hack for now
                 if ($lpd) {
-                    $lpd->announce( $t->info_hash_v2, 6881 ) if $t->info_hash_v2;
-                    $lpd->announce( $t->info_hash_v1, 6881 ) if $t->info_hash_v1;
+                    $lpd->announce( $t->infohash_v2, 6881 ) if $t->infohash_v2;
+                    $lpd->announce( $t->infohash_v1, 6881 ) if $t->infohash_v1;
                 }
             }
         }

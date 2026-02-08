@@ -98,66 +98,13 @@
       }
    },
    "provides" : {
-      "Net::BitTorrent" : {
-         "file" : "lib/Net/BitTorrent.pm",
+      "Net::BitTorrent::Emitter" : {
+         "file" : "lib/Net/BitTorrent/Emitter.pm",
          "version" : "v2.0.0"
       },
-      "Net::BitTorrent::Peer" : {
-         "file" : "lib/Net/BitTorrent/Peer.pm"
-      },
-      "Net::BitTorrent::Protocol::BEP03" : {
-         "file" : "lib/Net/BitTorrent/Protocol/BEP03.pm"
-      },
-      "Net::BitTorrent::Protocol::BEP23" : {
-         "file" : "lib/Net/BitTorrent/Protocol/BEP23.pm"
-      },
-      "Net::BitTorrent::Protocol::BEP53" : {
-         "file" : "lib/Net/BitTorrent/Protocol/BEP53.pm"
-      },
-      "Net::BitTorrent::Protocol::MSE" : {
-         "file" : "lib/Net/BitTorrent/Protocol/MSE.pm",
-         "version" : "v2.0.2"
-      },
-      "Net::BitTorrent::Protocol::MSE::KeyExchange" : {
-         "file" : "lib/Net/BitTorrent/Protocol/MSE/KeyExchange.pm",
-         "version" : "v2.0.4"
-      },
-      "Net::BitTorrent::Protocol::MSE::RC4" : {
-         "file" : "lib/Net/BitTorrent/Protocol/MSE/KeyExchange.pm"
-      },
-      "Net::BitTorrent::Storage" : {
-         "file" : "lib/Net/BitTorrent/Storage.pm",
+      "Net::BitTorrent::Types" : {
+         "file" : "lib/Net/BitTorrent/Types.pm",
          "version" : "v2.0.0"
-      },
-      "Net::BitTorrent::Storage::File" : {
-         "file" : "lib/Net/BitTorrent/Storage/File.pm",
-         "version" : "v2.0.0"
-      },
-      "Net::BitTorrent::Torrent" : {
-         "file" : "lib/Net/BitTorrent/Torrent.pm"
-      },
-      "Net::BitTorrent::Torrent::Generator" : {
-         "file" : "lib/Net/BitTorrent/Torrent/Generator.pm",
-         "version" : "v2.0.0"
-      },
-      "Net::BitTorrent::Torrent::PiecePicker" : {
-         "file" : "lib/Net/BitTorrent/Torrent/PiecePicker.pm",
-         "version" : "v2.0.0"
-      },
-      "Net::BitTorrent::Tracker" : {
-         "file" : "lib/Net/BitTorrent/Tracker.pm",
-         "version" : "v2.0.0"
-      },
-      "Net::BitTorrent::Tracker::Base" : {
-         "file" : "lib/Net/BitTorrent/Tracker/Base.pm",
-         "version" : "v2.0.0"
-      },
-      "Net::BitTorrent::Tracker::WebSeed" : {
-         "file" : "lib/Net/BitTorrent/Tracker/WebSeed.pm",
-         "version" : "v2.1.0"
-      },
-      "Net::BitTorrent::Transport::TCP" : {
-         "file" : "lib/Net/BitTorrent/Transport/TCP.pm"
       }
    },
    "release_status" : "stable",

@@ -13,7 +13,7 @@ class MockBEP06 : isa(Net::BitTorrent::Protocol::PeerHandler) {
     method on_suggest ($idx) { $suggested = $idx }
 }
 subtest 'Fast Extension Messages' => sub {
-    my $pwp = MockBEP06->new( info_hash => 'A' x 20, peer_id => 'B' x 20 );
+    my $pwp = MockBEP06->new( infohash => 'A' x 20, peer_id => 'B' x 20 );
 
     # Check bits in the reserved bytes
     # byte 7: 0x04 (Fast) | 0x01 (DHT) = 0x05

@@ -1,5 +1,5 @@
 use v5.40;
-use lib '../lib';
+use lib 'lib';
 use Test::More;
 use Net::BitTorrent::DHT;
 use Time::HiRes qw[sleep];

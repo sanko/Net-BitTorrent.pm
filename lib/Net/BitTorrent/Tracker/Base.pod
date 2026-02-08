@@ -26,7 +26,7 @@ The full URL of the tracker (read only).
 
 Abstract method. Implementation should request a list of peers from the tracker.
 
-=head2 C<perform_scrape ( $info_hashes, [ $cb ])>
+=head2 C<perform_scrape ( $infohashes, [ $cb ])>
 
 Abstract method. Implementation should request metadata statistics (seeders, leechers, completed) for the given info
 hashes.
@@ -41,7 +41,7 @@ Sanko Robinson E<lt>sanko@cpan.orgE<gt>
 
 =head1 COPYRIGHT
 
-Copyright (C) 2026 by Sanko Robinson.
+Copyright (C) 2008-2026 by Sanko Robinson.
 
 This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
 

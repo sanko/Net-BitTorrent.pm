@@ -1,6 +1,6 @@
 use v5.42;
 use Test2::V1 -ipP;
-use lib '../lib';
+use lib 'lib';
 use Net::BitTorrent;
 use Path::Tiny;
 use Digest::SHA                               qw[sha1];

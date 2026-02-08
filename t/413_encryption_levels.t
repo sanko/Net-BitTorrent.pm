@@ -31,7 +31,7 @@ subtest 'Encryption Level: none' => sub {
     my $client    = Net::BitTorrent->new();
     my $ih        = '1' x 20;
     my $torrent   = $client->add( "magnet:?xt=urn:btih:" . unpack( 'H*', $ih ), $temp );
-    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => $ih, peer_id => 'P' x 20 );
+    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( infohash => $ih, peer_id => 'P' x 20 );
     my $transport = MockTransport->new();
     my $peer      = Net::BitTorrent::Peer->new(
         protocol   => $p_handler,
@@ -52,7 +52,7 @@ subtest 'Encryption Level: required' => sub {
     my $client    = Net::BitTorrent->new();
     my $ih        = '1' x 20;
     my $torrent   = $client->add( "magnet:?xt=urn:btih:" . unpack( 'H*', $ih ), $temp );
-    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => $ih, peer_id => 'P' x 20 );
+    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( infohash => $ih, peer_id => 'P' x 20 );
     my $transport = MockTransport->new();
     my $peer      = Net::BitTorrent::Peer->new(
         protocol   => $p_handler,
@@ -81,7 +81,7 @@ subtest 'Encryption Level: preferred' => sub {
     my $client    = Net::BitTorrent->new();
     my $ih        = '1' x 20;
     my $torrent   = $client->add( "magnet:?xt=urn:btih:" . unpack( 'H*', $ih ), $temp );
-    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => $ih, peer_id => 'P' x 20 );
+    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( infohash => $ih, peer_id => 'P' x 20 );
     my $transport = MockTransport->new();
     my $peer      = Net::BitTorrent::Peer->new(
         protocol   => $p_handler,

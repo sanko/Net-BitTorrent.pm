@@ -45,7 +45,7 @@ subtest 'Rarest-First Piece Selection' => sub {
     # Rarest is 0.
     my @p_objs;
     for my $i ( 1 .. 4 ) {
-        my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => $t->info_hash_v1, peer_id => "PEER$i" . ( '0' x 15 ) );
+        my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( infohash => $t->infohash_v1, peer_id => "PEER$i" . ( '0' x 15 ) );
         my $peer      = Net::BitTorrent::Peer->new(
             protocol   => $p_handler,
             torrent    => $t,
@@ -93,7 +93,7 @@ subtest 'End-Game Mode Entry' => sub {
 
     # Set 1 piece verified, 4 left
     $t->bitfield->set(0);
-    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => $t->info_hash_v1, peer_id => 'PEER1' . ( '0' x 15 ) );
+    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( infohash => $t->infohash_v1, peer_id => 'PEER1' . ( '0' x 15 ) );
     my $peer      = Net::BitTorrent::Peer->new(
         protocol   => $p_handler,
         torrent    => $t,
@@ -123,7 +123,7 @@ subtest 'Peer Reputation (Bad Requests)' => sub {
     my $t      = $client->add( $torrent_file, $temp );
     $t->bitfield->set(0);    # We have piece 0, but not 1
     $t->start();
-    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => $t->info_hash_v1, peer_id => 'PEER1' . ( '0' x 15 ) );
+    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( infohash => $t->infohash_v1, peer_id => 'PEER1' . ( '0' x 15 ) );
     my $peer      = Net::BitTorrent::Peer->new(
         protocol   => $p_handler,
         torrent    => $t,

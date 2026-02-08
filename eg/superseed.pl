@@ -1,5 +1,5 @@
 use v5.40;
-use lib '../lib';
+use lib 'lib';
 use Net::BitTorrent;
 use Path::Tiny;
 my ( $torrent_path, $data_dir ) = @ARGV;
@@ -13,9 +13,7 @@ say "Checking existing data for " . ( $torrent->metadata->{info}{name} // 'torre
 my $total_pieces = $torrent->bitfield->size;
 for my $i ( 0 .. $total_pieces - 1 ) {
     my $data = $torrent->storage->read_piece_v1($i);
-    if ( length $data ) {
-        $client->queue_verification( $torrent, $i, $data );
-    }
+    $client->queue_verification( $torrent, $i, $data ) if length $data;
 }
 while ( $client->hashing_queue_size > 0 ) {
     $client->tick(0.01);

@@ -11,7 +11,7 @@ class MockBEP09 : isa(Net::BitTorrent::Protocol::BEP09) {
     method on_metadata_data    ( $p, $s, $d ) { $got_data  = { piece => $p, size => $s, data => $d } }
 }
 subtest 'Metadata Messages' => sub {
-    my $pwp = MockBEP09->new( info_hash => 'A' x 20, peer_id => 'B' x 20, local_extensions => { ut_metadata => 3 } );
+    my $pwp = MockBEP09->new( infohash => 'A' x 20, peer_id => 'B' x 20, local_extensions => { ut_metadata => 3 } );
     $pwp->send_handshake();
     $pwp->receive_data( $pwp->write_buffer );    # Open
 

@@ -32,8 +32,8 @@ subtest 'Peer Reputation Tracking' => sub {
     $t->start();
 
     # Mock a peer
-    my $ih        = $t->info_hash_v1;
-    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => $ih, peer_id => 'PEER1' . ( '0' x 15 ), );
+    my $ih        = $t->infohash_v1;
+    my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( infohash => $ih, peer_id => 'PEER1' . ( '0' x 15 ), );
     my $transport = MockTransport->new();
     my $peer      = Net::BitTorrent::Peer->new( protocol => $p_handler, torrent => $t, transport => $transport, ip => '1.1.1.1', port => 1111 );
     $p_handler->set_peer($peer);

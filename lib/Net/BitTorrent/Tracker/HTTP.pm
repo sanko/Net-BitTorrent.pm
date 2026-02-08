@@ -25,7 +25,7 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
         return $full_url . join( '&', @query );
     }
 
-    method build_scrape_url ($info_hashes) {
+    method build_scrape_url ($infohashes) {
         my $scrape_url = $self->url;
         if ( $scrape_url =~ /\/announce$/ ) {
             $scrape_url =~ s/\/announce$/\/scrape/;
@@ -33,7 +33,7 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
         my $full_url = $scrape_url;
         $full_url .= ( $scrape_url =~ /\?/ ? '&' : '?' );
         my @query;
-        for my $ih (@$info_hashes) {
+        for my $ih (@$infohashes) {
             my $val = join( '', map { sprintf( '%%%02x', ord($_) ) } split( '', $ih ) );
             push @query, "info_hash=$val";
         }
@@ -93,10 +93,10 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
         }
     }
 
-    method perform_scrape ( $info_hashes, $cb = undef ) {
-        my $target = $self->build_scrape_url($info_hashes);
+    method perform_scrape ( $infohashes, $cb = undef ) {
+        my $target = $self->build_scrape_url($infohashes);
 
-        # Note: Scrape might not have a 'ua' in $info_hashes params,
+        # Note: Scrape might not have a 'ua' in $infohashes params,
         # usually client passes it or we should store it in $self.
         # For now, if we don't have it, we block.
         # Real fix: Tracker objects should have a 'ua' field.

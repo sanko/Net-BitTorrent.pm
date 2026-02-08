@@ -42,8 +42,8 @@ class Net::BitTorrent::Tracker v2.0.0 : isa(Net::BitTorrent::Emitter) {
         my %unique_peers;
         my $now = time();
 
-        # If we have multiple info_hashes (hybrid), we should ideally announce all.
-        my @ihs = ref( $params->{info_hash} ) eq 'ARRAY' ? @{ $params->{info_hash} } : ( $params->{info_hash} );
+        # If we have multiple infohashes (hybrid), we should ideally announce all.
+        my @ihs = ref( $params->{infohash} ) eq 'ARRAY' ? @{ $params->{infohash} } : ( $params->{infohash} );
         for my $tier (@tiers) {
             my $tier_success = 0;
             for ( my $i = 0; $i < scalar @$tier; $i++ ) {
@@ -56,7 +56,7 @@ class Net::BitTorrent::Tracker v2.0.0 : isa(Net::BitTorrent::Emitter) {
                 }
                 my $pending_ihs = scalar @ihs;
                 for my $ih (@ihs) {
-                    my $ih_params = { %$params, info_hash => $ih };
+                    my $ih_params = { %$params, infohash => $ih };
                     $ih_params->{trackerid} = $entry->{tracker_id} if $entry->{tracker_id};
                     my $on_res = sub ($res) {
                         $entry->{last_announce}        = time();
@@ -95,14 +95,14 @@ class Net::BitTorrent::Tracker v2.0.0 : isa(Net::BitTorrent::Emitter) {
         return [ values %unique_peers ];
     }
 
-    method scrape_all ( $info_hashes, $cb = undef ) {
+    method scrape_all ( $infohashes, $cb = undef ) {
         my %results;
         for my $tier (@tiers) {
             for my $entry (@$tier) {
                 my $on_res = sub ($res) {
                     if ( ref $res->{files} eq 'ARRAY' ) {
-                        for ( my $j = 0; $j < scalar @$info_hashes; $j++ ) {
-                            $self->_merge_scrape_stats( \%results, $info_hashes->[$j], $res->{files}[$j] );
+                        for ( my $j = 0; $j < scalar @$infohashes; $j++ ) {
+                            $self->_merge_scrape_stats( \%results, $infohashes->[$j], $res->{files}[$j] );
                         }
                     }
                     else {
@@ -113,7 +113,7 @@ class Net::BitTorrent::Tracker v2.0.0 : isa(Net::BitTorrent::Emitter) {
                     $cb->( \%results ) if $cb;
                 };
                 try {
-                    $entry->{obj}->perform_scrape( $info_hashes, $on_res );
+                    $entry->{obj}->perform_scrape( $infohashes, $on_res );
                 }
                 catch ($e) { }
             }

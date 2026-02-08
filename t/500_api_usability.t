@@ -31,7 +31,7 @@ ok( $t->can('progress'),    'Torrent has progress() method' );
 ok( $t->can('is_finished'), 'Torrent has is_finished() method' );
 
 # Magnet link with no metadata yet
-warn "DEBUG: State is " . $t->state . "\n";
+diag 'State is ' . $t->state;
 is( $t->progress, 0, 'Progress is 0 for magnet without metadata' );
 ok( !$t->is_finished,          'Not finished yet' );
 ok( !$t->is_metadata_complete, 'Metadata not complete yet' );

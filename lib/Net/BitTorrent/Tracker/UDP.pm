@@ -4,7 +4,7 @@ no warnings 'experimental::class', 'experimental::try';
 class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base) {
     use Net::BitTorrent::Protocol::BEP23;
     use IO::Socket::IP;
-    field $connection_id;
+    field $connection_id      = 0;
     field $connection_id_time = 0;
     field $transaction_id;
     field $host;
@@ -130,7 +130,7 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
         $self->_send_packet($pkt);
     }
 
-    method perform_scrape ( $info_hashes, $cb = undef ) {
+    method perform_scrape ( $infohashes, $cb = undef ) {
         if ( !$self->_is_connected() ) {
             my ( $tid, $pkt ) = $self->build_connect_packet();
             $pending_transactions{$tid} = {
@@ -138,15 +138,15 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
                 payload    => $pkt,
                 retries    => 0,
                 timestamp  => time(),
-                on_connect => sub { $self->perform_scrape( $info_hashes, $cb ) },
+                on_connect => sub { $self->perform_scrape( $infohashes, $cb ) },
             };
             $self->_send_packet($pkt);
             return;
         }
-        my $pkt = $self->build_scrape_packet($info_hashes);
+        my $pkt = $self->build_scrape_packet($infohashes);
         my $tid = unpack( 'N', substr( $pkt, 12, 4 ) );
         $pending_transactions{$tid}
-            = { type => 'scrape', payload => $pkt, retries => 0, timestamp => time(), cb => $cb, num_hashes => scalar @$info_hashes, };
+            = { type => 'scrape', payload => $pkt, retries => 0, timestamp => time(), cb => $cb, num_hashes => scalar @$infohashes, };
         $self->_send_packet($pkt);
     }
 
@@ -160,8 +160,8 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
         # Mandatory key for tracker identification
         my $key = $params->{key} // int( rand( 2**31 ) );
 
-        # BEP 52: Support 32-byte info_hashes
-        # For UDP trackers, we use the v1 info_hash if available,
+        # BEP 52: Support 32-byte infohashes
+        # For UDP trackers, we use the v1 infohash if available,
         # or truncate/hash the v2 one as per common practice if 32 bytes provided.
         # REAL BEP 52 UDP trackers expect a modified layout, but standard ones
         # usually get the 20-byte 'info_hash' (v1 or truncated).
@@ -186,11 +186,11 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
         return { interval => $interval, leechers => $leechers, seeders => $seeders, peers => $peers, };
     }
 
-    method build_scrape_packet ($info_hashes) {
+    method build_scrape_packet ($infohashes) {
         $self->_new_transaction_id();
 
         # Truncate v2 hashes to 20 bytes for scrape as well
-        my $ih_data = join( '', map { length($_) == 32 ? sha1($_) : $_ } @$info_hashes );
+        my $ih_data = join( '', map { length($_) == 32 ? sha1($_) : $_ } @$infohashes );
         return pack( 'Q> N N a*', $connection_id, 2, $transaction_id, $ih_data );
     }
 

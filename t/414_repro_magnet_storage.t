@@ -1,10 +1,8 @@
 use v5.40;
 use Test2::V1 -ipP;
 use lib 'lib';
-use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
-use Test2::V1 -ipP;
 use lib 'lib';
 use Net::BitTorrent::Torrent;
 use Net::BitTorrent::Emitter;
@@ -49,8 +47,8 @@ my $info = {
 my $metadata = { info => $info };
 my $ih       = sha1( bencode($info) );
 
-# 1. Create a Torrent object with info_hash only (simulating magnet)
-my $torrent = Net::BitTorrent::Torrent->new( info_hash_v1 => $ih, base_path => $base_path, client => $client, debug => 1 );
+# 1. Create a Torrent object with infohash only (simulating magnet)
+my $torrent = Net::BitTorrent::Torrent->new( infohash_v1 => $ih, base_path => $base_path, client => $client, debug => 1 );
 
 # Inject metadata and trigger _on_metadata_received
 # We can't easily call private methods from outside in 'class', but we can simulate the event

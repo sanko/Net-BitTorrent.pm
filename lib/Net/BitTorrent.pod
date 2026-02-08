@@ -10,21 +10,30 @@ Net::BitTorrent - Modern, loop-agnostic BitTorrent client library
 
     use v5.40;
     use Net::BitTorrent;
+    use Net::BitTorrent::Types qw[:encryption];
 
     # Initialize the client
     my $client = Net::BitTorrent->new(
         user_agent   => "MyClient/1.0",
-        upnp_enabled => 1
+        upnp_enabled => 1,
+        encryption   => ENCRYPTION_REQUIRED # or 'required'
     );
 
-    # Unified add() handles magnets, .torrents, or info-hashes
+    # Unified add() handles magnets, .torrents, or v1/v2 infohashes
+    # Supports 20/32-byte binary or 40/64-character hex strings
     my $torrent = $client->add("magnet:?xt=urn:btih:...", "./downloads");
 
     # Simple event handling
-    $client->on(torrent_added => sub ($t) {
+    $client->on(torrent_added => sub ($nb, $t) {
         say "New swarm added: " . $t->name;
         $t->start();
     });
+
+    # Advanced: Manual event loop integration
+    # while (1) {
+    #     $client->tick(0.1);
+    #     select(undef, undef, undef, 0.1);
+    # }
 
     # Wait for all downloads to finish
     $client->wait();
@@ -81,7 +90,7 @@ Creates a new client instance.
 
     my $client = Net::BitTorrent->new(
         port         => 6881,
-        encryption   => 'required',
+        encryption   => 'required', # 'none', 'preferred', or 'required'
         upnp_enabled => 1
     );
 
@@ -92,9 +101,9 @@ Creates a new client instance.
 =item * B<Parameters>:
 C<port> (Int),
 C<user_agent> (Str),
-C<encryption> (Str: none, preferred, required),
+C<encryption> (Str or Constant: ENCRYPTION_NONE, ENCRYPTION_PREFERRED, ENCRYPTION_REQUIRED),
 C<upnp_enabled> (Bool),
-and various C<bepXX> toggles.
+and various C<bepXX> toggles (e.g., C<bep05 => 0> to disable DHT).
 
 =item * B<Returns>: A new C<Net::BitTorrent> instance.
 
@@ -104,7 +113,7 @@ and various C<bepXX> toggles.
 
 Registers a global callback for client-level events.
 
-    $client->on(torrent_added => sub ($torrent) {
+    $client->on(torrent_added => sub ($nb, $torrent) {
         warn "Added: " . $torrent->name;
     });
 
@@ -131,14 +140,17 @@ The recommended, unified method for adding a swarm. It automatically detects the
     # Add a magnet link
     $client->add("magnet:?xt=urn:btih:...", "./data");
 
-    # Add a raw info-hash (hex)
+    # Add a v1 infohash (hex or binary)
     $client->add("1bd088ee9166a062cf4af09cf99720fa6e1a3133", "./downloads");
+
+    # Add a v2 infohash (64-char hex or 32-byte binary)
+    $client->add("6a1259ca5ca00680...64chars...", "./downloads");
 
 =over
 
 =item * B<Use Case>: Easily adding any BitTorrent resource without worrying about its format.
 
-=item * B<Parameters>: C<$thing> (Str: path, URI, or hex hash), C<$base_path> (Str: directory for data), C<%args> (Optional Torrent parameters).
+=item * B<Parameters>: C<$thing> (Str: path, URI, or hex/binary hash), C<$base_path> (Str: directory for data), C<%args> (Optional Torrent parameters).
 
 =item * B<Returns>: A L<Net::BitTorrent::Torrent> object.
 
@@ -160,11 +172,11 @@ Adds a torrent from a local C<.torrent> file.
 
 =back
 
-=head2 C<add_info_hash( $ih, $base_path, [%args] )>
+=head2 C<add_infohash( $ih, $base_path, [%args] )>
 
 Adds a torrent by its info hash (binary or hex).
 
-    my $t = $client->add_info_hash(pack('H*', '...'), './data');
+    my $t = $client->add_infohash(pack('H*', '...'), './data');
 
 =over
 
@@ -253,7 +265,7 @@ High-level B<BEP 44> API for storing and retrieving arbitrary data in the DHT.
 
     $client->dht_put('My Shared Note', sub { say "Stored!" });
 
-=head2 C<dht_scrape( $info_hash, $callback )>
+=head2 C<dht_scrape( $infohash, $callback )>
 
 Performs a decentralized scrape (B<BEP 33>) to find seeder/leecher counts.
 
@@ -295,7 +307,7 @@ Sanko Robinson E<lt>sanko@cpan.orgE<gt>
 
 =head1 COPYRIGHT
 
-Copyright (C) 2026 by Sanko Robinson.
+Copyright (C) 2008-2026 by Sanko Robinson.
 
 This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
 
