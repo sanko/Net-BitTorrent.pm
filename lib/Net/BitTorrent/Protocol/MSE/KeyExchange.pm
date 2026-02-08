@@ -1,22 +1,29 @@
 use v5.40;
 use feature 'class';
 no warnings qw[experimental::class experimental::builtin];
-#
+use Net::BitTorrent::Emitter;
 class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.0 : isa(Net::BitTorrent::Emitter) {
     use Digest::SHA qw[sha1];
-    use Carp qw[carp croak];
     use Math::BigInt try => 'GMP';
-    #
+
+    # -- Parameters --
     field $info_hash    : param : reader;
     field $is_initiator : param : reader;
-    field $private_key;
-    field $public_key    : reader;
-    field $shared_secret : reader(get_secret);
-    field $encrypt_rc4   : reader;
-    field $decrypt_rc4   : reader;
-    field $decrypt_restore_point;    # Store the initial state (post-discard) for the decryptor to optimize the scan_for_vc loop.
 
-    # 768-bit safe prime (big endian)
+    # -- Internal State --
+    field $private_key;
+    field $public_key : reader;
+    field $shared_secret;
+
+    # -- Cipher State --
+    field $encrypt_rc4 : reader;
+    field $decrypt_rc4 : reader;
+
+    # Store the initial state (post-discard) for the decryptor
+    # to optimize the scan_for_vc loop.
+    field $decrypt_restore_point;
+
+    # 768-bit Safe Prime (Big Endian)
     my $P_STR
         = 'FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74' .
         '020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F1437' .
@@ -45,11 +52,14 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.0 : isa(Net::BitTorrent::
         elsif ( length($bin) > 96 ) {
             $bin = substr( $bin, -96 );
         }
-        $bin;
+        return $bin;
     }
 
     method compute_secret ($remote_pub_bytes) {
-        return !$self->_emit( debug => 'Remote public key must be 96 bytes' ) unless length($remote_pub_bytes) == 96;
+        if ( length($remote_pub_bytes) != 96 ) {
+            $self->_emit( log => "Remote public key must be 96 bytes", level => 'fatal' );
+            return undef;
+        }
         my $p          = Math::BigInt->from_hex($P_STR);
         my $remote_val = Math::BigInt->from_bytes($remote_pub_bytes);
 
@@ -58,6 +68,7 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.0 : isa(Net::BitTorrent::
         $shared_secret = $self->_int_to_bytes($s_val);
         return $shared_secret;
     }
+    method get_secret () { return $shared_secret }
 
     method get_sync_data ( $override_ih = undef ) {
         my $ih = $override_ih // $info_hash;
@@ -81,8 +92,8 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.0 : isa(Net::BitTorrent::
 
     method init_rc4 ($ih) {
         $info_hash = $ih;
-        my $keyA = sha1( 'keyA' . $shared_secret . $info_hash );
-        my $keyB = sha1( 'keyB' . $shared_secret . $info_hash );
+        my $keyA = sha1( "keyA" . $shared_secret . $info_hash );
+        my $keyB = sha1( "keyB" . $shared_secret . $info_hash );
         my ( $key_enc, $key_dec );
         if ($is_initiator) {
             $key_enc = $keyA;
@@ -118,7 +129,7 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.0 : isa(Net::BitTorrent::
             $trial_rc4->restore($decrypt_restore_point);
             my $ciphertext = substr( $buffer, $offset, 8 );
             my $plaintext  = $trial_rc4->crypt($ciphertext);
-            if ( $plaintext eq "\0" x 8 ) {
+            if ( $plaintext eq "\0\0\0\0\0\0\0\0" ) {
 
                 # Found it! We need to ensure the MAIN decryptor is now
                 # advanced by these 8 bytes so subsequent calls work.
@@ -133,15 +144,14 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.0 : isa(Net::BitTorrent::
         }
         return -1;
     }
-};
-#
-class    #
-    Net::BitTorrent::Protocol::MSE::RC4 {
+    }
+
+    # -- Pure Perl RC4 Implementation --
+    class Net::BitTorrent::Protocol::MSE::RC4 v2.0.0 : isa(Net::BitTorrent::Emitter) {
     field @S;
     field $x = 0;
     field $y = 0;
     field $key : param;
-    #
     ADJUST {
         # KSA (Key Scheduling Algorithm)
         @S = 0 .. 255;
@@ -154,7 +164,9 @@ class    #
         }
     }
 
-    method discard ($bytes) {    # Discard loop (PRGA without output)
+    method discard ($bytes) {
+
+        # Discard loop (PRGA without output)
         for ( 1 .. $bytes ) {
             $x = ( $x + 1 ) & 0xFF;
             $y = ( $y + $S[$x] ) & 0xFF;
@@ -174,11 +186,13 @@ class    #
             # String XOR (^.) available in 5.40
             $out .= $c^. chr( $S[ ( $S[$x] + $S[$y] ) & 0xFF ] );
         }
-        $out;
+        return $out;
     }
 
     # Create a lightweight state snapshot (Array ref + 2 ints)
-    method snapshot () { [ [@S], $x, $y ] }
+    method snapshot () {
+        return [ [@S], $x, $y ];
+    }
 
     # Restore state from snapshot
     method restore ($snap) {
@@ -186,6 +200,4 @@ class    #
         $x = $snap->[1];
         $y = $snap->[2];
     }
-    };
-#
-1;
+    } 1;

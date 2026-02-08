@@ -1,6 +1,7 @@
 use v5.40;
 use lib '../lib';
 use Net::BitTorrent;
+use Net::BitTorrent::Types qw[:encryption];
 use Path::Tiny;
 use Time::HiRes                               qw[sleep time];
 use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode];
@@ -14,7 +15,7 @@ if ( !$magnet_uri || !$data_dir ) {
 }
 path($data_dir)->mkpath;
 say "Data directory: " . path($data_dir)->absolute;
-my $client  = Net::BitTorrent->new( debug => 1, encryption => 'required' );
+my $client  = Net::BitTorrent->new( debug => 0, encryption => ENCRYPTION_REQUIRED );
 my $torrent = $client->add( $magnet_uri, $data_dir );
 my $ih_hex  = unpack( 'H*', $torrent->info_hash_v2 || $torrent->info_hash_v1 );
 say "Added magnet: $ih_hex";
@@ -62,11 +63,10 @@ while (1) {
     my $delta = $now - $last_tick;
     $client->tick($delta) if $delta > 0;
     $last_tick = $now;
-
-    #~ if ( time() - $start_time > 600 ) {
-    #~ say "\nTimeout reached (600s). Exiting...";
-    #~ last;
-    #~ }
+    if ( time() - $start_time > 300 ) {
+        say "\nTimeout reached (300s). Exiting...";
+        last;
+    }
     sleep(0.1);
 
     # Stop if we finished (though a real client would keep seeding)

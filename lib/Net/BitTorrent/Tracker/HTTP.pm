@@ -1,13 +1,12 @@
 use v5.40;
-use feature 'class';
-no warnings 'experimental::class';
-#
+use feature 'class', 'try';
+no warnings 'experimental::class', 'experimental::try';
 class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base) {
     use Net::BitTorrent::Protocol::BEP03::Bencode qw[bdecode];
     use Net::BitTorrent::Protocol::BEP23;
     use HTTP::Tiny;
     use URI::Escape qw[uri_escape];
-    #
+
     method build_announce_url ($params) {
         my $full_url = $self->url;
         $full_url .= ( $full_url =~ /\?/ ? '&' : '?' );
@@ -23,7 +22,7 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
             }
             push @query, "$key=$val";
         }
-        $full_url . join '&', @query;
+        return $full_url . join( '&', @query );
     }
 
     method build_scrape_url ($info_hashes) {
@@ -38,14 +37,14 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
             my $val = join( '', map { sprintf( '%%%02x', ord($_) ) } split( '', $ih ) );
             push @query, "info_hash=$val";
         }
-        $full_url . join '&', @query;
+        return $full_url . join( '&', @query );
     }
 
     method parse_response ($data) {
         my $dict = bdecode($data);
         if ( $dict->{failure_reason} ) {
-            $self->_emit( debug => 'Tracker failure: ' . $dict->{failure_reason} );
-            return;
+            $self->_emit( log => "Tracker failure: $dict->{failure_reason}", level => 'error' );
+            return $dict;
         }
         if ( defined $dict->{peers} && !ref $dict->{peers} ) {
             $dict->{peers} = Net::BitTorrent::Protocol::BEP23::unpack_peers_ipv4( $dict->{peers} );
@@ -55,7 +54,7 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
             $dict->{peers} = [ @{ $dict->{peers} // [] }, @$p6 ];
         }
         $dict->{peers} //= [];    # Ensure it is an array ref
-        $dict;
+        return $dict;
     }
 
     method perform_announce ( $params, $cb = undef ) {
@@ -65,12 +64,17 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
                 $target,
                 sub ($res) {
                     if ( $res->{success} ) {
-                        try { $cb->( $self->parse_response( $res->{content} ) ) if $cb } catch ($e) {
-                            $self->_emit( debug => $e )
+                        try {
+                            if ($cb) {
+                                $cb->( $self->parse_response( $res->{content} ) );
+                            }
+                        }
+                        catch ($e) {
+                            $self->_emit( log => $e, level => 'error' );
                         }
                     }
                     else {
-                        $self->_emit( debug => 'Async HTTP error: ' . $res->{status} );
+                        $self->_emit( log => "Async HTTP error: $res->{status}\n", level => 'error' );
                     }
                 }
             );
@@ -84,8 +88,8 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
             return $parsed;
         }
         else {
-            $self->_emit( debug => "HTTP error: $response->{status} $response->{reason}" );
-            return;
+            $self->_emit( log => "HTTP error: $response->{status} $response->{reason}", level => 'error' );
+            return undef;
         }
     }
 
@@ -99,10 +103,8 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
             return $parsed;
         }
         else {
-            $self->_emit( debug => "HTTP scrape error: $response->{status} $response->{reason}" );
-            return;
+            $self->_emit( log => "HTTP scrape error: $response->{status} $response->{reason}", level => 'error' );
+            return undef;
         }
     }
-};
-#
-1;
+} 1;

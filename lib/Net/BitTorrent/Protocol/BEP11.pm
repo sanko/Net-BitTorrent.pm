@@ -1,11 +1,10 @@
 use v5.40;
-use feature 'class';
-no warnings 'experimental::class';
-#
+use feature 'class', 'try';
+no warnings 'experimental::class', 'experimental::try';
 class Net::BitTorrent::Protocol::BEP11 v2.0.0 : isa(Net::BitTorrent::Protocol::BEP09) {
     use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode bdecode];
     use Net::BitTorrent::Protocol::BEP23;
-    #
+
     method send_pex ( $added = [], $dropped = [], $added6 = [], $dropped6 = [] ) {
         return unless exists $self->remote_extensions->{ut_pex};
         my $payload = {
@@ -24,7 +23,7 @@ class Net::BitTorrent::Protocol::BEP11 v2.0.0 : isa(Net::BitTorrent::Protocol::B
     method on_extended_message ( $name, $payload ) {
         if ( $name eq 'ut_pex' ) {
             my $dict;
-            eval {
+            try {
                 my @res = bdecode( $payload, 1 );
                 if ( @res > 2 ) {
                     pop @res;    # Discard leftover
@@ -33,9 +32,13 @@ class Net::BitTorrent::Protocol::BEP11 v2.0.0 : isa(Net::BitTorrent::Protocol::B
                 else {
                     $dict = $res[0];
                 }
-            };
-            if ( $@ || ref $dict ne 'HASH' ) {
-                $self->_emit( debug => 'Malformed ut_pex message: ' . $@ );
+            }
+            catch ($e) {
+                $self->_emit( log => "  [ERROR] Malformed ut_pex message: $e\n", level => 'error' );
+                return;
+            }
+            if ( ref $dict ne 'HASH' ) {
+                $self->_emit( log => "  [ERROR] Malformed ut_pex message: dict is not a hash\n", level => 'error' );
                 return;
             }
             my $added    = Net::BitTorrent::Protocol::BEP23::unpack_peers_ipv4( $dict->{added}   // '' );
@@ -63,6 +66,28 @@ class Net::BitTorrent::Protocol::BEP11 v2.0.0 : isa(Net::BitTorrent::Protocol::B
         }
     }
     method on_pex ( $added, $dropped, $added6, $dropped6 ) { }
-};
-#
-1;
+} 1;
+__END__
+
+=pod
+
+=head1 NAME
+
+Net::BitTorrent::Protocol::BEP11 - Peer Exchange (PEX) Implementation
+
+=head1 DESCRIPTION
+
+This module implements the Peer Exchange extension (BEP 11), allowing peers  to exchange lists of known peers in a
+swarm. It supports both IPv4 and IPv6.
+
+=head1 METHODS
+
+=head2 send_pex($added, $dropped, $added6, $dropped6)
+
+Sends a PEX message. Each argument is an array reference of peer hashes  (C<{ ip =E<gt> ..., port =E<gt> ... }>).
+
+=head2 on_pex($added, $dropped, $added6, $dropped6)
+
+Callback triggered when a PEX message is received.
+
+=cut

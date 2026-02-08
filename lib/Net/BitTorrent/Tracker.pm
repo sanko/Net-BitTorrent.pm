@@ -1,12 +1,12 @@
 use v5.40;
-use feature 'class';
-no warnings 'experimental::class';
+use feature 'class', 'try';
+no warnings 'experimental::class', 'experimental::try';
 #
-class Net::BitTorrent::Tracker v2.0.0 {
+use Net::BitTorrent::Emitter;
+class Net::BitTorrent::Tracker v2.0.0 : isa(Net::BitTorrent::Emitter) {
     use Net::BitTorrent::Tracker::HTTP;
     use Net::BitTorrent::Tracker::UDP;
     use List::Util qw[shuffle];
-    #
     field $tiers_raw : param;    # [ [url1, url2], [url3] ]
     field $debug : param = 0;
     field @tiers;                # [ [ { obj, last_announce, interval, ... }, ... ], ... ]
@@ -34,8 +34,8 @@ class Net::BitTorrent::Tracker v2.0.0 {
     method _create_tracker ($url) {
         if    ( $url =~ /^udp:/ )    { return Net::BitTorrent::Tracker::UDP->new( url => $url ) }
         elsif ( $url =~ /^https?:/ ) { return Net::BitTorrent::Tracker::HTTP->new( url => $url ) }
-        warn "Unsupported tracker protocol: $url";
-        return;
+        $self->_emit( log => "Unsupported tracker protocol: $url", level => 'fatal' );
+        return undef;
     }
 
     method announce_all ( $params, $cb = undef ) {
@@ -76,12 +76,12 @@ class Net::BitTorrent::Tracker v2.0.0 {
                         }
                         $cb->( [ values %unique_peers ] ) if $cb;
                     };
-                    eval {
+                    try {
                         $entry->{obj}->perform_announce( $ih_params, $on_res );
                         $tier_success = 1;
-                    };
-                    if ($@) {
-                        warn '  [DEBUG] Announce to ' . $entry->{obj}->url . " failed: $@\n" if $debug;
+                    }
+                    catch ($e) {
+                        $self->_emit( log => '  [DEBUG] Announce to ' . $entry->{obj}->url . " failed: $e\n", level => 'debug' ) if $debug;
                         $entry->{consecutive_failures}++;
                     }
                 }
@@ -108,7 +108,10 @@ class Net::BitTorrent::Tracker v2.0.0 {
                     }
                     $cb->( \%results ) if $cb;
                 };
-                eval { $entry->{obj}->perform_scrape( $info_hashes, $on_res ) };
+                try {
+                    $entry->{obj}->perform_scrape( $info_hashes, $on_res );
+                }
+                catch ($e) { }
             }
         }
         return \%results;

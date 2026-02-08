@@ -1,11 +1,11 @@
 use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
-class Net::BitTorrent::Storage v2.0.0 {
+use Net::BitTorrent::Emitter;
+class Net::BitTorrent::Storage v2.0.0 : isa(Net::BitTorrent::Emitter) {
     use Net::BitTorrent::Storage::File;
     use Digest::Merkle::SHA256;    # Standalone spin-off
     use Path::Tiny  qw();
-    use Carp        qw[croak];
     use Digest::SHA qw[sha1];
     use builtin     qw[refaddr];
     field $base_path  : param : reader;
@@ -72,17 +72,29 @@ class Net::BitTorrent::Storage v2.0.0 {
     }
 
     method verify_block ( $root, $index, $data ) {
-        my $file = $files{$root} or croak 'Unknown file root';
+        my $file = $files{$root};
+        if ( !$file ) {
+            $self->_emit( log => 'Unknown file root', level => 'fatal' );
+            return;
+        }
         return $file->verify_block( $index, $data );
     }
 
     method verify_block_audit ( $root, $index, $data, $audit_path ) {
-        my $file = $files{$root} or croak 'Unknown file root';
+        my $file = $files{$root};
+        if ( !$file ) {
+            $self->_emit( log => 'Unknown file root', level => 'fatal' );
+            return;
+        }
         return $file->verify_block_audit( $index, $data, $audit_path );
     }
 
     method verify_piece_v2 ( $root, $index, $data ) {
-        my $file     = $files{$root}        or croak 'Unknown file root';
+        my $file = $files{$root};
+        if ( !$file ) {
+            $self->_emit( log => 'Unknown file root', level => 'fatal' );
+            return;
+        }
         my $layer    = $piece_layers{$root} or return undef;
         my $expected = substr( $layer, $index * 32, 32 );
         return $file->verify_piece_v2( $index, $data, $expected );
@@ -90,13 +102,21 @@ class Net::BitTorrent::Storage v2.0.0 {
 
     # Writes a block to the cache
     method write_block ( $root, $offset, $data ) {
-        my $file = $files{$root} or croak 'Unknown file root';
+        my $file = $files{$root};
+        if ( !$file ) {
+            $self->_emit( log => 'Unknown file root', level => 'fatal' );
+            return;
+        }
         $self->_write_to_cache( $file, $offset, $data );
     }
 
     # Reads a block, checking cache first
     method read_block ( $root, $offset, $length ) {
-        my $file = $files{$root} or croak 'Unknown file root';
+        my $file = $files{$root};
+        if ( !$file ) {
+            $self->_emit( log => 'Unknown file root', level => 'fatal' );
+            return;
+        }
         return $self->_read_from_cache( $file, $offset, $length );
     }
 
@@ -120,7 +140,7 @@ class Net::BitTorrent::Storage v2.0.0 {
 
     method _write_to_cache ( $file, $offset, $data ) {
         my $id = refaddr($file);
-        warn "    [DEBUG] Adding " . length($data) . " bytes to cache for file $id at offset $offset\n";
+        $self->_emit( log => "    [DEBUG] Adding " . length($data) . " bytes to cache for file $id at offset $offset\n", level => 'debug' );
         if ( exists $cache{$id}{$offset} ) {
             $current_cache_size -= length( $cache{$id}{$offset} );
         }
@@ -152,7 +172,7 @@ class Net::BitTorrent::Storage v2.0.0 {
         my $flushed     = 0;
         my $total_dirty = scalar(@dirty_list);
         if ( $total_dirty > 0 ) {
-            warn "    [DEBUG] Storage::flush: starting flush of $total_dirty items\n" if !defined $count;
+            $self->_emit( log => "    [DEBUG] Storage::flush: starting flush of $total_dirty items\n", level => 'debug' ) if !defined $count;
         }
         while ( @dirty_list && ( !defined $count || $flushed < $count ) ) {
             my $entry = shift @dirty_list;
@@ -164,7 +184,7 @@ class Net::BitTorrent::Storage v2.0.0 {
                 $file->write( $offset, $data );
                 $flushed++;
                 if ( !defined $count && $flushed % 50 == 0 ) {
-                    warn "    [DEBUG] Storage::flush: $flushed/$total_dirty items flushed...\n";
+                    $self->_emit( log => "    [DEBUG] Storage::flush: $flushed/$total_dirty items flushed...\n", level => 'debug' );
                 }
             }
             delete $cache{$id} unless keys %{ $cache{$id} // {} };
@@ -183,7 +203,11 @@ class Net::BitTorrent::Storage v2.0.0 {
     method map_abs_offset ( $root, $offset, $length ) {
         my @segments;
         if ( defined $root ) {
-            my $file = $files{$root} or croak 'Unknown file root';
+            my $file = $files{$root};
+            if ( !$file ) {
+                $self->_emit( log => 'Unknown file root', level => 'fatal' );
+                return [];
+            }
             push @segments, { file => $file, offset => $offset, length => $length };
         }
         else {
@@ -205,7 +229,10 @@ class Net::BitTorrent::Storage v2.0.0 {
     }
 
     method map_v1_piece ($index) {
-        croak 'piece_size not set' unless $piece_size;
+        if ( !$piece_size ) {
+            $self->_emit( log => 'piece_size not set', level => 'fatal' );
+            return [];
+        }
         my $piece_start = $index * $piece_size;
         my $piece_end   = $piece_start + $piece_size;
         my @segments;
@@ -235,7 +262,7 @@ class Net::BitTorrent::Storage v2.0.0 {
 
     method write_piece_v1 ( $index, $data ) {
         my $segments = $self->map_v1_piece($index);
-        warn "    [DEBUG] write_piece_v1: Piece $index mapped to " . scalar(@$segments) . " segments\n";
+        $self->_emit( log => "    [DEBUG] write_piece_v1: Piece $index mapped to " . scalar(@$segments) . " segments\n", level => 'debug' );
         my $data_offset = 0;
         for my $seg (@$segments) {
             $self->_write_to_cache( $seg->{file}, $seg->{offset}, substr( $data, $data_offset, $seg->{length} ) );
@@ -259,7 +286,10 @@ class Net::BitTorrent::Storage v2.0.0 {
     }
 
     method map_v2_piece ($index) {
-        croak 'piece_size not set' unless $piece_size;
+        if ( !$piece_size ) {
+            $self->_emit( log => 'piece_size not set', level => 'fatal' );
+            return ( undef, undef );
+        }
         my $offset = 0;
         for my $file (@files_ordered) {
             my $file_size   = $file->size;
