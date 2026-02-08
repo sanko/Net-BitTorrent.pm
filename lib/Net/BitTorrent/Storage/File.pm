@@ -97,16 +97,57 @@ class Net::BitTorrent::Storage::File v2.0.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method _ensure_exists () {
-        if ( !$file_path->exists ) {
-            $file_path->parent->mkpath;
-            if ( $size > 0 ) {
-                my $fh = $file_path->openw_raw;
-                seek $fh, $size - 1, 0;
-                print {$fh} "\0";
-            }
-            else {
+        return if $file_path->exists;
+        $file_path->parent->mkpath;
+        if ( $^O eq 'MSWin32' ) {
+            try {
+                require Win32::File;
+
+                # Create empty file first
                 $file_path->touch;
+
+                # Set sparse attribute
+                Win32::File::SetAttributes( $file_path->stringify, Win32::File::SPARSE_FILE() );
+
+                # Set size by seeking and writing one byte at the end
+                if ( $size > 0 ) {
+                    my $fh = $file_path->openw_raw;
+                    seek $fh, $size - 1, 0;
+                    print {$fh} "\0";
+                    close $fh;
+                }
             }
+            catch ($e) {
+
+                # Fallback to simple allocation if Win32::File fails or is missing
+                $self->_simple_allocate();
+            }
+        }
+        else {
+            # Unix-like: truncate is usually enough for sparse files on modern FS (ext4, apfs, etc)
+            try {
+                if ( $size > 0 ) {
+                    truncate( $file_path->stringify, $size ) or $self->_simple_allocate();
+                }
+                else {
+                    $file_path->touch;
+                }
+            }
+            catch ($e) {
+                $self->_simple_allocate();
+            }
+        }
+    }
+
+    method _simple_allocate () {
+        if ( $size > 0 ) {
+            my $fh = $file_path->openw_raw;
+            seek $fh, $size - 1, 0;
+            print {$fh} "\0";
+            close $fh;
+        }
+        else {
+            $file_path->touch;
         }
     }
 

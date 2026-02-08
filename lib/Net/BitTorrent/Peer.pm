@@ -3,7 +3,7 @@ use feature 'class';
 no warnings 'experimental::class';
 use Net::BitTorrent::Emitter;
 class Net::BitTorrent::Peer v2.0.0 : isa(Net::BitTorrent::Emitter) {
-    use Net::BitTorrent::Types qw[:encryption];
+    use Net::BitTorrent::Types qw[:encryption :state];
     field $protocol : param;
 
     # Instance of Net::BitTorrent::Protocol::BEP03 or subclass
@@ -125,7 +125,7 @@ class Net::BitTorrent::Peer v2.0.0 : isa(Net::BitTorrent::Emitter) {
                 }
 
                 # If in METADATA mode, we don't send unchoke/interested yet
-                return if $torrent && $torrent->state eq 'METADATA';
+                return if $torrent && $torrent->state == STATE_METADATA;
                 $weak_self->unchoke();
                 $weak_self->_check_interest();
 

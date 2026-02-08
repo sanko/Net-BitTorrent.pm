@@ -1,7 +1,14 @@
 use v5.40;
 use Test2::V1 -ipP;
 use lib 'lib';
+use v5.40;
+use feature 'class';
+no warnings 'experimental::class';
+use Test2::V1 -ipP;
+use lib 'lib';
 use Net::BitTorrent::Torrent;
+use Net::BitTorrent::Emitter;
+use Net::BitTorrent::Types;
 use Path::Tiny;
 use Digest::SHA                               qw[sha1];
 use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode];
@@ -10,30 +17,24 @@ my $base_path = $temp->child('download');
 $base_path->mkpath;
 
 # Mock client
-{
+class MockClient : isa(Net::BitTorrent::Emitter) {
+    field $node_id = '1' x 20;
+    method node_id()  {$node_id}
+    method features() { { bep52 => 1 } }
 
-    package MockClient;
-    use feature 'class';
+    method limit_up() {
+        state $l = do { use Algorithm::RateLimiter::TokenBucket; Algorithm::RateLimiter::TokenBucket->new( limit => 0 ) };
+        $l;
+    }
 
-    class MockClient {
-        field $node_id = '1' x 20;
-        method node_id()  {$node_id}
-        method features() { { bep52 => 1 } }
+    method limit_down() {
+        state $l = do { use Algorithm::RateLimiter::TokenBucket; Algorithm::RateLimiter::TokenBucket->new( limit => 0 ) };
+        $l;
+    }
+    method dht() {undef}
 
-        method limit_up() {
-            state $l = do { use Algorithm::RateLimiter::TokenBucket; Algorithm::RateLimiter::TokenBucket->new( limit => 0 ) };
-            $l;
-        }
-
-        method limit_down() {
-            state $l = do { use Algorithm::RateLimiter::TokenBucket; Algorithm::RateLimiter::TokenBucket->new( limit => 0 ) };
-            $l;
-        }
-        method dht() {undef}
-
-        method queue_verification( $t, $idx, $data ) {
-            $t->_verify_queued_piece( $idx, $data );
-        }
+    method queue_verification( $t, $idx, $data ) {
+        $t->_verify_queued_piece( $idx, $data );
     }
 }
 my $client = MockClient->new();

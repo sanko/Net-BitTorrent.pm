@@ -17,9 +17,10 @@ class Net::BitTorrent::Storage v2.0.0 : isa(Net::BitTorrent::Emitter) {
     method files_ordered () { \@files_ordered }
     field %piece_layers;           # pieces_root => piece layer data
 
-    # Async Disk Cache
+    # Async Disk Cache (LRU)
     field %cache;                                     # file_id => { offset => data }
-    field @dirty_list;                                # [file_obj, offset] - FIFO for flushing
+    field %cache_dirty;                               # file_id => { offset => 1 }
+    field @lru_list;                                  # [[file_id, offset], ...]
     field $max_cache_size     = 1024 * 1024 * 128;    # 128MiB default cache limit
     field $current_cache_size = 0;
     ADJUST {
@@ -140,17 +141,19 @@ class Net::BitTorrent::Storage v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
     method _write_to_cache ( $file, $offset, $data ) {
         my $id = refaddr($file);
-        $self->_emit( log => "    [DEBUG] Adding " . length($data) . " bytes to cache for file $id at offset $offset\n", level => 'debug' );
+        $self->_emit( log => "    [DEBUG] Adding " . length($data) . " bytes to cache for file $id at offset $offset (dirty)\n", level => 'debug' );
         if ( exists $cache{$id}{$offset} ) {
             $current_cache_size -= length( $cache{$id}{$offset} );
+            $self->_lru_bump( $id, $offset );
         }
         else {
-            push @dirty_list, [ $file, $offset ];
+            push @lru_list, [ $id, $offset ];
         }
-        $cache{$id}{$offset} = $data;
+        $cache{$id}{$offset}       = $data;
+        $cache_dirty{$id}{$offset} = 1;
         $current_cache_size += length($data);
         while ( $current_cache_size > $max_cache_size ) {
-            last unless $self->flush(1) > 0;
+            last unless $self->_evict_one();
         }
     }
 
@@ -161,33 +164,83 @@ class Net::BitTorrent::Storage v2.0.0 : isa(Net::BitTorrent::Emitter) {
                 my $cached_data = $cache{$id}{$cached_offset};
                 my $cached_len  = length($cached_data);
                 if ( $offset >= $cached_offset && ( $offset + $length ) <= ( $cached_offset + $cached_len ) ) {
+                    $self->_lru_bump( $id, $cached_offset );
                     return substr( $cached_data, $offset - $cached_offset, $length );
                 }
             }
         }
-        return $file->read( $offset, $length );
+
+        # Cache miss - read from disk and add to clean cache
+        my $data = $file->read( $offset, $length );
+        if ( defined $data && length($data) > 0 ) {
+            $self->_emit( log => "    [DEBUG] Cache miss for file $id at offset $offset, caching read\n", level => 'debug' );
+            push @lru_list, [ $id, $offset ];
+            $cache{$id}{$offset} = $data;
+            $current_cache_size += length($data);
+            while ( $current_cache_size > $max_cache_size ) {
+                last unless $self->_evict_one();
+            }
+        }
+        return $data;
+    }
+
+    method _lru_bump ( $id, $offset ) {
+
+        # Move [id, offset] to end of @lru_list
+        for my $i ( 0 .. $#lru_list ) {
+            if ( $lru_list[$i][0] == $id && $lru_list[$i][1] == $offset ) {
+                push @lru_list, splice( @lru_list, $i, 1 );
+                last;
+            }
+        }
+    }
+
+    method _evict_one () {
+        return 0 unless @lru_list;
+        my $entry = shift @lru_list;
+        my ( $id, $offset ) = @$entry;
+        if ( $cache_dirty{$id} && $cache_dirty{$id}{$offset} ) {
+
+            # Must flush before evicting
+            $self->_flush_one( $id, $offset );
+        }
+        if ( exists $cache{$id} && exists $cache{$id}{$offset} ) {
+            $current_cache_size -= length( delete $cache{$id}{$offset} );
+            delete $cache{$id} unless %{ $cache{$id} };
+        }
+        return 1;
+    }
+
+    method _flush_one ( $id, $offset ) {
+        my $file;
+
+        # Find file object by refaddr - inefficient but safe without reverse mapping
+        # In a real system we'd store file objects in a registry.
+        # Actually, let's look in %files and @files_ordered.
+        for my $f (@files_ordered) {
+            if ( refaddr($f) == $id ) {
+                $file = $f;
+                last;
+            }
+        }
+        return unless $file;
+        if ( exists $cache{$id}{$offset} && delete $cache_dirty{$id}{$offset} ) {
+            my $data = $cache{$id}{$offset};
+            $file->write( $offset, $data );
+            delete $cache_dirty{$id} unless %{ $cache_dirty{$id} };
+            return 1;
+        }
+        return 0;
     }
 
     method flush ( $count = undef ) {
-        my $flushed     = 0;
-        my $total_dirty = scalar(@dirty_list);
-        if ( $total_dirty > 0 ) {
-            $self->_emit( log => "    [DEBUG] Storage::flush: starting flush of $total_dirty items\n", level => 'debug' ) if !defined $count;
-        }
-        while ( @dirty_list && ( !defined $count || $flushed < $count ) ) {
-            my $entry = shift @dirty_list;
-            my ( $file, $offset ) = @$entry;
-            my $id = refaddr($file);
-            if ( exists $cache{$id}{$offset} ) {
-                my $data = delete $cache{$id}{$offset};
-                $current_cache_size -= length($data);
-                $file->write( $offset, $data );
+        my $flushed = 0;
+        for my $id ( keys %cache_dirty ) {
+            for my $offset ( keys %{ $cache_dirty{$id} } ) {
+                $self->_flush_one( $id, $offset );
                 $flushed++;
-                if ( !defined $count && $flushed % 50 == 0 ) {
-                    $self->_emit( log => "    [DEBUG] Storage::flush: $flushed/$total_dirty items flushed...\n", level => 'debug' );
-                }
+                return $flushed if defined $count && $flushed >= $count;
             }
-            delete $cache{$id} unless keys %{ $cache{$id} // {} };
         }
         return $flushed;
     }
@@ -197,7 +250,9 @@ class Net::BitTorrent::Storage v2.0.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method tick ( $delta = 0.1 ) {
-        $self->flush(64);
+
+        # Throttled flush: flush up to 16 items per tick
+        $self->flush(16);
     }
 
     method map_abs_offset ( $root, $offset, $length ) {

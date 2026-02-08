@@ -2,7 +2,7 @@ use v5.42;
 use feature 'class';
 use Test2::V1 -ipP;
 no warnings;
-use lib '../lib';
+use lib 'lib';
 use Net::BitTorrent;
 use Net::BitTorrent::Peer;
 use Net::BitTorrent::Protocol::PeerHandler;
@@ -10,18 +10,17 @@ use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode];
 use Path::Tiny;
 use Digest::SHA qw[sha1];
 #
-class MockTransport {
-    field %on;
-    field $buffer = '';
-    method on ( $e, $cb ) { push $on{$e}->@*, $cb }
+use Net::BitTorrent::Emitter;
+use Net::BitTorrent::Types;
 
-    method emit ( $e, @args ) {
-        for my $cb ( $on{$e}->@* ) { $cb->(@args) }
-    }
+class MockTransport : isa(Net::BitTorrent::Emitter) {
+    field $buffer = '';
     method send_data ($d) { $buffer .= $d; return length $d }
     field $filter : reader = undef;
     method set_filter ($f) { $filter = $f }
     method pop_buffer () { my $tmp = $buffer; $buffer = ''; return $tmp }
+    method close ()  { }
+    method socket () { return undef }
 }
 subtest 'Rarest-First Piece Selection' => sub {
     my $temp = Path::Tiny->tempdir;
@@ -34,7 +33,7 @@ subtest 'Rarest-First Piece Selection' => sub {
     my $torrent_file = $temp->child('test.torrent');
     $torrent_file->spew_raw( bencode( { info => $info } ) );
     my $client = Net::BitTorrent->new();
-    my $t      = $client->add_torrent( $torrent_file, $temp );
+    my $t      = $client->add( $torrent_file, $temp );
     $t->start();
 
     # 4 peers
@@ -53,7 +52,7 @@ subtest 'Rarest-First Piece Selection' => sub {
             transport  => MockTransport->new(),
             ip         => "1.1.1.$i",
             port       => 6881,
-            encryption => 'none'
+            encryption => ENCRYPTION_NONE
         );
         $p_handler->set_peer($peer);
         $t->register_peer_object($peer);
@@ -88,7 +87,7 @@ subtest 'End-Game Mode Entry' => sub {
     my $torrent_file = $temp->child('test.torrent');
     $torrent_file->spew_raw( bencode( { info => $info } ) );
     my $client = Net::BitTorrent->new();
-    my $t      = $client->add_torrent( $torrent_file, $temp );
+    my $t      = $client->add( $torrent_file, $temp );
     $t->start();
     ok !$t->picker->end_game, 'Not in end-game initially';
 
@@ -101,7 +100,7 @@ subtest 'End-Game Mode Entry' => sub {
         transport  => MockTransport->new(),
         ip         => '1.1.1.1',
         port       => 6881,
-        encryption => 'none'
+        encryption => ENCRYPTION_NONE
     );
     $t->register_peer_object($peer);
     $t->set_peer_have_all($peer);
@@ -110,6 +109,8 @@ subtest 'End-Game Mode Entry' => sub {
 
     # Set 2 pieces verified, 3 left
     $t->bitfield->set(1);
+
+    # To trigger endgame check, we need to request a piece.
     $t->get_next_request($peer);
     ok $t->picker->end_game, 'Entered end-game with 3 pieces left';
 };
@@ -119,7 +120,7 @@ subtest 'Peer Reputation (Bad Requests)' => sub {
     my $torrent_file = $temp->child('test.torrent');
     $torrent_file->spew_raw( bencode( { info => $info } ) );
     my $client = Net::BitTorrent->new();
-    my $t      = $client->add_torrent( $torrent_file, $temp );
+    my $t      = $client->add( $torrent_file, $temp );
     $t->bitfield->set(0);    # We have piece 0, but not 1
     $t->start();
     my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => $t->info_hash_v1, peer_id => 'PEER1' . ( '0' x 15 ) );
@@ -129,17 +130,18 @@ subtest 'Peer Reputation (Bad Requests)' => sub {
         transport  => MockTransport->new(),
         ip         => '1.1.1.1',
         port       => 6881,
-        encryption => 'none'
+        encryption => ENCRYPTION_NONE
     );
     $t->register_peer_object($peer);
 
     # Process handshake
-    $peer->transport->emit('connected');
+    $peer->transport->_emit('connected');
     $p_handler->receive_data( $p_handler->write_buffer );
     $peer->unchoke();    # We must unchoke them to receive requests
     is $peer->reputation, 100, 'Initial reputation is 100';
 
     # Peer requests a piece we don't have
+    # Message ID 6 = REQUEST
     $p_handler->receive_data( pack( 'N C N N N', 13, 6, 1, 0, 16384 ) );
     is $peer->reputation, 95, 'Reputation decreased for requesting missing piece';
 

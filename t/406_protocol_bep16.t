@@ -9,18 +9,17 @@ use Path::Tiny;
 use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode];
 use Digest::SHA                               qw[sha1];
 #
-class MockTransport {
-    field %on;
-    field $buffer = '';
-    method on ( $e, $cb ) { push $on{$e}->@*, $cb }
+use Net::BitTorrent::Emitter;
+use Net::BitTorrent::Types;
 
-    method emit ( $e, @args ) {
-        for my $cb ( $on{$e}->@* ) { $cb->(@args) }
-    }
+class MockTransport : isa(Net::BitTorrent::Emitter) {
+    field $buffer = '';
     method send_data ($d) { $buffer .= $d; return length $d }
     field $filter : reader = undef;
     method set_filter ($f) { $filter = $f }
     method pop_buffer () { my $tmp = $buffer; $buffer = ''; return $tmp }
+    method close ()  { }
+    method socket () { return undef }
 }
 subtest 'Superseeding (BEP 16)' => sub {
     my $temp         = Path::Tiny->tempdir;
@@ -39,7 +38,7 @@ subtest 'Superseeding (BEP 16)' => sub {
             }
         )
     );
-    my $t = $client->add_torrent( $torrent_file, $temp );
+    my $t = $client->add( $torrent_file, $temp );
     $t->bitfield->fill();
     $t->set_superseed(1);
     $t->start();
@@ -51,12 +50,12 @@ subtest 'Superseeding (BEP 16)' => sub {
         transport  => $transport,
         ip         => '1.2.3.4',
         port       => 6881,
-        encryption => 'none'
+        encryption => ENCRYPTION_NONE
     );
     $p_handler->set_peer($peer);
 
     # Trigger connection and handshake
-    $transport->emit('connected');
+    $transport->_emit('connected');
 
     # Open by receiving our own handshake (mocking remote)
     my $hs = $p_handler->write_buffer;

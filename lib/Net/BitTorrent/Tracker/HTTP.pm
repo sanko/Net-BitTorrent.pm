@@ -62,7 +62,7 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
         if ( $params->{ua} && $params->{ua}->can('get') ) {
             $params->{ua}->get(
                 $target,
-                sub ($res) {
+                sub ( $res, @ ) {
                     if ( $res->{success} ) {
                         try {
                             if ($cb) {
@@ -70,11 +70,11 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
                             }
                         }
                         catch ($e) {
-                            $self->_emit( log => $e, level => 'error' );
+                            $self->_emit( log => "Error in HTTP announce callback: $e", level => 'error' );
                         }
                     }
                     else {
-                        $self->_emit( log => "Async HTTP error: $res->{status}\n", level => 'error' );
+                        $self->_emit( log => "Async HTTP error during announce: $res->{status} $res->{reason}\n", level => 'error' );
                     }
                 }
             );
@@ -88,13 +88,18 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
             return $parsed;
         }
         else {
-            $self->_emit( log => "HTTP error: $response->{status} $response->{reason}", level => 'error' );
+            $self->_emit( log => "HTTP error during announce: $response->{status} $response->{reason}", level => 'error' );
             return undef;
         }
     }
 
     method perform_scrape ( $info_hashes, $cb = undef ) {
-        my $target   = $self->build_scrape_url($info_hashes);
+        my $target = $self->build_scrape_url($info_hashes);
+
+        # Note: Scrape might not have a 'ua' in $info_hashes params,
+        # usually client passes it or we should store it in $self.
+        # For now, if we don't have it, we block.
+        # Real fix: Tracker objects should have a 'ua' field.
         my $http     = HTTP::Tiny->new();
         my $response = $http->get($target);
         if ( $response->{success} ) {

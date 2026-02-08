@@ -438,7 +438,8 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         return if $state == STATE_STOPPED || $state == STATE_PAUSED;
         $limit_up->tick($delta);
         $limit_down->tick($delta);
-        $storage->tick($delta) if $storage;
+        $storage->tick($delta)         if $storage;
+        $tracker_manager->tick($delta) if $tracker_manager;
 
         # Attempt to connect to discovered peers if we need more
         $self->_attempt_connections() if keys %peer_objects < 50;
@@ -485,7 +486,7 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         $dht_lookup_timer += $delta;
 
         # Accelerate DHT lookups during startup/metadata phase or if starved for peers
-        my $dht_interval = ( $state eq 'METADATA' || keys %peer_objects < 5 ) ? 2 : 120;
+        my $dht_interval = ( $state == STATE_METADATA || keys %peer_objects < 5 ) ? 2 : 120;
         if ( $dht_lookup_timer >= $dht_interval ) {
             $self->_update_dht_search();
             $dht_lookup_timer = 0;
@@ -836,7 +837,7 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method get_next_request ($peer) {
-        return undef if $state ne 'RUNNING';
+        return undef if $state ne STATE_RUNNING;
         my $p_bf = $peer_bitfields{$peer};
         if ( !$p_bf ) {
 

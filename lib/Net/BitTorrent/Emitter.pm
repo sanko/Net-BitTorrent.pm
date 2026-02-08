@@ -11,6 +11,19 @@ class Net::BitTorrent::Emitter v2.0.0 {
     }
 
     method _emit ( $event, @args ) {
+        if ( $event eq 'log' ) {
+            my %extra;
+            if ( @args % 2 != 0 ) {
+                my $msg = shift @args;
+                %extra = ( log => $msg, @args );
+            }
+            else {
+                %extra = @args;
+            }
+            if ( ( $extra{level} // '' ) eq 'fatal' ) {
+                die $extra{log};
+            }
+        }
         if ( exists $on{$event} ) {
             for my $cb ( $on{$event}->@* ) {
                 try {

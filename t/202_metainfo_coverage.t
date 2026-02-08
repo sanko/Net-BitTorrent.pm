@@ -1,9 +1,11 @@
-use v5.42;
+use v5.40;
+use feature 'try';
 use Test2::V1 -ipP;
 no warnings;
 use lib 'lib', '../lib';
 use Net::BitTorrent::Torrent;
 use Net::BitTorrent;
+use Net::BitTorrent::Types;
 use Path::Tiny;
 my $torrent_dir = path('t/900_data/test_torrents');
 subtest 'Standard v1 (base.torrent)' => sub {
@@ -30,8 +32,6 @@ subtest 'Malformed: Negative File Size' => sub {
     my $error;
     try { Net::BitTorrent::Torrent->new( path => $path, base_path => '.', client => Net::BitTorrent->new() ) }
     catch ($e) { $error = $e; }
-
-    # Current implementation might not catch this yet
     ok $error, 'Caught negative file size' or diag 'Failed to catch negative file size';
 };
 subtest 'Malformed: Missing Path List' => sub {

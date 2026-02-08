@@ -8,19 +8,17 @@ use Net::BitTorrent::Protocol::PeerHandler;
 use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode];
 use Path::Tiny;
 use Digest::SHA qw[sha1];
+use Net::BitTorrent::Emitter;
+use Net::BitTorrent::Types;
 
-class MockTransport {
-    field %on;
+class MockTransport : isa(Net::BitTorrent::Emitter) {
     field $buffer = '';
-    method on ( $e, $cb ) { push $on{$e}->@*, $cb }
-
-    method emit ( $e, @args ) {
-        for my $cb ( $on{$e}->@* ) { $cb->(@args) }
-    }
     method send_data ($d) { $buffer .= $d; return length $d }
     field $filter : reader = undef;
     method set_filter ($f) { $filter = $f }
     method pop_buffer () { my $tmp = $buffer; $buffer = ''; return $tmp }
+    method close ()  { }
+    method socket () { return undef }
 }
 subtest 'Full Stack Verification' => sub {
     my $temp         = Path::Tiny->tempdir;
@@ -40,13 +38,13 @@ subtest 'Full Stack Verification' => sub {
     );
     my $seeder_dir = $temp->child('seeder');
     my $client_s   = Net::BitTorrent->new();
-    my $t_s        = $client_s->add_torrent( $torrent_file, $seeder_dir );
+    my $t_s        = $client_s->add( $torrent_file, $seeder_dir );
     $seeder_dir->mkpath;
     $seeder_dir->child('test.bin')->spew_raw($data);
     $t_s->bitfield->set(0);
     my $leecher_dir = $temp->child('leecher');
     my $client_l    = Net::BitTorrent->new();
-    my $t_l         = $client_l->add_torrent( $torrent_file, $leecher_dir );
+    my $t_l         = $client_l->add( $torrent_file, $leecher_dir );
     $t_s->start();
     $t_l->start();
     my $ih      = $t_s->info_hash_v2 || $t_s->info_hash_v1;
@@ -54,10 +52,22 @@ subtest 'Full Stack Verification' => sub {
     my $p_l     = Net::BitTorrent::Protocol::PeerHandler->new( info_hash => $ih, peer_id => 'L' x 20, features => $t_l->features );
     my $trans_s = MockTransport->new();
     my $trans_l = MockTransport->new();
-    my $peer_s
-        = Net::BitTorrent::Peer->new( protocol => $p_s, torrent => $t_s, transport => $trans_s, ip => '1.1.1.1', port => 1111, encryption => 'none' );
-    my $peer_l
-        = Net::BitTorrent::Peer->new( protocol => $p_l, torrent => $t_l, transport => $trans_l, ip => '2.2.2.2', port => 2222, encryption => 'none' );
+    my $peer_s  = Net::BitTorrent::Peer->new(
+        protocol   => $p_s,
+        torrent    => $t_s,
+        transport  => $trans_s,
+        ip         => '1.1.1.1',
+        port       => 1111,
+        encryption => ENCRYPTION_NONE
+    );
+    my $peer_l = Net::BitTorrent::Peer->new(
+        protocol   => $p_l,
+        torrent    => $t_l,
+        transport  => $trans_l,
+        ip         => '2.2.2.2',
+        port       => 2222,
+        encryption => ENCRYPTION_NONE
+    );
     $t_s->register_peer_object($peer_s);
     $t_l->register_peer_object($peer_l);
 
@@ -85,8 +95,8 @@ subtest 'Full Stack Verification' => sub {
     };
 
     # Handshake
-    $trans_s->emit('connected');
-    $trans_l->emit('connected');
+    $trans_s->_emit('connected');
+    $trans_l->_emit('connected');
     my $handshake_iter = 10;
     while ( ( $p_s->state ne 'OPEN' || $p_l->state ne 'OPEN' ) && $handshake_iter-- ) {
         $exchange->();

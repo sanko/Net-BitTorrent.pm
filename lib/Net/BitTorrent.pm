@@ -621,6 +621,11 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         # Update LPD
         $lpd->tick($timeout) if $lpd;
 
+        # Update torrents (including trackers and storage)
+        for my $ih ( keys %torrents ) {
+            $torrents{$ih}->tick($timeout);
+        }
+
         # Update pending peers (ones being autodetected or in handshake)
         for my $t_key ( keys %pending_peers ) {
             my $entry     = $pending_peers{$t_key};

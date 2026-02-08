@@ -30,7 +30,8 @@ Net::BitTorrent::Peer - Individual Peer Connection & State Tracking
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Peer> represents a single connection to a remote BitTorrent client. It maintains the choking/interested state machine and handles all message routing for a specific neighbor.
+C<Net::BitTorrent::Peer> represents a single connection to a remote BitTorrent client. It maintains the
+choking/interested state machine and handles all message routing for a specific neighbor.
 
 =head2 Reputation & Security
 
@@ -38,11 +39,11 @@ This class implements peer reputation tracking:
 
 =over
 
-=itme Peers start with a reputation of 100.
+=item Peers start with a reputation of 100.
 
 =item Providing a verified piece increases reputation by 1.
 
-=itme Providing a corrupt piece (failed hash) decreases reputation by 20.
+=item Providing a corrupt piece (failed hash) decreases reputation by 20.
 
 =item If reputation falls to B<50 or below>, the peer is automatically disconnected and blacklisted for the session.
 
@@ -66,7 +67,8 @@ Parameters;
 
 =head2 C<unchoke( )> / C<choke( )>
 
-Sends a C<CHOKE> or C<UNCHOKE> message to the peer. This controls whether the remote peer is allowed to request blocks from us.
+Sends a C<CHOKE> or C<UNCHOKE> message to the peer. This controls whether the remote peer is allowed to request blocks
+from us.
 
 =head2 C<send_suggest( $index )> / C<send_allowed_fast( $index )>
 

@@ -10,19 +10,17 @@ use Net::BitTorrent::Protocol::PeerHandler;
 use Path::Tiny;
 use Digest::SHA                               qw[sha1];
 use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode];
+use Net::BitTorrent::Emitter;
+use Net::BitTorrent::Types;
 
-class MockTransport {
-    field %on;
+class MockTransport : isa(Net::BitTorrent::Emitter) {
     field $buffer = '';
-    method on ( $e, $cb ) { push $on{$e}->@*, $cb }
-
-    method emit ( $e, @args ) {
-        for my $cb ( $on{$e}->@* ) { $cb->(@args) }
-    }
     method send_data ($d) { $buffer .= $d; return length $d }
     field $filter : reader = undef;
     method set_filter ($f) { $filter = $f }
     method pop_buffer () { my $tmp = $buffer; $buffer = ''; return $tmp }
+    method socket () { return undef }
+    method close ()  { }
 }
 subtest 'Peer Reputation Tracking' => sub {
     my $temp         = Path::Tiny->tempdir;
@@ -30,7 +28,7 @@ subtest 'Peer Reputation Tracking' => sub {
     my $torrent_file = $temp->child('test.torrent');
     $torrent_file->spew_raw( bencode( { info => { name => 'test', 'piece length' => 16384, pieces => sha1($data) } } ) );
     my $client = Net::BitTorrent->new();
-    my $t      = $client->add_torrent( $torrent_file, $temp );
+    my $t      = $client->add( $torrent_file, $temp );
     $t->start();
 
     # Mock a peer

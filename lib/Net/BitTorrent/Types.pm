@@ -4,7 +4,7 @@ no warnings 'experimental::class';
 
 package Net::BitTorrent::Types v2.0.0 {
     use Exporter qw[import];
-    our @EXPORT_OK = qw[
+    our @EXPORT = qw[
         ENCRYPTION_NONE
         ENCRYPTION_PREFERRED
         ENCRYPTION_REQUIRED
@@ -17,6 +17,7 @@ package Net::BitTorrent::Types v2.0.0 {
         PICK_RAREST_FIRST
         PICK_STREAMING
     ];
+    our @EXPORT_OK   = @EXPORT;
     our %EXPORT_TAGS = (
         all        => \@EXPORT_OK,
         encryption => [qw[ENCRYPTION_NONE ENCRYPTION_PREFERRED ENCRYPTION_REQUIRED]],

@@ -1,8 +1,10 @@
-use v5.42;
+use v5.40;
+use feature 'try';
 use Test2::V1 -ipP;
 no warnings;
 use lib 'lib', '../lib';
 use Net::BitTorrent;
+use Net::BitTorrent::Types;
 use Path::Tiny;
 my $torrent_dir = path('t/900_data/test_torrents');
 subtest 'Unordered Dictionary' => sub {
@@ -10,7 +12,7 @@ subtest 'Unordered Dictionary' => sub {
     my $error;
     try {
         my $nb = Net::BitTorrent->new();
-        $nb->add_torrent( $unordered, 'temp_data' );
+        $nb->add( $unordered, 'temp_data' );
     }
     catch ($e) { $error = $e; }
     like( $error, qr/malformed dictionary/, 'Strict bdecode catches unordered dictionary' );
@@ -20,7 +22,7 @@ subtest 'Invalid Filename (Traversal Attempt)' => sub {
     my $error;
     try {
         my $nb = Net::BitTorrent->new();
-        $nb->add_torrent( $traversal, 'temp_data' );
+        $nb->add( $traversal, 'temp_data' );
     }
     catch ($e) { $error = $e; }
     like( $error, qr/Invalid path element/, 'Catches absolute filename' );
@@ -30,7 +32,7 @@ subtest 'Missing Info' => sub {
     my $error;
     try {
         my $nb = Net::BitTorrent->new();
-        $nb->add_torrent( $missing, 'temp_data' );
+        $nb->add( $missing, 'temp_data' );
     }
     catch ($e) { $error = $e; }
     like( $error, qr/Missing info dictionary/, 'Catches missing info' );
@@ -40,7 +42,7 @@ subtest 'Negative Piece Length' => sub {
     my $error;
     try {
         my $nb = Net::BitTorrent->new();
-        $nb->add_torrent( $neg, 'temp_data' );
+        $nb->add( $neg, 'temp_data' );
     }
     catch ($e) { $error = $e; }
     like( $error, qr/Invalid piece length/, 'Catches negative piece length' );

@@ -43,7 +43,6 @@ class Net::BitTorrent::Tracker v2.0.0 : isa(Net::BitTorrent::Emitter) {
         my $now = time();
 
         # If we have multiple info_hashes (hybrid), we should ideally announce all.
-        # Standard $params has 'info_hash'.
         my @ihs = ref( $params->{info_hash} ) eq 'ARRAY' ? @{ $params->{info_hash} } : ( $params->{info_hash} );
         for my $tier (@tiers) {
             my $tier_success = 0;
@@ -55,6 +54,7 @@ class Net::BitTorrent::Tracker v2.0.0 : isa(Net::BitTorrent::Emitter) {
                     $tier_success = 1 if $i == 0 && $entry->{last_announce} > 0;
                     next;
                 }
+                my $pending_ihs = scalar @ihs;
                 for my $ih (@ihs) {
                     my $ih_params = { %$params, info_hash => $ih };
                     $ih_params->{trackerid} = $entry->{tracker_id} if $entry->{tracker_id};
@@ -74,7 +74,10 @@ class Net::BitTorrent::Tracker v2.0.0 : isa(Net::BitTorrent::Emitter) {
                             splice( @$tier, $i, 1 );
                             unshift( @$tier, $entry );
                         }
-                        $cb->( [ values %unique_peers ] ) if $cb;
+                        $pending_ihs--;
+                        if ( $pending_ihs <= 0 && $cb ) {
+                            $cb->( [ values %unique_peers ] );
+                        }
                     };
                     try {
                         $entry->{obj}->perform_announce( $ih_params, $on_res );
@@ -83,6 +86,7 @@ class Net::BitTorrent::Tracker v2.0.0 : isa(Net::BitTorrent::Emitter) {
                     catch ($e) {
                         $self->_emit( log => '  [DEBUG] Announce to ' . $entry->{obj}->url . " failed: $e\n", level => 'debug' ) if $debug;
                         $entry->{consecutive_failures}++;
+                        $pending_ihs--;
                     }
                 }
                 last if $tier_success;
@@ -131,6 +135,16 @@ class Net::BitTorrent::Tracker v2.0.0 : isa(Net::BitTorrent::Emitter) {
                     @$_
             } @tiers
         ];
+    }
+
+    method tick ($delta) {
+        for my $tier (@tiers) {
+            for my $entry (@$tier) {
+                if ( $entry->{obj}->can('tick') ) {
+                    $entry->{obj}->tick($delta);
+                }
+            }
+        }
     }
 
     method add_tracker ($url) {
