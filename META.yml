@@ -1,0 +1,87 @@
+---
+X_No_Archive: Yes
+abstract: 'Pure Perl BitTorrent Client'
+author:
+  - 'Sanko Robinson <sanko@cpan.org>'
+build_requires:
+  Module::Build::Tiny: '0'
+  Test2::V1: '0'
+configure_requires:
+  Module::Build::Tiny: '0'
+  perl: v5.42.0
+dynamic_config: 0
+generated_by: 'App::mii v1.0.0, CPAN::Meta::Converter version 2.150012'
+keywords:
+  - dht
+  - kademlia
+  - bittorrent
+  - interplanetary
+license: artistic_2
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: '1.4'
+name: Net-BitTorrent
+no_index:
+  directory:
+    - t
+    - xt
+    - eg
+optional_features:
+  mse:
+    description: 'Protocol Encryption (MSE/PE) support'
+    requires:
+      Crypt::PK::DH: '0'
+      Crypt::Stream::RC4: '0'
+  upnp:
+    description: 'UPnP port mapping support'
+    requires:
+      Acme::UPnP: '0'
+provides:
+  Net::BitTorrent::Emitter:
+    file: lib/Net/BitTorrent/Emitter.pm
+    version: v2.0.0
+  Net::BitTorrent::Types:
+    file: lib/Net/BitTorrent/Types.pm
+    version: v2.0.0
+recommends:
+  Acme::UPnP: '0'
+  Crypt::PK::DH: '0'
+  Crypt::Stream::RC4: '0'
+  IO::Async: '0'
+requires:
+  Acme::Bitfield: '0'
+  Acme::Selection::RarestFirst: '0'
+  Acme::UPnP: '0'
+  Algorithm::Kademlia: '0'
+  Algorithm::RateLimiter::TokenBucket: '0'
+  Digest::Merkle::SHA256: '0'
+  Digest::SHA: '0'
+  HTTP::Tiny: '0'
+  IO::Select: '0'
+  IO::Socket::IP: '0'
+  Net::BitTorrent::DHT: v2.0.6
+  Net::BitTorrent::Protocol::BEP03::Bencode: '0'
+  Net::Multicast::PeerDiscovery: '0'
+  Net::uTP: '0'
+  Path::Tiny: '0'
+  Socket: '0'
+  URI::Escape: '0'
+  perl: v5.42.0
+resources:
+  bugtracker: https://github.com/sanko/Net-BitTorrent.pm/issues
+  homepage: https://github.com/sanko/Net-BitTorrent.pm
+  license: http://www.perlfoundation.org/artistic_license_2_0
+  repository: git://github.com/sanko/Net-BitTorrent.pm.git
+version: v2.0.0
+x_help_wanted:
+  - Tester
+  - Documenter
+x_ignore:
+  - .tidyallrc
+  - .gitignore
+  - .github/
+  - .github/*
+  - .github/**
+  - .clang-format
+x_serialization_backend: 'CPAN::Meta::YAML version 0.020'
+x_static_install: 0

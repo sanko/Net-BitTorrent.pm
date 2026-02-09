@@ -81,7 +81,7 @@
             "HTTP::Tiny" : "0",
             "IO::Select" : "0",
             "IO::Socket::IP" : "0",
-            "Net::BitTorrent::DHT" : "0",
+            "Net::BitTorrent::DHT" : "v2.0.6",
             "Net::BitTorrent::Protocol::BEP03::Bencode" : "0",
             "Net::Multicast::PeerDiscovery" : "0",
             "Net::uTP" : "0",

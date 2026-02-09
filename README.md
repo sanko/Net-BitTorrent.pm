@@ -11,7 +11,6 @@ use Net::BitTorrent::Types qw[:encryption];
 
 # Initialize the client
 my $client = Net::BitTorrent->new(
-    user_agent   => "MyClient/1.0",
     upnp_enabled => 1,
     encryption   => ENCRYPTION_REQUIRED # or 'required'
 );
