@@ -333,7 +333,7 @@ class Net::BitTorrent::DHT v2.0.6 {
             }
             return ( [], [], undef );
         }
-        return $self->_handle_response( $msg, $sender, $ip, $port ) if $msg->{y} eq 'r';
+        return $self->_handle_response( $msg, $sender, $ip, $port ) if ( $msg->{y} // '' ) eq 'r';
         return ( [], [], undef );
     }
 

@@ -3,14 +3,14 @@ use feature 'class';
 no warnings 'experimental::class';
 use Net::BitTorrent::Emitter;
 class Net::BitTorrent::Protocol::BEP23 v2.0.0 : isa(Net::BitTorrent::Emitter) {
-    use Socket qw[inet_aton inet_ntoa];
+    use Socket qw[inet_pton inet_ntop AF_INET];
 
     sub pack_peers_ipv4 (@peers) {
         my $packed = '';
         for my $peer (@peers) {
 
             # $peer is { ip => '...', port => ... }
-            my $ip = inet_aton( $peer->{ip} );
+            my $ip = inet_pton( AF_INET, $peer->{ip} );
             die "Invalid IPv4 address: $peer->{ip}" unless defined $ip;
             $packed .= $ip . pack( 'n', $peer->{port} );
         }
@@ -23,7 +23,7 @@ class Net::BitTorrent::Protocol::BEP23 v2.0.0 : isa(Net::BitTorrent::Emitter) {
         for ( my $i = 0; $i < length($data); $i += 6 ) {
             my $chunk = substr( $data, $i, 6 );
             my ( $ip_raw, $port ) = unpack( 'a4 n', $chunk );
-            push @peers, { ip => inet_ntoa($ip_raw), port => $port };
+            push @peers, { ip => inet_ntop( AF_INET, $ip_raw ), port => $port };
         }
         return \@peers;
     }

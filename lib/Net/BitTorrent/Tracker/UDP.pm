@@ -4,13 +4,23 @@ no warnings 'experimental::class', 'experimental::try';
 class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base) {
     use Net::BitTorrent::Protocol::BEP23;
     use IO::Socket::IP;
-    field $connection_id      = 0;
+    use Config;
+    use constant HAS_64BIT => $Config{ivsize} >= 8;
+    field $connection_id      = HAS_64BIT ? 0 : pack( 'NN', 0, 0 );
     field $connection_id_time = 0;
     field $transaction_id;
     field $host;
     field $port;
     field $socket;
     field %pending_transactions;    # tid => { type => ..., cb => ..., payload => ..., retries => ..., timestamp => ... }
+
+    sub _split64 ($val) {
+        $val //= 0;
+        if (HAS_64BIT) { return $val }
+        my $hi = int( $val / 4294967296 );
+        my $lo = $val - ( $hi * 4294967296 );
+        return ( $hi, $lo );
+    }
     ADJUST {
         if ( $self->url =~ m{^udp://([^:/]+):(\d+)} ) {
             $host   = $1;
@@ -72,8 +82,12 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
                 return;
             }
             if ( $entry->{type} eq 'connect' ) {
-                my ( undef, undef, $cid ) = unpack( 'N N Q>', $data );
-                $connection_id      = $cid;
+                if (HAS_64BIT) {
+                    ( undef, undef, $connection_id ) = unpack( 'N N Q>', $data );
+                }
+                else {
+                    $connection_id = substr( $data, 8, 8 );
+                }
                 $connection_id_time = time();
 
                 # Now that we are connected, trigger the original request
@@ -103,8 +117,11 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
 
     method build_connect_packet () {
         my $tid = $self->_new_transaction_id();
-        no warnings 'portable';
-        return ( $tid, pack( 'Q> N N', 0x41727101980, 0, $tid ) );
+        if (HAS_64BIT) {
+            no warnings 'portable';
+            return ( $tid, pack( 'Q> N N', 0x41727101980, 0, $tid ) );
+        }
+        return ( $tid, pack( 'NN N N', 0x417, 0x27101980, 0, $tid ) );
     }
 
     method perform_announce ( $params, $cb = undef ) {
@@ -165,10 +182,11 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
         # or truncate/hash the v2 one as per common practice if 32 bytes provided.
         # REAL BEP 52 UDP trackers expect a modified layout, but standard ones
         # usually get the 20-byte 'info_hash' (v1 or truncated).
-        my $ih_20 = length($ih) == 32 ? sha1($ih) : $ih;
+        my $ih_20 = length($ih) == 32 ? sha1($ih)                            : $ih;
+        my $tmpl  = HAS_64BIT         ? 'Q> N N a20 a20 Q> Q> Q> N N N l> n' : 'a8 N N a20 a20 NN NN NN N N N l> n';
         return pack(
-            'Q> N N a20 a20 Q> Q> Q> N N N l> n', $connection_id, 1, $transaction_id, $ih_20, $params->{peer_id}, $params->{downloaded} // 0,
-            $params->{left} // 0, $params->{uploaded} // 0, $event, 0,    # ip
+            $tmpl, $connection_id, 1, $transaction_id, $ih_20, $params->{peer_id}, _split64( $params->{downloaded} // 0 ),
+            _split64( $params->{left} // 0 ), _split64( $params->{uploaded} // 0 ), $event, 0,    # ip
             $key, $params->{num_want} // -1, $params->{port}
         );
     }
@@ -191,7 +209,8 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
 
         # Truncate v2 hashes to 20 bytes for scrape as well
         my $ih_data = join( '', map { length($_) == 32 ? sha1($_) : $_ } @$infohashes );
-        return pack( 'Q> N N a*', $connection_id, 2, $transaction_id, $ih_data );
+        my $tmpl    = HAS_64BIT ? 'Q> N N a*' : 'a8 N N a*';
+        return pack( $tmpl, $connection_id, 2, $transaction_id, $ih_data );
     }
 
     method parse_scrape_response ( $data, $num_hashes ) {

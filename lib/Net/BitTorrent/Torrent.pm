@@ -1050,7 +1050,7 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
             downloaded => $bytes_downloaded,
             left       => $bytes_left,
             compact    => 1,
-            ( $client->can('user_agent') ? ( ua => $client->user_agent ) : () ),
+            ( $client && $client->can('user_agent') ? ( ua => $client->user_agent ) : () ),
         };
         $params->{event} = $event if $event;
         my $weak_self = $self;
