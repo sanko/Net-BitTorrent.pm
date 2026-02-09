@@ -81,7 +81,6 @@
             "HTTP::Tiny" : "0",
             "IO::Select" : "0",
             "IO::Socket::IP" : "0",
-            "Net::BitTorrent::DHT" : "v2.0.6",
             "Net::BitTorrent::Protocol::BEP03::Bencode" : "0",
             "Net::Multicast::PeerDiscovery" : "0",
             "Net::uTP" : "0",
@@ -98,6 +97,18 @@
       }
    },
    "provides" : {
+      "Net::BitTorrent::DHT" : {
+         "file" : "lib/Net/BitTorrent/DHT.pm",
+         "version" : "v2.0.6"
+      },
+      "Net::BitTorrent::DHT::Peer" : {
+         "file" : "lib/Net/BitTorrent/DHT.pm",
+         "version" : "v2.0.6"
+      },
+      "Net::BitTorrent::DHT::Security" : {
+         "file" : "lib/Net/BitTorrent/DHT/Security.pm",
+         "version" : "v2.0.6"
+      },
       "Net::BitTorrent::Emitter" : {
          "file" : "lib/Net/BitTorrent/Emitter.pm",
          "version" : "v2.0.0"

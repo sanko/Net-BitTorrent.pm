@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v2.0.0] - 2026-02-08
+## [Unreleased]
 
 ### Changed
 - Rewritten from scratch.
@@ -249,7 +249,7 @@ What's the cutoff for apologizing for things you said in high school?
     - N::B::process_timers() - easily keep internal timers up to date
 - (The piece containing) Outgoing blocks are verified for integrity before being sent to remote peers.  Just in case.
 - New sample code: scripts/web-gui.pl
-    - µTorrent WebUI-like demo of alternative event processing.
+    - ÂµTorrent WebUI-like demo of alternative event processing.
 
 ### Changed
 - Experimental kbps_up and kbps_down methods and N::B::new() parameters have been renamed properly: kBps_up, kBps_down.  Bits.  Bytes.  It happens.
