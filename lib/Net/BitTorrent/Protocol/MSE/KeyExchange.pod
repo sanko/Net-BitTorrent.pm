@@ -4,55 +4,219 @@
 
 =head1 NAME
 
-Net::BitTorrent::Protocol::MSE::KeyExchange - Diffie-Hellman Exchange for MSE
+Net::BitTorrent::Protocol::MSE::KeyExchange - Diffie-Hellman and RC4 Key Management
 
 =head1 SYNOPSIS
 
     use Net::BitTorrent::Protocol::MSE::KeyExchange;
 
     my $kx = Net::BitTorrent::Protocol::MSE::KeyExchange->new(
-        infohash    => $bin_ih,
+        infohash     => $bin_ih,
         is_initiator => 1
     );
 
     # Share this with the peer
-    my $my_pub = $kx->pub_key;
+    my $my_pub = $kx->public_key();
 
     # Compute shared secret once peer's key arrives
     $kx->compute_secret( $remote_pub );
 
     # Get ready-to-use ciphers
-    my $cipher = $kx->encrypt_rc4;
+    my $cipher = $kx->encrypt_rc4();
     $cipher->crypt( $plaintext );
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Protocol::MSE::KeyExchange> handles the low level Diffie-Hellman math and cipher initialization
-required for Message Stream Encryption (MSE/PE).
-
+This module handles the 768-bit Diffie-Hellman key exchange and RC4 stream cipher management for BitTorrent encryption.
 It uses a fixed 768-bit safe prime (P) and generator (G=2) as defined in the MSE specification.
 
-=head1 METHODS
+=head1 METHODS (KeyExchange)
 
-=head2 C<compute_secret( $remote_public_key )>
+=head2 C<new( %params )>
 
-Computes the shared Diffie-Hellman secret and derives the RC4 encryption and decryption keys using the infohash as a
-salt.
+Creates a new KeyExchange object.
 
-This method automatically discards the first B<1024 bytes> of both RC4 keystreams to mitigate known weaknesses in the
-RC4 cipher's initial output (a requirement of the  MSE spec).
+Expected parameters:
 
-=head2 C<pub_key( )>
+=over
 
-Returns the raw binary representation of the local public key (128 bytes).
+=item C<infohash>
 
-=head2 C<encrypt_rc4( )> / C<decrypt_rc4( )>
+The 20-byte binary infohash.
 
-Returns instances of L<Crypt::Stream::RC4> correctly seeded and ready for payload obfuscation.
+=item C<is_initiator>
 
-=head2 C<shared_secret( )>
+Boolean. True if we are the connection initiator.
 
-Returns the raw binary shared secret derived from the exchange.
+=back
+
+=head2 C<compute_secret( $remote_pub_bytes )>
+
+Computes the shared secret using the remote peer's public key and derives the RC4 encryption and decryption keys. This
+method automatically discards the first B<1024 bytes> of both RC4 keystreams to mitigate known weaknesses in the RC4
+cipher's initial output (a requirement of the MSE spec).
+
+Expected parameters:
+
+=over
+
+=item C<$remote_pub_bytes>
+
+The 96-byte binary public key from the peer.
+
+=back
+
+=head2 C<get_secret( )>
+
+Returns the computed 96-byte binary shared secret.
+
+    my $s = $kx->get_secret();
+
+=head2 C<get_sync_data( [$override_ih] )>
+
+Returns the hashes needed for MSE synchronization.
+
+    my ($req1, $xor_mask) = $kx->get_sync_data();
+
+Expected parameters:
+
+=over
+
+=item C<$override_ih> - optional
+
+A binary infohash to use instead of the one passed to the constructor.
+
+=back
+
+=head2 C<verify_skey( $xor_block, $candidate_ih )>
+
+Verifies if an XORed SKEY matches a candidate infohash.
+
+    my $ok = $kx->verify_skey( $block, $ih );
+
+Expected parameters:
+
+=over
+
+=item C<$xor_block>
+
+The 20-byte XORed block from the peer.
+
+=item C<$candidate_ih>
+
+The 20-byte binary infohash to check.
+
+=back
+
+=head2 C<init_rc4( $ih )>
+
+Initializes the RC4 encryptor and decryptor.
+
+    $kx->init_rc4( $ih );
+
+Expected parameters:
+
+=over
+
+=item C<$ih>
+
+The negotiated binary infohash.
+
+=back
+
+=head2 C<scan_for_vc( $buffer )>
+
+Scans a buffer for the encrypted Verification Constant (VC).
+
+    my $offset = $kx->scan_for_vc( $incoming_data );
+
+This method uses brute force to find the sync point in an encrypted stream.
+
+Expected parameters:
+
+=over
+
+=item C<$buffer>
+
+The raw data buffer to scan.
+
+=back
+
+=head2 C<infohash( )>
+
+Returns the configured infohash.
+
+=head2 C<is_initiator( )>
+
+Returns true if we are the connection initiator.
+
+=head2 C<public_key( )>
+
+Returns our 96-byte binary public key.
+
+=head2 C<encrypt_rc4( )>
+
+Returns the L<Net::BitTorrent::Protocol::MSE::RC4> object for encryption.
+
+=head2 C<decrypt_rc4( )>
+
+Returns the L<Net::BitTorrent::Protocol::MSE::RC4> object for decryption.
+
+=head1 METHODS (RC4)
+
+=head2 C<discard( $bytes )>
+
+Discards bytes from the PRGA stream.
+
+    $rc4->discard( 1024 );
+
+Expected parameters:
+
+=over
+
+=item C<$bytes>
+
+The number of bytes to discard.
+
+=back
+
+=head2 C<crypt( $data )>
+
+XORs data with the RC4 stream.
+
+    my $cipher = $rc4->crypt( $plain );
+
+Expected parameters:
+
+=over
+
+=item C<$data>
+
+The binary data to process.
+
+=back
+
+=head2 C<snapshot( )>
+
+Returns a lightweight snapshot of the RC4 state.
+
+    my $snap = $rc4->snapshot();
+
+=head2 C<restore( $snap )>
+
+Restores the RC4 state from a snapshot.
+
+    $rc4->restore( $snap );
+
+Expected parameters:
+
+=over
+
+=item C<$snap>
+
+The snapshot data.
+
+=back
 
 =head1 AUTHOR
 

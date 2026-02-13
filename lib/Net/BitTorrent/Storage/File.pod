@@ -4,69 +4,228 @@
 
 =head1 NAME
 
-Net::BitTorrent::Storage::File - File-level I/O and Block Verification
+Net::BitTorrent::Storage::File - Individual File Handler with Merkle Tree Support
 
 =head1 SYNOPSIS
 
     use Net::BitTorrent::Storage::File;
 
     my $file = Net::BitTorrent::Storage::File->new(
-        path        => './data/test.bin',
-        size        => 1048576,
-        pieces_root => $binary_merkle_root
+        path        => 'downloads/ubuntu.iso',
+        size        => 2147483648,
+        pieces_root => $sha256_merkle_root
     );
 
-    # Write data to a specific offset
-    $file->write( 0, $chunk );
+    # Read/Write
+    $file->write( 0, $data );
+    my $chunk = $file->read( 0, 16384 );
 
-    # Verify a 16KiB block against the Merkle tree (BEP 52)
-    my $is_valid = $file->verify_block( $index, $data );
-
-    # Read back data
-    my $data = $file->read( $offset, $len );
+    # Verify
+    my $valid = $file->verify_block( 0, $data );
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Storage::File> represents a single physical file within a BitTorrent swarm. It handles the raw
-reading and writing of data and integrates with L<Digest::Merkle::SHA256> to provide block level cryptographic
-verification.
+This class manages a single file on disk, handling sparse file allocation, Merkle tree verification (BEP 52), and raw
+I/O.
 
 In BitTorrent v2 (BEP 52), every file has its own Merkle tree. This class manages the mapping of block indices to
 Merkle tree leaves, ensuring that every 16KiB chunk written to disk is cryptographically verified against the swarm's
 trusted C<pieces root>.
 
-It is typically used as a component of L<Net::BitTorrent::Storage>, which manages multiple files and provides a unified
-view of the swarm.
-
 =head1 METHODS
 
-=head2 C<read( $offset, $length )>
+=head2 C<new( %params )>
 
-Reads C<$length> bytes from the file starting at C<$offset>. Returns the binary data or C<undef> if the file does not
-exist.
+Creates a new File handler object.
 
-=head2 C<write( $offset, $data )>
+    my $file = Net::BitTorrent::Storage::File->new(
+        path => $path,
+        size => $size
+    );
 
-Writes the binary string C<$data> to the file at C<$offset>. Automatically creates the file and any parent directories
-if they are missing.
+Expected parameters:
+
+=over
+
+=item C<path>
+
+The file system path to the file.
+
+=item C<size>
+
+The expected size of the file in bytes.
+
+=item C<pieces_root> - optional
+
+The 32-byte binary SHA-256 Merkle root of the file.
+
+=item C<piece_size> - optional
+
+The BitTorrent piece size for this file.
+
+=back
 
 =head2 C<verify_block( $index, $data )>
+
+Verifies a 16KiB block against the file's Merkle root.
+
+    my $valid = $file->verify_block( 0, $data );
 
 Calculates the SHA-256 hash of C<$data> and inserts it into the file's internal Merkle tree at block index C<$index>.
 Returns true if the updated tree root matches the expected C<pieces_root>.
 
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The zero-based block index within the file.
+
+=item C<$data>
+
+The 16KiB block of data.
+
+=back
+
 =head2 C<verify_block_audit( $index, $data, $audit_path )>
+
+Verifies a block using an audit path (branch nodes).
+
+    my $valid = $file->verify_block_audit( 0, $data, $audit );
 
 Verifies a block using a provided B<audit path> (a list of sibling hashes). This allows verifying data even if the rest
 of the Merkle tree has not been populated yet.
 
-=head2 C<path()> / C<size()> / C<pieces_root()>
+Expected parameters:
 
-Attribute readers for the file's metadata.
+=over
 
-=head2 C<dump_state()> / C<load_state( $state )>
+=item C<$index>
 
-Persistence API for saving and restoring the populated Merkle tree hashes.
+The block index.
+
+=item C<$data>
+
+The block data.
+
+=item C<$audit_path>
+
+An array reference of hashes representing the branch nodes.
+
+=back
+
+=head2 C<verify_piece_v2( $index, $data, $expected_hash )>
+
+Verifies a full BitTorrent v2 piece.
+
+    my $valid = $file->verify_piece_v2( 0, $data, $hash );
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The piece index within the file.
+
+=item C<$data>
+
+The full piece data.
+
+=item C<$expected_hash>
+
+The 32-byte binary SHA-256 hash from the piece layer.
+
+=back
+
+=head2 C<read( $offset, $length )>
+
+Reads data from the file.
+
+    my $data = $file->read( 0, 16384 );
+
+Reads C<$length> bytes from the file starting at C<$offset>. Returns the binary data or C<undef> if the file does not
+exist.
+
+Expected parameters:
+
+=over
+
+=item C<$offset>
+
+The byte offset.
+
+=item C<$length>
+
+The number of bytes to read.
+
+=back
+
+=head2 C<write( $offset, $data )>
+
+Writes data to the file.
+
+    $file->write( 0, $data );
+
+Writes the binary string C<$data> to the file at C<$offset>. Automatically creates the file and any parent directories
+if they are missing.
+
+Expected parameters:
+
+=over
+
+=item C<$offset>
+
+The byte offset.
+
+=item C<$data>
+
+The data string to write.
+
+=back
+
+=head2 C<dump_state( )>
+
+Exports the file's Merkle tree state.
+
+    my $state = $file->dump_state();
+
+=head2 C<load_state( $state )>
+
+Restores the Merkle tree state.
+
+    $file->load_state( $state );
+
+Expected parameters:
+
+=over
+
+=item C<$state>
+
+The state hash reference.
+
+=back
+
+=head2 C<path( )>
+
+Returns the L<Path::Tiny> object for the file.
+
+=head2 C<size( )>
+
+Returns the file size in bytes.
+
+=head2 C<pieces_root( )>
+
+Returns the 32-byte Merkle root.
+
+=head2 C<piece_size( )>
+
+Returns the configured piece size.
+
+=head2 C<merkle( )>
+
+Returns the L<Digest::Merkle::SHA256> object.
 
 =head1 AUTHOR
 

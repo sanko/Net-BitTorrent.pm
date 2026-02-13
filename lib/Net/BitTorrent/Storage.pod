@@ -54,56 +54,562 @@ cycle, preventing synchronous I/O from blocking the network logic.
 
 =head1 METHODS
 
+=head2 C<new( %params )>
+
+Creates a new C<Net::BitTorrent::Storage> object.
+
+    my $storage = Net::BitTorrent::Storage->new(
+        base_path  => './downloads',
+        piece_size => 262144
+    );
+
+This method initializes the storage engine. It sets up the base path for files and prepares the internal cache and file
+mapping structures.
+
+Expected parameters:
+
+=over
+
+=item C<base_path>
+
+The root directory where all files will be stored. This is a required parameter.
+
+=item C<file_tree> - optional
+
+A BEP 52 file tree structure. If provided, it will be used to automatically add files to the storage.
+
+=item C<piece_size> - optional
+
+The size of a BitTorrent piece in bytes. Required for v1 piece mapping and hybrid torrents.
+
+=item C<pieces_v1> - optional
+
+A concatenated string of 20-byte SHA-1 hashes for BitTorrent v1 pieces. Used for piece verification in v1 or hybrid
+torrents.
+
+=back
+
+=head2 C<add_file( $rel_path, $size, [$pieces_root] )>
+
+Adds a file to the storage manager.
+
+    my $file = $storage->add_file( 'ubuntu.iso', 2147483648, $sha256_root );
+
+This method registers a new file within the storage manager. It returns a L<Net::BitTorrent::Storage::File> object.
+
+Expected parameters:
+
+=over
+
+=item C<$rel_path>
+
+The relative path to the file from the C<base_path>.
+
+=item C<$size>
+
+The size of the file in bytes.
+
+=item C<$pieces_root> - optional
+
+The 32-byte SHA-256 Merkle root of the file (required for BEP 52).
+
+=back
+
+=head2 C<load_file_tree( $tree )>
+
+Loads a BEP 52 file tree.
+
+    $storage->load_file_tree( $metadata->{info}{'file tree'} );
+
+This method recursively parses a BEP 52 file tree and adds all files contained within it to the storage manager.
+
+Expected parameters:
+
+=over
+
+=item C<$tree>
+
+The hash reference representing the 'file tree' from a v2 or hybrid torrent's metadata.
+
+=back
+
+=head2 C<get_file_by_root( $root )>
+
+Retrieves a file object by its Merkle root.
+
+    my $file = $storage->get_file_by_root( $pieces_root );
+
+This method looks up and returns the L<Net::BitTorrent::Storage::File> object associated with the given 32-byte Merkle
+root. On failure, it returns C<undef>.
+
+Expected parameters:
+
+=over
+
+=item C<$root>
+
+The 32-byte SHA-256 Merkle root of the file.
+
+=back
+
+=head2 C<set_piece_layer( $root, $layer_data )>
+
+Sets the piece layer data for a file.
+
+    $storage->set_piece_layer( $root, $hashes );
+
+This method stores the piece layer (concatenated 32-byte SHA-256 hashes) for a specific file. These hashes are used to
+verify v2 pieces.
+
+Expected parameters:
+
+=over
+
+=item C<$root>
+
+The 32-byte SHA-256 Merkle root of the file.
+
+=item C<$layer_data>
+
+The binary string containing the concatenated SHA-256 hashes for the file's piece layer.
+
+=back
+
+=head2 C<get_hashes( $root, $base_layer, $index, $length )>
+
+Retrieves Merkle tree hashes.
+
+    my $hashes = $storage->get_hashes($root, $layer, $idx, $cnt);
+
+This method fetches a sequence of hashes from the Merkle tree for BEP 52 C<HASH_REQUEST> responses. On success, it
+returns an array reference of binary hashes. On failure, it returns C<undef>.
+
+Expected parameters:
+
+=over
+
+=item C<$root>
+
+The 32-byte SHA-256 Merkle root of the file.
+
+=item C<$base_layer>
+
+The tree layer to start from (0 is the leaves/blocks).
+
+=item C<$index>
+
+The start index in the layer.
+
+=item C<$length>
+
+The number of hashes to retrieve.
+
+=back
+
 =head2 C<verify_block( $root, $index, $data )>
 
-Verifies a 16KiB block against the Merkle tree for the file identified by C<$root>. C<$index> is the block index within
-the file. Returns boolean. Part of B<BEP 52>.
+Verifies a block against the Merkle tree (BEP 52).
+
+    my $valid = $storage->verify_block($file_root, $block_idx, $data);
+
+This method validates a 16KiB block of data using the Merkle tree associated with the file root. It returns a boolean
+indicating whether the data is valid.
+
+Expected parameters:
+
+=over
+
+=item C<$root>
+
+The 32-byte SHA-256 Merkle root of the file.
+
+=item C<$index>
+
+The block index within the file.
+
+=item C<$data>
+
+The 16KiB block of data to verify.
+
+=back
 
 =head2 C<verify_block_audit( $root, $index, $data, $audit_path )>
 
-Verifies a block using an audit path (branch nodes of the Merkle tree). Useful when the full piece layer hasn't been
-downloaded yet.
+Verifies a block using an audit path.
+
+    my $valid = $storage->verify_block_audit($root, $idx, $data, $audit);
+
+This method validates data using branch nodes (audit path), useful when the full piece layer is not yet available. It
+returns a boolean.
+
+Expected parameters:
+
+=over
+
+=item C<$root>
+
+The 32-byte SHA-256 Merkle root of the file.
+
+=item C<$index>
+
+The block index within the file.
+
+=item C<$data>
+
+The 16KiB block of data.
+
+=item C<$audit_path>
+
+An array reference of hashes representing the branch nodes needed for verification.
+
+=back
 
 =head2 C<verify_piece_v2( $root, $index, $data )>
 
-Verifies an entire v2 piece against the cached piece layers.
+Verifies a full v2 piece.
+
+    my $valid = $storage->verify_piece_v2($root, $idx, $data);
+
+This method validates an entire BitTorrent v2 piece against the cached piece layers. It returns a boolean.
+
+Expected parameters:
+
+=over
+
+=item C<$root>
+
+The 32-byte SHA-256 Merkle root of the file.
+
+=item C<$index>
+
+The piece index within the file.
+
+=item C<$data>
+
+The full piece data.
+
+=back
 
 =head2 C<write_block( $root, $offset, $data )>
 
-Writes a block to the asynchronous cache. The data will be flushed to the file C<$root> at C<$offset> during a
-subsequent C<tick()>.
+Writes data to the storage.
+
+    $storage->write_block($root, 0, $data);
+
+This method queues a block for writing. The actual disk I/O happens asynchronously during C<tick()>.
+
+Expected parameters:
+
+=over
+
+=item C<$root>
+
+The 32-byte SHA-256 Merkle root of the target file.
+
+=item C<$offset>
+
+The byte offset within the file.
+
+=item C<$data>
+
+The data to write.
+
+=back
 
 =head2 C<read_block( $root, $offset, $length )>
 
-Reads data from the cache (if available) or falls back to disk.
+Reads data from the storage.
 
-=head2 C<read_global( $offset, $length )> / C<write_global( $offset, $data )>
+    my $data = $storage->read_block($root, 0, 16384);
 
-Legacy methods for accessing the swarm as a single contiguous virtual file. Essential for B<BEP 03> compatibility.
+This method reads data from the write cache if available, or falls back to reading from disk. It returns the data
+string on success or C<undef> on failure.
+
+Expected parameters:
+
+=over
+
+=item C<$root>
+
+The 32-byte SHA-256 Merkle root of the target file.
+
+=item C<$offset>
+
+The byte offset within the file.
+
+=item C<$length>
+
+The number of bytes to read.
+
+=back
+
+=head2 C<read_global( $offset, $length )>
+
+Reads data from the virtual global file.
+
+    my $data = $storage->read_global(0, 16384);
+
+This method treats all files in the torrent as a single contiguous stream (BEP 03). It returns the data string.
+
+Expected parameters:
+
+=over
+
+=item C<$offset>
+
+The global byte offset.
+
+=item C<$length>
+
+The number of bytes to read.
+
+=back
+
+=head2 C<write_global( $offset, $data )>
+
+Writes data to the virtual global file.
+
+    $storage->write_global(0, $data);
+
+This method writes data to the swarm's contiguous virtual file (BEP 03).
+
+Expected parameters:
+
+=over
+
+=item C<$offset>
+
+The global byte offset.
+
+=item C<$data>
+
+The data to write.
+
+=back
+
+=head2 C<flush( [$count] )>
+
+Flushes pending writes to disk.
+
+    $storage->flush( 16 );
+
+This method writes a limited number of dirty cache entries to disk. It returns the number of entries successfully
+flushed.
+
+Expected parameters:
+
+=over
+
+=item C<$count> - optional
+
+The maximum number of cache entries to flush in this call. If omitted, all dirty entries are flushed.
+
+=back
+
+=head2 C<explicit_flush( )>
+
+Forces all pending writes to disk.
+
+    $storage->explicit_flush();
+
+This method forces all pending writes in the memory cache to be written to the physical disk immediately.
+
+=head2 C<tick( [$delta] )>
+
+Performs periodic maintenance tasks.
+
+    $storage->tick( 0.1 );
+
+This method performs periodic tasks like throttled cache flushing.
+
+Expected parameters:
+
+=over
+
+=item C<$delta> - optional
+
+The time elapsed since the last tick in seconds. Defaults to 0.1.
+
+=back
+
+=head2 C<map_abs_offset( $root, $offset, $length )>
+
+Maps an offset to file segments.
+
+    my $segments = $storage->map_abs_offset( $root, $offset, $length );
+
+This method translates an offset and length (either file-relative or global) into a list of file segments. It returns
+an array reference of hash references, each containing C<file>, C<offset>, and C<length>.
+
+Expected parameters:
+
+=over
+
+=item C<$root>
+
+The 32-byte SHA-256 Merkle root of the file. If C<undef>, the offset is treated as a global offset across all files.
+
+=item C<$offset>
+
+The byte offset.
+
+=item C<$length>
+
+The length of the range in bytes.
+
+=back
 
 =head2 C<map_v1_piece( $index )>
 
-Calculates which files and segments are contained within a v1 piece index. In hybrid torrents, this accounts for the
-padding files/space defined in B<BEP 52>. Returns an arrayref of segment hashes.
+Maps a v1 piece to file segments.
+
+    my $segments = $storage->map_v1_piece(0);
+
+This method determines which files and offsets a BitTorrent v1 piece covers. It handles the alignment padding required
+for hybrid swarms (BEP 52). It returns an array reference of segments.
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The v1 piece index.
+
+=back
+
+=head2 C<write_piece_v1( $index, $data )>
+
+Writes a BitTorrent v1 piece.
+
+    $storage->write_piece_v1( 0, $data );
+
+This method writes a full v1 piece to storage, correctly mapping it across file boundaries and padding.
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The v1 piece index.
+
+=item C<$data>
+
+The full piece data.
+
+=back
+
+=head2 C<read_piece_v1( $index )>
+
+Reads a BitTorrent v1 piece.
+
+    my $data = $storage->read_piece_v1( 0 );
+
+This method reads a full v1 piece from storage. It returns the piece data string.
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The v1 piece index.
+
+=back
+
+=head2 C<verify_piece_v1( $index, $data )>
+
+Verifies a BitTorrent v1 piece.
+
+    my $valid = $storage->verify_piece_v1( 0, $data );
+
+This method validates a BitTorrent v1 piece against the SHA-1 hashes provided in the constructor. It returns a boolean.
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The v1 piece index.
+
+=item C<$data>
+
+The piece data to verify.
+
+=back
 
 =head2 C<map_v2_piece( $index )>
 
-Returns a list containing the C<pieces_root> and relative index for a v2 piece. Since v2 pieces are aligned to files, a
-piece always belongs to exactly one file (or padding).
+Maps a v2 piece to its file.
 
-=head2 C<get_hashes( $root, $base_layer, $index, $count )>
+    my ($root, $rel_idx) = $storage->map_v2_piece(0);
 
-Retrieves a string of concatenated hashes from the Merkle tree for file C<$root>. Used to respond to B<BEP 52>
-C<HASH_REQUEST> messages.
+This method identifies which file a BitTorrent v2 piece belongs to. v2 pieces are always aligned to file boundaries. It
+returns the 32-byte Merkle root and the relative piece index within that file.
 
-=head2 C<explicit_flush()>
+Expected parameters:
 
-Guarantees that all data currently in the memory cache is written to the physical disk immediately.
+=over
 
-=head2 C<dump_state()> / C<load_state( $state )>
+=item C<$index>
 
-Persistence API. Saves the Merkle tree nodes and verification state so that swarms can be resumed instantly without a
-full file re-hash.
+The global v2 piece index.
+
+=back
+
+=head2 C<dump_state( )>
+
+Exports storage state.
+
+    my $state = $storage->dump_state();
+
+This method returns the current state of the storage engine, including file statuses and internal metadata. It returns
+a hash reference.
+
+=head2 C<load_state( $state )>
+
+Restores storage state.
+
+    $storage->load_state($state);
+
+This method restores the storage state from a previously dumped state, allowing instant resume without re-hashing
+files.
+
+Expected parameters:
+
+=over
+
+=item C<$state>
+
+The hash reference containing the state data.
+
+=back
+
+=head2 C<base_path( )>
+
+Returns the base path for storage.
+
+    my $path = $storage->base_path();
+
+=head2 C<file_tree( )>
+
+Returns the configured file tree.
+
+    my $tree = $storage->file_tree();
+
+=head2 C<piece_size( )>
+
+Returns the configured piece size.
+
+    my $size = $storage->piece_size();
+
+=head2 C<pieces_v1( )>
+
+Returns the configured v1 piece hashes.
+
+    my $hashes = $storage->pieces_v1();
 
 =head1 SEE ALSO
 

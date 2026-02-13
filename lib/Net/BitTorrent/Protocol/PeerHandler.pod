@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Protocol::PeerHandler - Integrated Protocol Extension Orchestrator
+Net::BitTorrent::Protocol::PeerHandler - High-level Peer Protocol Orchestrator
 
 =head1 SYNOPSIS
 
@@ -63,30 +63,299 @@ It works closely with L<Net::BitTorrent::Peer> to manage the lifecycle of a conn
 
 =head1 METHODS
 
-=head2 C<set_peer( $peer_object )>
+=head2 C<set_peer( $peer )>
 
-Associates the low-level protocol handler with a high-level L<Net::BitTorrent::Peer> object.  The handler will dispatch
-parsed events (like C<on_pex> or C<on_metadata_data>) to the peer.
+Associates the handler with a Peer object.
 
-=head2 C<_handle_message( $id, $payload )>
+    $handler->set_peer( $peer_obj );
 
-Internal dispatcher that validates message IDs against enabled features. For example, if  B<BEP 06> is disabled, Fast
-Extension message IDs are ignored.
-
-=head1 CALLBACKS (EVENT DISPATCH)
-
-This class implements various C<on_*> methods defined by the individual BEP modules. It acts  as the implementation
-layer that connects wire-format data to application logic:
+Expected parameters:
 
 =over
 
-=item * C<on_pex>: Forwards discovered peers to the swarm manager.
+=item C<$peer>
 
-=item * C<on_hash_request>: Initiates Merkle tree lookups in the storage layer.
-
-=item * C<on_metadata_request>: Serves info dictionary pieces from local memory.
+The L<Net::BitTorrent::Peer> object.
 
 =back
+
+=head2 C<handshake> event
+
+Emitted when a PWP handshake is completed.
+
+    $proto->on( handshake => sub ( $self, $infohash, $peer_id ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$infohash>
+
+The 20 or 32-byte infohash.
+
+=item C<$peer_id>
+
+The 20-byte peer ID.
+
+=back
+
+=head2 C<ext_handshake> event
+
+Emitted when an extended handshake is received.
+
+    $proto->on( ext_handshake => sub ( $self, $data ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$data>
+
+The decoded handshake dictionary.
+
+=back
+
+=head2 C<metadata_request> event
+
+Emitted when a metadata request is received.
+
+    $proto->on( metadata_request => sub ( $self, $piece ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$piece>
+
+The piece index.
+
+=back
+
+=head2 C<metadata_data> event
+
+Emitted when metadata data is received.
+
+    $proto->on( metadata_data => sub ( $self, $piece, $total_size, $data ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$piece>
+
+The piece index.
+
+=item C<$total_size>
+
+The total metadata size.
+
+=item C<$data>
+
+The piece data.
+
+=back
+
+=head2 C<metadata_reject> event
+
+Emitted when a metadata request is rejected.
+
+    $proto->on( metadata_reject => sub ( $self, $piece ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$piece>
+
+The piece index.
+
+=back
+
+=head2 C<hash_request> event
+
+Emitted when a Merkle tree hash request is received (BEP 52).
+
+    $proto->on( hash_request => sub ( $self, $root, $proof_layer, $base_layer, $index, $length ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$root>
+
+The 32-byte Merkle root.
+
+=item C<$proof_layer>
+
+The proof layer index.
+
+=item C<$base_layer>
+
+The base layer index.
+
+=item C<$index>
+
+The starting index.
+
+=item C<$length>
+
+The number of hashes.
+
+=back
+
+=head2 C<hashes> event
+
+Emitted when Merkle tree hashes are received.
+
+    $proto->on( hashes => sub ( $self, $root, $proof_layer, $base_layer, $index, $length, $hashes ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$root>
+
+The 32-byte Merkle root.
+
+=item C<$proof_layer>
+
+The proof layer.
+
+=item C<$base_layer>
+
+The base layer.
+
+=item C<$index>
+
+The starting index.
+
+=item C<$length>
+
+The number of hashes.
+
+=item C<$hashes>
+
+The binary hashes.
+
+=back
+
+=head2 C<hash_reject> event
+
+Emitted when a hash request is rejected.
+
+    $proto->on( hash_reject => sub ( $self, $root, $proof_layer, $base_layer, $index, $length ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$root>
+
+The 32-byte Merkle root.
+
+=item C<$proof_layer>
+
+The proof layer.
+
+=item C<$base_layer>
+
+The base layer.
+
+=item C<$index>
+
+The starting index.
+
+=item C<$length>
+
+The number of hashes.
+
+=back
+
+=head2 C<pex> event
+
+Emitted when PEX data is received.
+
+    $proto->on( pex => sub ( $self, $added, $dropped, $added6, $dropped6 ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$added>
+
+Added IPv4 peers.
+
+=item C<$dropped>
+
+Dropped IPv4 peers.
+
+=item C<$added6>
+
+Added IPv6 peers.
+
+=item C<$dropped6>
+
+Dropped IPv6 peers.
+
+=back
+
+=head2 C<hp_rendezvous> event
+
+Emitted when a holepunch rendezvous is requested.
+
+    $proto->on( hp_rendezvous => sub ( $self, $id ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$id>
+
+The target peer ID.
+
+=back
+
+=head2 C<hp_connect> event
+
+Emitted when a holepunch connect instruction is received.
+
+    $proto->on( hp_connect => sub ( $self, $ip, $port ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$ip>
+
+The IP address.
+
+=item C<$port>
+
+The port number.
+
+=back
+
+=head2 C<hp_error> event
+
+Emitted when a holepunch error is received.
+
+    $proto->on( hp_error => sub ( $self, $err ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$err>
+
+The error code.
+
+=back
+
+=head2 C<peer( )>
+
+Returns the associated Peer object.
+
+    my $p = $handler->peer();
 
 =head1 AUTHOR
 

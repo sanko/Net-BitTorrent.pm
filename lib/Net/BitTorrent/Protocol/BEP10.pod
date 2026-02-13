@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Protocol::BEP10 - Extension Protocol
+Net::BitTorrent::Protocol::BEP10 - Extension Protocol Implementation
 
 =head1 SYNOPSIS
 
@@ -29,35 +29,127 @@ needing to allocate new reserved bits in the foundational BitTorrent handshake.
 
 =head1 METHODS
 
+=head2 C<new( %params )>
+
+Creates a new BEP10 protocol handler.
+
+Expected parameters:
+
+=over
+
+=item C<local_extensions> - optional
+
+A hash reference mapping extension names to local IDs.
+
+=item C<metadata_size> - optional
+
+The total size of the torrent metadata in bytes.
+
+=back
+
 =head2 C<send_ext_handshake( )>
 
-Sends the ID 20 (C<EXTENDED>) message with a sub-ID of 0. This message contains a bencoded dictionary of supported
-extensions and their local IDs.
+Sends the extension protocol handshake.
+
+    $proto->send_ext_handshake();
+
+This method sends the C<EXTENDED> (ID 20) message with sub-ID 0, containing the local extension dictionary.
 
 =head2 C<send_ext_message( $name, $payload )>
 
-Sends a message for the extension identified by C<$name>. The module automatically looks up the remote peer's assigned
-ID for that extension.
+Sends an extended message.
+
+    $proto->send_ext_message( 'ut_metadata', $data );
+
+This method sends a message for a specific extension by its name.
+
+Expected parameters:
+
+=over
+
+=item C<$name>
+
+The string name of the extension (e.g., 'ut_metadata', 'ut_pex').
+
+=item C<$payload>
+
+The raw message payload.
+
+=back
+
+=head2 C<ext_handshake> event
+
+Emitted when an extended handshake is received.
+
+    $proto->on( ext_handshake => sub ( $self, $data ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$data>
+
+The decoded handshake dictionary (hash reference).
+
+=back
+
+=head2 C<extended_message> event
+
+Emitted when an extended message is received.
+
+    $proto->on( extended_message => sub ( $self, $name, $payload ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$name>
+
+The name of the extension.
+
+=item C<$payload>
+
+The raw message payload.
+
+=back
+
+=head2 C<local_extensions( )>
+
+Returns the local extensions map.
+
+    my $exts = $proto->local_extensions();
 
 =head2 C<remote_extensions( )>
 
-Returns a hashref of extensions supported by the remote peer and their assigned message IDs.
+Returns the remote extensions map.
 
-=head2 C<remote_version( )> / C<remote_ip( )>
+    my $exts = $proto->remote_extensions();
 
-Returns the client version string and external IP address reported by the remote peer during the extended handshake.
+=head2 C<remote_version( )>
 
-=head1 Callbacks
+Returns the remote client's version string.
 
-=head2 C<on_ext_handshake( $data )>
+    say "Remote version: " . $proto->remote_version();
 
-Triggered when the remote peer's extended handshake is received.
+=head2 C<remote_ip( )>
 
-=head2 C<on_extended_message( $name, $payload )>
+Returns our external IP as seen by the remote peer.
 
-Triggered when a message for a registered extension is received.
+    say "Remote says our IP is: " . $proto->remote_ip();
 
-=head1 Specifications
+=head2 C<metadata_size( )>
+
+Returns the total size of the metadata as reported by the peer.
+
+    my $size = $proto->metadata_size();
+
+=head2 C<remote_extensions_received( )>
+
+Returns true if the remote extended handshake has been received.
+
+    if ($proto->remote_extensions_received) { ... }
+
+=head1 SPECIFICATIONS
 
 =over
 

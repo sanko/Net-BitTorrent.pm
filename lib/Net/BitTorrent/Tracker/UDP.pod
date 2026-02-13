@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Tracker::UDP - UDP Tracker Protocol (BEP 15)
+Net::BitTorrent::Tracker::UDP - UDP BitTorrent Tracker Protocol (BEP 15)
 
 =head1 SYNOPSIS
 
@@ -33,28 +33,76 @@ transport for BitTorrent trackers as it significantly reduces overhead on the tr
 
 =head2 BitTorrent v2 Support
 
-This module is BEP 52 compliant. It correctly handles 32-byte SHA-256 infohashes in both C<announce> and C<scrape>
-packets by dynamically adjusting the binary structure of the outgoing messages.
+This module is BEP 52 compliant. It handles 32-byte SHA-256 infohashes by dynamically adjusting the binary structure of
+outgoing messages or by providing truncated/hashed 20-byte identifiers where necessary for legacy compatibility.
 
 =head1 METHODS
 
 =head2 C<perform_announce( \%params, [$callback] )>
 
-Synchronously executes the UDP announce cycle:
+Sends an announce request to the UDP tracker.
+
+    $tracker->perform_announce( \%params, sub ($res) { ... } );
+
+This method handles connection ID acquisition and retransmissions automatically.
+
+Expected parameters:
 
 =over
 
-=item 1. Sends a C<connect> request to get a session C<connection_id>.
+=item C<\%params>
 
-=item 2. Sends the C<announce> request containing client stats and infohash.
+Standard announce parameters (infohash, peer_id, port, uploaded, downloaded, left, event).
 
-=item 3. Parses the response into a hashref of swarm data and peers.
+=item C<$callback> - optional
+
+Called with the parsed response hash containing C<interval>, C<leechers>, C<seeders>, and C<peers>.
 
 =back
 
 =head2 C<perform_scrape( \@infohashes, [$callback] )>
 
-Synchronously fetches seeder/leecher counts for multiple torrents.
+Sends a scrape request to the UDP tracker.
+
+    $tracker->perform_scrape( \@ihs, sub ($res) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<\@infohashes>
+
+List of binary infohashes to scrape.
+
+=item C<$callback> - optional
+
+Called with the scrape results.
+
+=back
+
+=head2 C<tick( )>
+
+Performs periodic maintenance.
+
+    $tracker->tick( 0.1 );
+
+This method handles incoming packets and retransmissions for pending requests.
+
+=head2 C<receive_data( $data )>
+
+Processes an incoming UDP packet.
+
+    $tracker->receive_data( $raw_packet );
+
+Expected parameters:
+
+=over
+
+=item C<$data>
+
+The raw packet payload.
+
+=back
 
 =head2 C<url( )>
 

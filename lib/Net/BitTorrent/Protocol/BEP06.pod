@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Protocol::BEP06 - Fast Extension
+Net::BitTorrent::Protocol::BEP06 - Fast Extension Implementation
 
 =head1 SYNOPSIS
 
@@ -24,33 +24,155 @@ adding several messages that reduce latency during startup and provide better er
 
 =head1 METHODS
 
-=head2 C<send_have_all( )> / C<send_have_none( )>
+=head2 C<send_have_all( )>
 
-Compact alternatives to the C<BITFIELD> message. C<HAVE_ALL> signals that the client is a seeder, and C<HAVE_NONE>
-signals a leecher with no data.
+Signals that the local client has all pieces.
+
+    $proto->send_have_all();
+
+This method sends a C<HAVE_ALL> message, signaling that we are a seeder.
+
+=head2 C<send_have_none( )>
+
+Signals that the local client has no pieces.
+
+    $proto->send_have_none();
+
+This method sends a C<HAVE_NONE> message, signaling that we are a leecher with no data yet.
 
 =head2 C<send_suggest( $index )>
 
-Sends a hint to the peer that they might want to request a specific piece. Useful for B<Super-seeding> or distributed
-cache optimization.
+Suggests a piece to the remote peer.
 
-=head2 C<send_allowed_fast( $index )>
+    $proto->send_suggest( 42 );
 
-Informs the peer that they are allowed to request the block at C<$index> even if they are currently choked. This is
-used to allow "free" initial data during startup.
+This method sends a C<SUGGEST_PIECE> message, hinting that the specified piece is available and would be efficient to
+download.
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The zero-based piece index.
+
+=back
 
 =head2 C<send_reject( $index, $begin, $length )>
 
-Explicitly rejects a block request. In legacy BitTorrent, ignored requests simply timed out; the Fast Extension allows
-clients to immediately retry other peers.
+Rejects a block request.
 
-=head1 Callbacks
+    $proto->send_reject( 0, 0, 16384 );
 
-=head2 C<on_have_all( )> / C<on_have_none( )> / C<on_suggest( $index )> / C<on_reject( ... )> / C<on_allowed_fast( $index )>
+This method informs the peer that their request for a specific block has been rejected, allowing them to immediately
+retry other peers.
 
-Overridable event handlers triggered when the remote peer sends the corresponding message.
+Expected parameters:
 
-=head1 Specifications
+=over
+
+=item C<$index>
+
+The piece index.
+
+=item C<$begin>
+
+The byte offset within the piece.
+
+=item C<$length>
+
+The number of bytes requested.
+
+=back
+
+=head2 C<send_allowed_fast( $index )>
+
+Allows a piece to be requested even if choked.
+
+    $proto->send_allowed_fast( 5 );
+
+This method informs the peer that they can request the specified piece even if they are currently choked.
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The piece index.
+
+=back
+
+=head2 C<have_all> event
+
+Emitted when a C<HAVE_ALL> message is received.
+
+    $proto->on( have_all => sub ( $self ) { ... } );
+
+=head2 C<have_none> event
+
+Emitted when a C<HAVE_NONE> message is received.
+
+    $proto->on( have_none => sub ( $self ) { ... } );
+
+=head2 C<suggest> event
+
+Emitted when a C<SUGGEST_PIECE> message is received.
+
+    $proto->on( suggest => sub ( $self, $index ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The suggested piece index.
+
+=back
+
+=head2 C<reject> event
+
+Emitted when a C<REJECT_REQUEST> message is received.
+
+    $proto->on( reject => sub ( $self, $index, $begin, $length ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The piece index.
+
+=item C<$begin>
+
+The byte offset.
+
+=item C<$length>
+
+The length of the rejected block.
+
+=back
+
+=head2 C<allowed_fast> event
+
+Emitted when an C<ALLOWED_FAST> message is received.
+
+    $proto->on( allowed_fast => sub ( $self, $index ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The allowed piece index.
+
+=back
+
+=head1 SPECIFICATIONS
 
 =over
 

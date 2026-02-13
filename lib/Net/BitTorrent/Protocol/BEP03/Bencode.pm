@@ -47,5 +47,5 @@ package Net::BitTorrent::Protocol::BEP03::Bencode v2.0.1 {
         }
         return;
     }
-}
+};
 1;

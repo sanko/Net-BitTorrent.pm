@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Protocol::BEP09 - Metadata Exchange (Magnet Links)
+Net::BitTorrent::Protocol::BEP09 - Metadata Exchange Implementation
 
 =head1 SYNOPSIS
 
@@ -17,7 +17,7 @@ Net::BitTorrent::Protocol::BEP09 - Metadata Exchange (Magnet Links)
     $proto->send_metadata_request(0);
 
     # Handle incoming metadata pieces
-    $proto->on('metadata_data', sub ($piece, $total, $data) {
+    $proto->on(metadata_data => sub ( $emitter, $piece, $total, $data ) {
         say "Received metadata piece $piece of $total";
     });
 
@@ -31,38 +31,125 @@ It works as a sub-protocol of the B<Extension Protocol (BEP 10)>, using the C<ut
 
 =head1 METHODS
 
-=head2 C<send_metadata_request( $piece_index )>
+=head2 C<send_metadata_request( $piece )>
 
-Sends a request for a 16KiB segment of the info dictionary.
+Sends a metadata piece request.
 
-=head2 C<send_metadata_data( $piece_index, $total_size, $data )>
+    $proto->send_metadata_request( 0 );
 
-Sends a metadata segment to a peer.
+This method sends a C<ut_metadata> request for a 16KiB segment of the torrent's metadata.
 
-
-Parameters:
+Expected parameters:
 
 =over
 
-=item * C<$piece_index>: The segment index being sent.
+=item C<$piece>
 
-=item * C<$total_size>: The full length of the info dictionary.
-
-=item * C<$data>: The raw binary bencoded data for this segment.
+The zero-based metadata piece index.
 
 =back
 
-=head2 C<send_metadata_reject( $piece_index )>
+=head2 C<send_metadata_data( $piece, $total_size, $data )>
 
-Informs the peer that the metadata request cannot be fulfilled.
+Sends a metadata piece.
 
-=head1 CALLBACKS
+    $proto->send_metadata_data( 0, 32768, $piece_data );
 
-=head2 C<on_metadata_request( $piece_index )> / C<on_metadata_data( $piece, $total, $data )> / C<on_metadata_reject( $piece )>
+This method provides a segment of the info dictionary to a peer in response to a request.
 
-Overridable handlers for incoming metadata messages.
+Expected parameters:
 
-=head1 Specifications
+=over
+
+=item C<$piece>
+
+The metadata piece index.
+
+=item C<$total_size>
+
+The full length of the bencoded info dictionary in bytes.
+
+=item C<$data>
+
+The raw 16KiB piece data.
+
+=back
+
+=head2 C<send_metadata_reject( $piece )>
+
+Rejects a metadata request.
+
+    $proto->send_metadata_reject( 0 );
+
+This method informs the peer that the requested metadata segment cannot be provided.
+
+Expected parameters:
+
+=over
+
+=item C<$piece>
+
+The metadata piece index.
+
+=back
+
+=head2 C<metadata_request> event
+
+Emitted when a metadata request is received.
+
+    $proto->on( metadata_request => sub ( $self, $piece ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$piece>
+
+The requested metadata piece index.
+
+=back
+
+=head2 C<metadata_data> event
+
+Emitted when metadata data is received.
+
+    $proto->on( metadata_data => sub ( $self, $piece, $total_size, $data ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$piece>
+
+The metadata piece index.
+
+=item C<$total_size>
+
+The total size of the metadata.
+
+=item C<$data>
+
+The received piece data.
+
+=back
+
+=head2 C<metadata_reject> event
+
+Emitted when a metadata request is rejected.
+
+    $proto->on( metadata_reject => sub ( $self, $piece ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$piece>
+
+The piece index that was rejected.
+
+=back
+
+=head1 SPECIFICATIONS
 
 =over
 

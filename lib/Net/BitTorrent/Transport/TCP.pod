@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Transport::TCP - TCP transport shim for Net::BitTorrent
+Net::BitTorrent::Transport::TCP - TCP Transport Layer
 
 =head1 SYNOPSIS
 
@@ -14,45 +14,139 @@ Net::BitTorrent::Transport::TCP - TCP transport shim for Net::BitTorrent
         socket => $socket_handle
     );
 
-    $transport->on('data', sub ($data) {
+    $transport->on(data => sub ( $emitter, $data ) {
         $protocol->receive_data($data);
     });
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Transport::TCP> provides a standardized interface for handling TCP-based peer connections within the
-loop-agnostic L<Net::BitTorrent> framework.
+C<Net::BitTorrent::Transport::TCP> provides a standardized, non-blocking interface for handling TCP-based peer
+connections within the loop-agnostic L<Net::BitTorrent> framework.
 
 It acts as an abstraction layer between the high-level L<Net::BitTorrent::Peer> and the physical network socket. This
-allows the library to handle different connection types (TCP vs uTP) using the same high-level logic.
-
-While L<Net::uTP> handles its own congestion control and packetization, this class acts as a pass-through for raw TCP
-streams, allowing the protocol handlers to treat all connections uniformly.
-
-=head1 ATTRIBUTES
-
-=head2 socket
-
-The underlying IO::Socket (or compatible) object.
+allows the library to handle different connection types (TCP vs uTP) using the same high-level logic. It supports
+pluggable filters for encryption (MSE/PE).
 
 =head1 METHODS
 
-=head2 C<on( $event, $cb )>
+=head2 C<new( %params )>
 
-Registers a callback for an event (currently 'data', 'debug', or 'connected').
+Creates a new TCP transport object.
+
+    my $transport = Net::BitTorrent::Transport::TCP->new(
+        socket     => $socket,
+        connecting => 1
+    );
+
+Expected parameters:
+
+=over
+
+=item C<socket>
+
+The underlying L<IO::Socket> (or compatible) object.
+
+=item C<connecting> - optional
+
+Boolean indicating if the socket is still in the process of connecting. Defaults to 1.
+
+=back
+
+=head2 C<set_filter( $filter )>
+
+Sets a stream filter (e.g., MSE/PE).
+
+    $transport->set_filter( $mse_obj );
+
+Expected parameters:
+
+=over
+
+=item C<$filter>
+
+An object that implements the MSE protocol.
+
+=back
 
 =head2 C<send_data( $data )>
 
-Buffers or returns data to be sent over the socket. In this shim implementation, it currently returns the data directly
-for the caller to handle.
+Sends data through the transport, applying filters if necessary.
+
+    $transport->send_data( $payload );
+
+Expected parameters:
+
+=over
+
+=item C<$data>
+
+The plaintext data to send.
+
+=back
+
+=head2 C<send_raw( $data )>
+
+Sends data directly through the transport, bypassing filters.
+
+    $transport->send_raw( $handshake );
+
+Expected parameters:
+
+=over
+
+=item C<$data>
+
+The raw data to send.
+
+=back
+
+=head2 C<tick( )>
+
+Processes I/O events.
+
+    $transport->tick();
+
+This method handles connection establishment, reads incoming data, and flushes the write buffer.
 
 =head2 C<receive_data( $data )>
 
-Triggers the 'data' event with the provided raw data.
+Emits a 'data' event.
+
+    $transport->receive_data( $plaintext );
+
+Expected parameters:
+
+=over
+
+=item C<$data>
+
+The received data.
+
+=back
+
+=head2 C<close( )>
+
+Closes the socket.
+
+    $transport->close();
 
 =head2 C<state( )>
 
-Returns 'CONNECTED' or 'CLOSED' based on the status of the underlying socket.
+Returns the connection state ('CONNECTED' or 'CLOSED').
+
+    my $s = $transport->state();
+
+=head2 C<socket( )>
+
+Returns the underlying socket object.
+
+    my $sock = $transport->socket();
+
+=head2 C<filter( )>
+
+Returns the current filter object.
+
+    my $f = $transport->filter();
 
 =head1 AUTHOR
 

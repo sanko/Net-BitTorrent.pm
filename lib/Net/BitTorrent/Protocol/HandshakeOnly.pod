@@ -1,6 +1,10 @@
+=pod
+
+=encoding utf-8
+
 =head1 NAME
 
-Net::BitTorrent::Protocol::HandshakeOnly - BitTorrent handshake-only protocol handler
+Net::BitTorrent::Protocol::HandshakeOnly - Minimal PWP Handshake Handler
 
 =head1 SYNOPSIS
 
@@ -15,24 +19,50 @@ Net::BitTorrent::Protocol::HandshakeOnly - BitTorrent handshake-only protocol ha
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Protocol::HandshakeOnly> is a specialized subclass of L<Net::BitTorrent::Protocol::BEP03> that is
-used when the local client does not yet know which torrent an incoming connection belongs to.
-
-It processes the initial handshake and then triggers a callback, allowing the client to upgrade the connection to a
-full protocol handler once the info hash is known.
-
-=head1 FIELDS
-
-=head2 C<on_handshake_cb>
-
-A coderef that is called when a valid handshake is received. It receives the info hash and peer ID as arguments.
+C<Net::BitTorrent::Protocol::HandshakeOnly> is a specialized subclass of L<Net::BitTorrent::Protocol::BEP03> used for
+protocol autodetection. It processes the initial BitTorrent handshake and then triggers a callback, allowing the client
+to upgrade the connection to a full protocol handler once the infohash is identified.
 
 =head1 METHODS
 
-=head2 on_handshake ( $ih, $id )
+=head2 C<new( %params )>
 
-Internal method called by L<Net::BitTorrent::Protocol::BEP03> when the handshake is complete. It executes the
-C<on_handshake_cb> callback.
+Creates a new HandshakeOnly object.
+
+Expected parameters:
+
+=over
+
+=item C<on_handshake_cb>
+
+A code reference that is called when a valid handshake is received. It receives the binary infohash and peer ID as
+arguments.
+
+=item C<peer_id>
+
+The local 20-byte binary peer ID.
+
+=back
+
+=head2 C<handshake> event
+
+Emitted when a handshake is successfully received.
+
+    $proto->on( handshake => sub ( $self, $ih, $id ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$infohash>
+
+The 20 or 32-byte binary infohash.
+
+=item C<$peer_id>
+
+The 20-byte binary peer ID.
+
+=back
 
 =head1 SEE ALSO
 

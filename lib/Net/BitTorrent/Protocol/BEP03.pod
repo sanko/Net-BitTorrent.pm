@@ -34,49 +34,191 @@ unchoke, interested, have, bitfield, request, piece, etc.).
 
 =head1 METHODS
 
-=head2 C<receive_data( $bytes )>
+=head2 C<new( %params )>
 
-Feeds raw binary data from the transport layer into the protocol parser. It automatically handles partial handshakes
-and fragmented messages.
+Creates a new BEP03 protocol handler.
 
-=head2 C<write_buffer()>
-
-Returns any pending binary data that needs to be sent to the remote peer. This includes the handshake and any queued
-messages.
-
-=head2 C<send_message( $id, [$payload] )>
-
-Queues a framed message for delivery.
-
-Params:
+Expected parameters:
 
 =over
 
-=item * C<$id>: The single-byte message identifier.
+=item C<infohash>
 
-=item * C<$payload>: The raw binary payload (optional).
+The 20 or 32-byte binary infohash.
+
+=item C<peer_id>
+
+The local 20-byte binary peer ID.
+
+=item C<reserved> - optional
+
+The 8-byte reserved bits string.
 
 =back
 
-=head2 C<set_reserved_bit( $byte_index, $mask )>
+=head2 C<send_handshake( )>
 
-Manipulates the 8-byte reserved field sent during the handshake. This is how peers negotiate support for extensions
-like DHT, PEX, and the Extension Protocol (BEP 10).
+Sends the initial protocol handshake.
+
+    $proto->send_handshake();
+
+=head2 C<receive_data( $data )>
+
+Feeds raw data into the protocol parser.
+
+    $proto->receive_data( $chunk );
+
+Expected parameters:
+
+=over
+
+=item C<$data>
+
+The binary data received from the transport.
+
+=back
+
+=head2 C<write_buffer( )>
+
+Returns pending messages from the output buffer.
+
+    my $out = $proto->write_buffer();
+
+=head2 C<send_message( $id, [$payload] )>
+
+Queues a protocol message.
+
+    $proto->send_message( 4, pack('N', 42) ); # HAVE piece 42
+
+Expected parameters:
+
+=over
+
+=item C<$id>
+
+The numeric message ID.
+
+=item C<$payload> - optional
+
+The raw binary payload.
+
+=back
 
 =head2 C<send_keepalive( )>
 
-Queues a 4-byte zero-length message used to prevent connection timeouts.
+Queues a keep-alive message.
 
-=head1 Callbacks
+    $proto->send_keepalive();
 
-=head2 C<on_handshake( $infohash, $peer_id )>
+=head2 C<send_choke( )>
 
-Triggered once the remote peer's handshake has been fully parsed and validated.
+Sends a CHOKE message.
 
-=head2 C<_handle_message( $id, $payload )>
+=head2 C<send_unchoke( )>
 
-Internal method intended to be overridden by subclasses or the orchestrator. It is called whenever a full message has
-been assembled from the input buffer.
+Sends an UNCHOKE message.
+
+=head2 C<send_interested( )>
+
+Sends an INTERESTED message.
+
+=head2 C<send_not_interested( )>
+
+Sends a NOT_INTERESTED message.
+
+=head2 C<send_have( $index )>
+
+Sends a HAVE message.
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The piece index.
+
+=back
+
+=head2 C<send_bitfield( $data )>
+
+Sends a BITFIELD message.
+
+Expected parameters:
+
+=over
+
+=item C<$data>
+
+The binary bitfield data.
+
+=back
+
+=head2 C<set_reserved_bit( $byte, $mask )>
+
+Sets a bit in the reserved bytes of the handshake.
+
+    $proto->set_reserved_bit( 5, 0x10 );
+
+Expected parameters:
+
+=over
+
+=item C<$byte>
+
+The byte index (0-7).
+
+=item C<$mask>
+
+The bitmask to apply.
+
+=back
+
+=head2 C<handshake> event
+
+Emitted when a handshake is successfully received.
+
+    $proto->on( handshake => sub ( $self, $ih, $id ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$ih>
+
+The 20 or 32-byte binary infohash.
+
+=item C<$id>
+
+The 20-byte binary peer ID.
+
+=back
+
+=head2 C<peer_id( )>
+
+Returns the local peer ID.
+
+=head2 C<reserved( )>
+
+Returns or sets the reserved bytes string.
+
+Expected parameters:
+
+=over
+
+=item C<$val> - optional
+
+The new 8-byte reserved string.
+
+=back
+
+=head2 C<state( )>
+
+Returns the current protocol state ('HANDSHAKE', 'OPEN', or 'CLOSED').
+
+=head2 C<detected_ih( )>
+
+Returns the infohash detected during the handshake (useful for trackers/servers).
 
 =head1 AUTHOR
 

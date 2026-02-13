@@ -63,19 +63,19 @@ class Net::BitTorrent::Peer v2.0.0 : isa(Net::BitTorrent::Emitter) {
         builtin::weaken($weak_self);
         $transport->on(
             'data',
-            sub ( $trans, $data ) {
+            sub ( $emitter, $data ) {
                 $weak_self->receive_data($data) if $weak_self;
             }
         );
         $transport->on(
             'disconnected',
-            sub ( $trans, @args ) {
+            sub ( $emitter, @args ) {
                 $weak_self->disconnected() if $weak_self;
             }
         );
         $transport->on(
             'filter_failed',
-            sub ( $trans, $leftover ) {
+            sub ( $emitter, $leftover ) {
                 return unless $weak_self;
                 return if $weak_self->encryption == ENCRYPTION_REQUIRED;
                 $weak_self->_emit( log => "    [DEBUG] Falling back to plaintext handshake...\n", level => 'debug' ) if $weak_self->debug;
@@ -91,7 +91,7 @@ class Net::BitTorrent::Peer v2.0.0 : isa(Net::BitTorrent::Emitter) {
         );
         $transport->on(
             'connected',
-            sub ( $trans, @args ) {
+            sub ( $emitter, @args ) {
                 return unless $weak_self;
                 if ($mse) {
                     $weak_self->_emit( log => "    [DEBUG] Starting MSE handshake...\n", level => 'debug' ) if $weak_self->debug;

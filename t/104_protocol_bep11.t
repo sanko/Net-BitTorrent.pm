@@ -5,8 +5,10 @@ no warnings;
 use Net::BitTorrent::Protocol::BEP11;
 
 class MockPEX : isa(Net::BitTorrent::Protocol::BEP11) {
-    field $got_pex : reader;
-    method on_pex ( $a, $d, $a6, $d6 ) { $got_pex = { added => $a, dropped => $d, added6 => $a6, dropped6 => $d6 } }
+    field $got_pex : reader : writer(set_got_pex);
+    ADJUST {
+        $self->on( pex => sub ( $self, $a, $d, $a6, $d6 ) { $self->set_got_pex( { added => $a, dropped => $d, added6 => $a6, dropped6 => $d6 } ) } );
+    }
 }
 subtest 'PEX Packing and Unpacking' => sub {
     my $pwp = MockPEX->new( infohash => 'A' x 20, peer_id => 'B' x 20, local_extensions => { ut_pex => 1 } );

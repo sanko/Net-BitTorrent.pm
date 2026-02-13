@@ -1,44 +1,69 @@
 =pod
 
+=encoding utf-8
+
 =head1 NAME
 
-Net::BitTorrent::Protocol::BEP03::Bencode - Utility functions for BEP03: The BitTorrent Protocol Specification
+Net::BitTorrent::Protocol::BEP03::Bencode - BitTorrent Bencode Encoder/Decoder
 
 =head1 SYNOPSIS
 
-    my $data = bencode( ... );
-    my $ref = bdecode( $data );
+    use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode bdecode];
 
-=head1 Description
+    my $raw = bencode( { a => [1, 2, 3] } );
+    my $data = bdecode( $raw );
+
+=head1 DESCRIPTION
 
 Bencoding is the BitTorrent protocol's basic serialization and data organization format. The specification supports
-integers, lists (arrays), dictionaries (hashes), and byte strings.
+integers, lists (arrays), dictionaries (hashes), and byte strings. This module implements the format used for metadata
+and protocol messages.
 
-=head1 Functions
+=head1 FUNCTIONS
 
-By default, nothing is exported.
+By default, nothing is exported. You may import any of the following functions by name or with the C<:all> tag.
 
-You may import any of the following functions by name or with the C<:all> tag.
+=head2 C<bencode( $data )>
 
-=head2 C<bencode( ... )>
+Encodes a Perl data structure into a bencoded string.
 
-    $data = bencode( 100 );
-    $data = bencode( { balance => '100.3', first => 'John', last => 'Smith' } );
-    $data = bencode( [ { count => 1, product => 'apple' }, 30] );
+    my $raw = bencode( { a => [1, 2, 3] } );
 
-Expects a single value (basic scalar, array reference, or hash reference) and returns a single string.
+This method handles scalars (strings and integers), array references, and hash references.
 
-=head2 C<bdecode( ... )>
+Expected parameters:
 
-    $data = bdecode( 'i100e' );
-    $data = bdecode( 'd7:balance5:100.35:first4:John4:last5:Smithe' );
-    $data = bdecode( 'ld5:counti1e7:product5:appleei30ee' );
+=over
 
-Expects a bencoded string.  The return value depends on the type of data contained in the string.
+=item C<$data>
+
+The Perl data structure to encode (basic scalar, array reference, or hash reference).
+
+=back
+
+=head2 C<bdecode( $string, [$want_leftover] )>
+
+Decodes a bencoded string into a Perl data structure.
+
+    my $data = bdecode( $raw );
+
+Expected parameters:
+
+=over
+
+=item C<$string>
+
+The bencoded binary string.
+
+=item C<$want_leftover> - optional
+
+If true, returns a list containing the decoded data and the remaining string.
+
+=back
 
 This function will C<die> on malformed data.
 
-=head1 See Also
+=head1 SEE ALSO
 
 =over
 
@@ -46,38 +71,16 @@ This function will C<die> on malformed data.
 
 L<https://bittorrent.org/beps/bep_0003.html>
 
-=item Other Bencode related modules:
-
-=over
-
-=item L<Convert::Bencode|Convert::Bencode>
-
-=item L<Bencode|Bencode>
-
-=item L<Convert::Bencode_XS|Convert::Bencode_XS>
-
 =back
 
-=back
+=head1 AUTHOR
 
-=head1 Author
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
 
-Sanko Robinson <sanko@cpan.org> - http://sankorobinson.com/
+=head1 COPYRIGHT
 
-CPAN ID: SANKO
+Copyright (C) 2008-2026 by Sanko Robinson.
 
-=head1 License and Legal
-
-Copyright (C) 2008-2026 by Sanko Robinson <sanko@cpan.org>
-
-This program is free software; you can redistribute it and/or modify it under the terms of L<The Artistic License
-2.0|http://www.perlfoundation.org/artistic_license_2_0>. See the F<LICENSE> file included with this distribution or
-L<notes on the Artistic License 2.0|http://www.perlfoundation.org/artistic_2_0_notes> for clarification.
-
-When separated from the distribution, all original POD documentation is covered by the L<Creative Commons
-Attribution-Share Alike 3.0 License|http://creativecommons.org/licenses/by-sa/3.0/us/legalcode>. See the
-L<clarification of the CCA-SA3.0|http://creativecommons.org/licenses/by-sa/3.0/us/>.
-
-Neither this module nor the L<Author|/Author> is affiliated with BitTorrent, Inc.
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
 
 =cut

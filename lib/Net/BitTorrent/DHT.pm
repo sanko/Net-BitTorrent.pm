@@ -1,6 +1,7 @@
 use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
+use Net::BitTorrent::Emitter;
 #
 class Net::BitTorrent::DHT::Peer v2.0.6 {
     field $ip     : param : reader;
@@ -9,7 +10,7 @@ class Net::BitTorrent::DHT::Peer v2.0.6 {
     method to_string () {"$ip:$port"}
 };
 #
-class Net::BitTorrent::DHT v2.0.6 {
+class Net::BitTorrent::DHT v2.0.6 : isa(Net::BitTorrent::Emitter) {
     use Algorithm::Kademlia;
     use Net::BitTorrent::DHT::Security;
     use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode bdecode];
@@ -52,18 +53,8 @@ class Net::BitTorrent::DHT v2.0.6 {
     field %_blacklist;
     field %ip_votes;                                                                                      # external_ip => count
     field $external_ip : reader = undef;
-    field %on;
     field %_pending_queries;
     field $_tid_counter = 0;
-    method on ( $event, $cb ) { push $on{$event}->@*, $cb }
-
-    method _emit ( $event, @args ) {
-        for my $cb ( $on{$event}->@* ) {
-            try { $cb->(@args) } catch ($e) {
-                warn "[ERROR] DHT event $event failed: $e"
-            }
-        }
-    }
 
     method set_node_id ($new_id) {
         $node_id_bin = $new_id;
@@ -83,7 +74,7 @@ class Net::BitTorrent::DHT v2.0.6 {
             push @_resolved_boot_nodes, $res[0]{addr};
         }
         $self->on(
-            external_ip_detected => sub ($ip) {
+            external_ip_detected => sub ( $emitter, $ip ) {
                 $external_ip = $ip;
                 return unless $bep42;
                 my $new_id = $security->generate_node_id($ip);

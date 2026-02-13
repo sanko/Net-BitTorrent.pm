@@ -39,7 +39,7 @@ class Net::BitTorrent::Protocol::BEP10 v2.0.0 : isa(Net::BitTorrent::Protocol::B
             else {
                 my $name = $self->_lookup_local_extension($ext_id);
                 if ($name) {
-                    $self->on_extended_message( $name, $payload );
+                    $self->_emit( extended_message => $name, $payload );
                 }
                 else {
                     $self->_emit( log => "  [DEBUG] Received unknown extended message ID: $ext_id\n", level => 'debug' ) if $self->debug;
@@ -82,7 +82,7 @@ class Net::BitTorrent::Protocol::BEP10 v2.0.0 : isa(Net::BitTorrent::Protocol::B
         $remote_ip                  = $data->{yourip}        if exists $data->{yourip};
         $metadata_size              = $data->{metadata_size} if exists $data->{metadata_size};
         $remote_extensions_received = 1;
-        $self->on_ext_handshake($data);
+        $self->_emit( ext_handshake => $data );
     }
 
     method _lookup_local_extension ($id) {
@@ -98,8 +98,4 @@ class Net::BitTorrent::Protocol::BEP10 v2.0.0 : isa(Net::BitTorrent::Protocol::B
         }
         return undef;
     }
-
-    # Overridable callbacks
-    method on_ext_handshake    ($data)             { }
-    method on_extended_message ( $name, $payload ) { }
 } 1;

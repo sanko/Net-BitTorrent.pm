@@ -169,7 +169,7 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
             builtin::weaken($weak_self);
             $client->dht_scrape(
                 $infohash_v2 || $infohash_v1,
-                sub ($res) {
+                sub ( $emitter, $res ) {
                     $weak_self->handle_dht_scrape($res) if $weak_self;
                 }
             );

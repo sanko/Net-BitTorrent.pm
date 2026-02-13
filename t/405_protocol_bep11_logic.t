@@ -54,7 +54,7 @@ subtest 'PEX Logic Verification' => sub {
 
     # Simulate receiving a PEX message
     my $pex_peer = { ip => '3.3.3.3', port => 3333 };
-    $p_handler->on_pex( [$pex_peer], [], [], [] );
+    $p_handler->_emit( pex => [$pex_peer], [], [], [] );
     my $discovered = $torrent->discovered_peers;
     my %found;
     for my $p (@$discovered) {

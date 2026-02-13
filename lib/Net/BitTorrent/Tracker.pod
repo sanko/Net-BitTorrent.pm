@@ -49,22 +49,123 @@ The manager automatically detects and handles multiple tracker protocols:
 
 =head1 METHODS
 
+=head2 C<new( %params )>
+
+Creates a new Tracker manager.
+
+    my $manager = Net::BitTorrent::Tracker->new(
+        tiers_raw => [ ['http://tracker.example.com/announce'] ]
+    );
+
+This method initializes the tracker manager with a list of tracker tiers.
+
+Expected parameters:
+
+=over
+
+=item C<tiers_raw>
+
+An array reference of array references, where each inner array contains tracker URLs for a single tier.
+
+=item C<debug> - optional
+
+Whether to enable debug logging.
+
+=back
+
 =head2 C<announce_all( \%params, [$callback] )>
 
 Announces to all tracker tiers.
 
-Implements BEP 12 logic: iterates through trackers in a tier until one succeeds, then moves to the next tier.
-Automatically handles tracker-provided C<interval> and C<min interval>, and supports hybrid torrent announces by
-sending requests for both v1 and v2 infohashes.
+    $manager->announce_all({
+        infohash => $ih,
+        peer_id  => $id,
+        port     => 6881,
+        left     => 1000
+    }, sub ($peers) { ... });
+
+This method iterates through tracker tiers (BEP 12), announcing presence and gathering peers. It returns an array
+reference of unique peer structures discovered.
+
+Expected parameters:
+
+=over
+
+=item C<\%params>
+
+Standard announce parameters (infohash, peer_id, port, uploaded, downloaded, left, event).
+
+=item C<$callback> - optional
+
+A code reference called with an arrayref of peer structures ({ip, port}) when peers are received.
+
+=back
 
 =head2 C<scrape_all( \@infohashes, [$callback] )>
 
-Performs a scrape (BEP 48) across all trackers to gather swarm statistics (seeders, leechers, completed downloads)
-without registering as a peer.
+Scrapes all trackers for swarm stats.
+
+    $manager->scrape_all([$ih1, $ih2], sub ($stats) { ... });
+
+This method queries all trackers for seeder/leecher counts (BEP 48). It returns a hash reference of statistics.
+
+Expected parameters:
+
+=over
+
+=item C<\@infohashes>
+
+An array reference of binary infohashes to scrape.
+
+=item C<$callback> - optional
+
+A code reference called with a hash reference of statistics per infohash.
+
+=back
 
 =head2 C<trackers( )>
 
-Returns a flattened arrayref of all tracker URLs currently managed.
+Returns a list of all tracker URLs.
+
+    my $list = $manager->trackers();
+
+This method returns a flattened array reference of all managed tracker URLs.
+
+=head2 C<tick( $delta )>
+
+Performs periodic maintenance for all trackers.
+
+    $manager->tick( 0.1 );
+
+This method allows individual tracker objects to process timeouts and retransmissions.
+
+Expected parameters:
+
+=over
+
+=item C<$delta>
+
+The time elapsed since the last tick in seconds.
+
+=back
+
+=head2 C<add_tracker( $url )>
+
+Adds a new tracker to the manager.
+
+    $manager->add_tracker( 'udp://new.tracker.com:6969/announce' );
+
+This method adds a new tracker URL as a new tier if it is not already present.
+
+Expected parameters:
+
+=over
+
+=item C<$url>
+
+The URL of the tracker to add.
+
+=back
 
 =head1 SEE ALSO
 

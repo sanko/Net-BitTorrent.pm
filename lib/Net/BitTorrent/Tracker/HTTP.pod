@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Tracker::HTTP - HTTP/HTTPS Tracker Protocol
+Net::BitTorrent::Tracker::HTTP - HTTP/HTTPS BitTorrent Tracker Protocol
 
 =head1 SYNOPSIS
 
@@ -14,44 +14,136 @@ Net::BitTorrent::Tracker::HTTP - HTTP/HTTPS Tracker Protocol
         url => 'https://tracker.example.com/announce'
     );
 
-    # Perform synchronous announce
-    my $res = $tracker->perform_announce({
-        infohash  => $ih,
-        peer_id   => $id,
-        port      => 6881,
+    # Perform announce
+    $tracker->perform_announce({
+        infohash   => $ih,
+        peer_id    => $id,
+        port       => 6881,
         downloaded => 0,
-        uploaded => 0,
-        left => 1024
+        uploaded   => 0,
+        left       => 1024
+    }, sub ($res) {
+        say 'Interval: ' . $res->{interval};
     });
-
-    say 'Interval: ' . $res->{interval};
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Tracker::HTTP> implements the original BitTorrent tracker protocol  over HTTP and HTTPS. It handles
-URL encoding of binary infohashes and parsing of  bencoded responses.
+C<Net::BitTorrent::Tracker::HTTP> implements the original BitTorrent tracker protocol over HTTP and HTTPS. It handles
+URL encoding of binary infohashes and parsing of bencoded responses.
 
 =head1 METHODS
 
+=head2 C<new( %params )>
+
+Creates a new HTTP tracker object.
+
+    my $tracker = Net::BitTorrent::Tracker::HTTP->new( url => $url );
+
+Expected parameters:
+
+=over
+
+=item C<url>
+
+The tracker announce URL.
+
+=back
+
 =head2 C<perform_announce( \%params, [$callback] )>
 
-Executes an C<HTTP GET> request to the tracker.
+Sends an announce request to the HTTP tracker.
 
-Automatically handles compact peer lists (IPv4 and IPv6) and supports asynchronous mode if C<$params-E<gt>{ua}> is
-provided. For example, you could hand us a L<Mojo::UserAgent> instance and the request will be non-blocking.
+    $tracker->perform_announce( \%params, sub ($res) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<\%params>
+
+Standard announce parameters. Automatically handles compact peer lists (IPv4 and IPv6) and supports asynchronous mode
+if C<$params->{ua}> is provided (e.g., an instance of L<Mojo::UserAgent>).
+
+=item C<$callback> - optional
+
+Called with the parsed response hash.
+
+=back
 
 =head2 C<perform_scrape( \@infohashes, [$callback] )>
 
-Executes a tracker scrape (B<BEP 48>) by converting the C<announce> URL to a C<scrape> URL  and requesting statistics
+Sends a scrape request to the HTTP tracker.
+
+    $tracker->perform_scrape( \@ihs, sub ($res) { ... } );
+
+Executes a tracker scrape (B<BEP 48>) by converting the C<announce> URL to a C<scrape> URL and requesting statistics
 for the provided hashes.
 
-=head2 C<build_announce_url( \%params )>
+Expected parameters:
 
-Generates the full URL with query parameters. Correctly percent-encodes the binary C<info_hash> and C<peer_id> fields.
+=over
 
-=head2 C<parse_response( $bencoded_data )>
+=item C<\@infohashes>
 
-Parses and validates the tracker's response. Automatically expands compact peer lists into user-friendly hashrefs.
+List of infohashes to scrape.
+
+=item C<$callback> - optional
+
+Called with the scrape results.
+
+=back
+
+=head2 C<build_announce_url( $params )>
+
+Generates the full announce URL with query parameters.
+
+    my $url = $tracker->build_announce_url( \%params );
+
+Correctly percent-encodes the binary C<info_hash> and C<peer_id> fields.
+
+Expected parameters:
+
+=over
+
+=item C<$params>
+
+Hash reference of announce parameters.
+
+=back
+
+=head2 C<build_scrape_url( $infohashes )>
+
+Generates the scrape URL for the given infohashes.
+
+    my $url = $tracker->build_scrape_url( \@ihs );
+
+Expected parameters:
+
+=over
+
+=item C<$infohashes>
+
+Array reference of binary infohashes.
+
+=back
+
+=head2 C<parse_response( $data )>
+
+Decodes and parses a tracker response.
+
+    my $dict = $tracker->parse_response( $raw_data );
+
+Automatically expands compact peer lists into user-friendly hashrefs.
+
+Expected parameters:
+
+=over
+
+=item C<$data>
+
+The raw bencoded response string.
+
+=back
 
 =head1 SPECIFICATIONS
 

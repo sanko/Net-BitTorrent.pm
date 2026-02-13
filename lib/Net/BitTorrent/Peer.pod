@@ -57,46 +57,430 @@ This class implements peer reputation tracking to protect the swarm from malicio
 
 =head2 C<new( %params )>
 
-Parameters;
+Creates a new Peer instance.
+
+    my $peer = Net::BitTorrent::Peer->new(
+        protocol   => $handler,
+        torrent    => $torrent,
+        transport  => $tcp_transport,
+        ip         => '1.2.3.4',
+        port       => 6881,
+        encryption => ENCRYPTION_REQUIRED
+    );
+
+This method initializes a new peer connection manager.
+
+Expected parameters:
 
 =over
 
-=item * C<encryption>: (default C<ENCRYPTION_PREFERRED>) Connection security policy (C<ENCRYPTION_NONE>, C<ENCRYPTION_PREFERRED>, C<ENCRYPTION_REQUIRED>). Supports both constants and strings ('none', 'preferred', 'required').
+=item C<protocol>
 
-=item * C<transport>: An instance of L<Net::BitTorrent::Transport::TCP> or L<Net::uTP::Connection>.
+An instance of L<Net::BitTorrent::Protocol::PeerHandler>.
 
-=item * C<protocol>: An instance of L<Net::BitTorrent::Protocol::PeerHandler>.
+=item C<torrent>
+
+An instance of L<Net::BitTorrent::Torrent> this peer belongs to.
+
+=item C<transport>
+
+An instance of L<Net::BitTorrent::Transport::TCP> or L<Net::uTP::Connection>.
+
+=item C<ip>
+
+The IP address of the peer.
+
+=item C<port>
+
+The port of the peer.
+
+=item C<encryption> - optional
+
+Connection security policy (C<ENCRYPTION_NONE>, C<ENCRYPTION_PREFERRED>, C<ENCRYPTION_REQUIRED>). Defaults to
+C<ENCRYPTION_PREFERRED>.
 
 =back
 
-=head2 C<unchoke( )> / C<choke( )>
+=head2 C<unchoke( )>
 
-Sends a C<CHOKE> or C<UNCHOKE> message to the peer. This controls whether the remote peer is allowed to request blocks
-from us.
+Unchokes the peer.
 
-=head2 C<send_suggest( $index )> / C<send_allowed_fast( $index )>
+    $peer->unchoke();
 
-Sends B<BEP 06> Fast Extension hints to the peer.
+This method sends an C<UNCHOKE> message to the peer, allowing them to request blocks.
 
-=head2 C<rate_down( )> / C<rate_up( )>
+=head2 C<choke( )>
 
-Returns the current transfer rates in B<bytes per second>, calculated via a 20% moving average decay.
+Chokes the peer.
+
+    $peer->choke();
+
+This method sends a C<CHOKE> message to the peer, preventing them from requesting blocks.
+
+=head2 C<interested( )>
+
+Expresses interest in the peer.
+
+    $peer->interested();
+
+This method sends an C<INTERESTED> message to the peer.
+
+=head2 C<not_interested( )>
+
+Expresses lack of interest in the peer.
+
+    $peer->not_interested();
+
+This method sends a C<NOT_INTERESTED> message to the peer.
+
+=head2 C<request( $index, $begin, $len )>
+
+Requests a block of data from the peer.
+
+    $peer->request( 0, 0, 16384 );
+
+This method sends a C<REQUEST> message for a specific block within a piece.
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The zero-based piece index.
+
+=item C<$begin>
+
+The byte offset within the piece.
+
+=item C<$len>
+
+The number of bytes to request.
+
+=back
+
+=head2 C<send_suggest( $index )>
+
+Sends a SUGGEST message (BEP 06).
+
+    $peer->send_suggest(42);
+
+This method hints to the peer that a specific piece is available and cheap to download.
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The piece index to suggest.
+
+=back
+
+=head2 C<send_allowed_fast( $index )>
+
+Sends an ALLOWED_FAST message (BEP 06).
+
+    $peer->send_allowed_fast(42);
+
+This method informs the peer that they can request a specific piece even if choked.
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The piece index to allow.
+
+=back
+
+=head2 C<protocol( )>
+
+Returns the protocol handler.
+
+    my $handler = $peer->protocol();
+
+This method returns the L<Net::BitTorrent::Protocol> object currently managing the connection.
+
+=head2 C<is_encrypted( )>
+
+Checks if the connection is encrypted.
+
+    say 'Encrypted!' if $peer->is_encrypted;
+
+This method returns a boolean indicating if the connection is using MSE/PE.
+
+=head2 C<is_seeder( )>
+
+Checks if the peer is a seeder.
+
+    say 'Peer is a seeder' if $peer->is_seeder;
+
+This method returns true if the peer has reported having all pieces.
+
+=head2 C<flags( )>
+
+Returns peer status flags.
+
+    my $flags = $peer->flags();
+
+This method returns a bitmask of peer status flags (e.g., encrypted, seeder).
+
+=head2 C<set_protocol( $protocol )>
+
+Sets the protocol handler.
+
+    $peer->set_protocol( $handler );
+
+This method replaces the current protocol handler (e.g., when upgrading from handshake-only to full protocol).
+
+Expected parameters:
+
+=over
+
+=item C<$protocol>
+
+The new protocol handler object.
+
+=back
+
+=head2 C<set_torrent( $torrent )>
+
+Sets the parent torrent.
+
+    $peer->set_torrent( $torrent );
+
+This method associates the peer with a L<Net::BitTorrent::Torrent> object.
+
+Expected parameters:
+
+=over
+
+=item C<$torrent>
+
+The parent torrent object.
+
+=back
+
+=head2 C<on_data( $data )>
+
+Handles incoming raw data.
+
+    $peer->on_data( $chunk );
+
+This method feeds raw data from the transport layer into the peer's protocol handler.
+
+Expected parameters:
+
+=over
+
+=item C<$data>
+
+The raw data string.
+
+=back
+
+=head2 C<receive_data( $data )>
+
+Processes incoming data.
+
+    $peer->receive_data( $data );
+
+Internal alias for C<on_data> which also updates rate limits and stats.
+
+Expected parameters:
+
+=over
+
+=item C<$data>
+
+The raw data string.
+
+=back
+
+=head2 C<write_buffer( )>
+
+Flushes the write buffer to the transport.
+
+    $peer->write_buffer();
+
+This method gathers pending messages from the protocol handler and sends them over the transport layer, respecting rate
+limits.
+
+=head2 C<handle_message( $id, $payload )>
+
+Dispatches a BitTorrent message.
+
+    $peer->handle_message( 0, '' ); # CHOKE
+
+This method is called by the protocol handler when a full message is received.
+
+Expected parameters:
+
+=over
+
+=item C<$id>
+
+The numeric message ID.
+
+=item C<$payload>
+
+The raw message payload.
+
+=back
+
+=head2 C<is_allowed_fast( $index )>
+
+Checks if a piece is in the allowed fast set.
+
+    say 'Can request even if choked' if $peer->is_allowed_fast( 5 );
+
+This method returns true if the specified piece index was received in an C<ALLOWED_FAST> message.
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The piece index.
+
+=back
+
+=head2 C<disconnected( )>
+
+Handles connection loss.
+
+    $peer->disconnected();
+
+This method cleans up state and notifies the parent torrent when the connection is closed.
+
+=head2 C<tick( )>
+
+Performs periodic maintenance.
+
+    $peer->tick();
+
+This method updates transfer rates, processes transport logic, and flushes outgoing data.
+
+=head2 C<rate_down( )>
+
+Returns the download rate.
+
+    my $bps = $peer->rate_down;
+
+This method returns the current download speed in bytes per second.
+
+=head2 C<rate_up( )>
+
+Returns the upload rate.
+
+    my $bps = $peer->rate_up;
+
+This method returns the current upload speed in bytes per second.
 
 =head2 C<reputation( )>
 
-Returns the current reputation score.
+Returns the peer's reputation.
 
-=head2 C<am_choking( )> / C<peer_choking( )>
+    my $score = $peer->reputation();
 
-Returns the current choking status for both sides of the connection.
-
-=head2 C<am_interested( )> / C<peer_interested( )>
-
-Returns the current interest status.
+This method returns the current reputation score of the peer.
 
 =head2 C<adjust_reputation( $delta )>
 
-Manually adjust the peer's reputation score. Triggers an automatic disconnect if the score drops below 50.
+Adjusts the peer's reputation.
+
+    $peer->adjust_reputation(-20);
+
+This method modifies the peer's reputation score. The connection is closed if the score drops below 50.
+
+Expected parameters:
+
+=over
+
+=item C<$delta>
+
+The amount to change the reputation by (positive or negative).
+
+=back
+
+=head2 C<torrent( )>
+
+Returns the parent torrent object.
+
+    my $t = $peer->torrent();
+
+=head2 C<transport( )>
+
+Returns the transport object.
+
+    my $trans = $peer->transport();
+
+=head2 C<ip( )>
+
+Returns the peer's IP address.
+
+    my $ip = $peer->ip();
+
+=head2 C<port( )>
+
+Returns the peer's port number.
+
+    my $port = $peer->port();
+
+=head2 C<am_choking( )>
+
+Returns true if we are choking the peer.
+
+    if ($peer->am_choking) { ... }
+
+=head2 C<peer_choking( )>
+
+Returns true if the peer is choking us.
+
+    if ($peer->peer_choking) { ... }
+
+=head2 C<am_interested( )>
+
+Returns true if we are interested in the peer.
+
+    if ($peer->am_interested) { ... }
+
+=head2 C<peer_interested( )>
+
+Returns true if the peer is interested in us.
+
+    if ($peer->peer_interested) { ... }
+
+=head2 C<blocks_inflight( )>
+
+Returns the number of pending block requests.
+
+    my $count = $peer->blocks_inflight();
+
+=head2 C<bitfield_status( )>
+
+Returns the bitfield status string ('all', 'none', or raw data).
+
+    my $status = $peer->bitfield_status();
+
+=head2 C<set_bitfield_status( $status )>
+
+Sets the bitfield status.
+
+    $peer->set_bitfield_status('all');
+
+Expected parameters:
+
+=over
+
+=item C<$status>
+
+The status string.
+
+=back
 
 =head1 Specifications
 

@@ -5,9 +5,11 @@ no warnings;
 use Net::BitTorrent::Protocol::BEP10;
 
 class MockBEP10 : isa(Net::BitTorrent::Protocol::BEP10) {
-    field $got_handshake : reader;
-    method on_ext_handshake ($data) { $got_handshake = $data }
-    ADJUST { $self->set_reserved_bit( 5, 0x10 ) }
+    field $got_handshake : reader : writer(set_got_handshake);
+    ADJUST {
+        $self->set_reserved_bit( 5, 0x10 );
+        $self->on( ext_handshake => sub ( $self, $data ) { $self->set_got_handshake($data) } );
+    }
 }
 subtest 'Reserved Bit' => sub {
     my $ih  = 'A' x 20;

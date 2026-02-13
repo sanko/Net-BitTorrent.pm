@@ -87,14 +87,29 @@ my $client = Net::BitTorrent->new(
 );
 ```
 
-- **Use Case**: Initializing the BitTorrent engine with custom configuration.
-- **Parameters**:
-`port` (Int),
-`user_agent` (Str),
-`encryption` (Str or Constant: ENCRYPTION\_NONE, ENCRYPTION\_PREFERRED, ENCRYPTION\_REQUIRED),
-`upnp_enabled` (Bool),
-and various `bepXX` toggles (e.g., `bep05 =` 0> to disable DHT).
-- **Returns**: A new `Net::BitTorrent` instance.
+This method initializes the BitTorrent engine with custom configuration.
+
+Expected parameters:
+
+- `port` - optional
+
+    The port to listen on for incoming connections. Defaults to a random port in the dynamic range.
+
+- `user_agent` - optional
+
+    The user agent string reported to trackers and peers.
+
+- `encryption` - optional
+
+    The encryption requirement level. Can be `none`, `preferred`, or `required` (default).
+
+- `upnp_enabled` - optional
+
+    Whether to attempt UPnP port mapping. Defaults to false.
+
+- `bepXX` - optional
+
+    Toggles for specific BEPs (e.g., `bep05 => 0` to disable DHT). Defaults to enabled for supported BEPs.
 
 ## `on( $event, $callback )`
 
@@ -106,15 +121,21 @@ $client->on(torrent_added => sub ($nb, $torrent) {
 });
 ```
 
-- **Use Case**: Reacting to system-wide changes or automating newly added swarms.
-- **Parameters**: `$event` (Str), `$callback` (CodeRef).
-- **Returns**: Nothing.
-- **Events**:
-`torrent_added`: Emitted whenever a new swarm is registered.
+This method allows you to react to system-wide changes or automate actions for newly added swarms.
+
+Expected parameters:
+
+- `$event`
+
+    The name of the event to listen for (e.g., `torrent_added`).
+
+- `$callback`
+
+    The code reference to execute when the event is emitted.
 
 ## `add( $thing, $base_path, [%args] )`
 
-The recommended, unified method for adding a swarm. It automatically detects the type of the first parameter.
+The recommended, unified method for adding a swarm.
 
 ```
 # Add a .torrent file
@@ -122,17 +143,24 @@ $client->add("ubuntu.torrent", "./iso");
 
 # Add a magnet link
 $client->add("magnet:?xt=urn:btih:...", "./data");
-
-# Add a v1 infohash (hex or binary)
-$client->add("1bd088ee9166a062cf4af09cf99720fa6e1a3133", "./downloads");
-
-# Add a v2 infohash (64-char hex or 32-byte binary)
-$client->add("6a1259ca5ca00680...64chars...", "./downloads");
 ```
 
-- **Use Case**: Easily adding any BitTorrent resource without worrying about its format.
-- **Parameters**: `$thing` (Str: path, URI, or hex/binary hash), `$base_path` (Str: directory for data), `%args` (Optional Torrent parameters).
-- **Returns**: A [Net::BitTorrent::Torrent](https://metacpan.org/pod/Net%3A%3ABitTorrent%3A%3ATorrent) object.
+This method automatically detects the type of the first parameter and adds the corresponding swarm. It returns a
+[Net::BitTorrent::Torrent](https://metacpan.org/pod/Net%3A%3ABitTorrent%3A%3ATorrent) object on success.
+
+Expected parameters:
+
+- `$thing`
+
+    The resource to add. Can be a file path, a Magnet URI, or an infohash (hex or binary).
+
+- `$base_path`
+
+    The directory where the torrent's data will be stored.
+
+- `%args` - optional
+
+    Optional parameters to pass to the [Net::BitTorrent::Torrent](https://metacpan.org/pod/Net%3A%3ABitTorrent%3A%3ATorrent) constructor.
 
 ## `add_torrent( $path, $base_path, [%args] )`
 
@@ -142,97 +170,291 @@ Adds a torrent from a local `.torrent` file.
 my $t = $client->add_torrent("linux.torrent", "/downloads");
 ```
 
-- **Use Case**: Adding a swarm specifically from a metadata file.
-- **Parameters**: `$path` (Str), `$base_path` (Str), `%args` (Optional parameters).
-- **Returns**: A [Net::BitTorrent::Torrent](https://metacpan.org/pod/Net%3A%3ABitTorrent%3A%3ATorrent) object.
+This method is for adding a swarm specifically from a metadata file. It returns a [Net::BitTorrent::Torrent](https://metacpan.org/pod/Net%3A%3ABitTorrent%3A%3ATorrent) object.
+
+Expected parameters:
+
+- `$path`
+
+    The path to the `.torrent` file.
+
+- `$base_path`
+
+    The directory where the torrent's data will be stored.
+
+- `%args` - optional
+
+    Optional parameters to pass to the [Net::BitTorrent::Torrent](https://metacpan.org/pod/Net%3A%3ABitTorrent%3A%3ATorrent) constructor.
 
 ## `add_infohash( $ih, $base_path, [%args] )`
 
-Adds a torrent by its info hash (binary or hex).
+Adds a torrent by its info hash.
 
 ```perl
 my $t = $client->add_infohash(pack('H*', '...'), './data');
 ```
 
-- **Use Case**: Bootstrapping a swarm when only the hash is known (e.g., from a crawler).
-- **Parameters**: `$ih` (20/32 byte Binary or 40/64 byte Hex), `$base_path` (Str).
-- **Returns**: A [Net::BitTorrent::Torrent](https://metacpan.org/pod/Net%3A%3ABitTorrent%3A%3ATorrent) object.
+This method is useful for bootstrapping a swarm when only the hash is known. It returns a [Net::BitTorrent::Torrent](https://metacpan.org/pod/Net%3A%3ABitTorrent%3A%3ATorrent)
+object.
+
+Expected parameters:
+
+- `$ih`
+
+    The infohash. Can be a 20-byte (v1) or 32-byte (v2) binary string, or a 40/64 character hex string.
+
+- `$base_path`
+
+    The directory where the torrent's data will be stored.
+
+- `%args` - optional
+
+    Optional parameters to pass to the [Net::BitTorrent::Torrent](https://metacpan.org/pod/Net%3A%3ABitTorrent%3A%3ATorrent) constructor.
 
 ## `add_magnet( $uri, $base_path, [%args] )`
 
-Adds a torrent from a Magnet URI (**BEP 53**).
+Adds a torrent from a Magnet URI.
 
 ```perl
 my $t = $client->add_magnet("magnet:?xt=urn:btmh:...", "./data");
 ```
 
-- **Use Case**: Adding resources from web links.
-- **Returns**: A [Net::BitTorrent::Torrent](https://metacpan.org/pod/Net%3A%3ABitTorrent%3A%3ATorrent) object.
-- **Specifications**: **BEP 09** (Metadata Exchange), **BEP 53** (Magnet URIs).
+This method allows adding resources from web links. It returns a [Net::BitTorrent::Torrent](https://metacpan.org/pod/Net%3A%3ABitTorrent%3A%3ATorrent) object.
 
-## `torrents()`
+Expected parameters:
 
-Returns an arrayref of all active `Net::BitTorrent::Torrent` objects.
+- `$uri`
 
-## `finished()`
+    The Magnet URI.
 
-Returns an arrayref of all managed torrents that have completed their download.
+- `$base_path`
+
+    The directory where the torrent's data will be stored.
+
+- `%args` - optional
+
+    Optional parameters to pass to the [Net::BitTorrent::Torrent](https://metacpan.org/pod/Net%3A%3ABitTorrent%3A%3ATorrent) constructor.
+
+## `torrents( )`
+
+Returns a list of all active torrents.
+
+```perl
+my $list = $client->torrents( );
+```
+
+This method returns an array reference containing all currently managed [Net::BitTorrent::Torrent](https://metacpan.org/pod/Net%3A%3ABitTorrent%3A%3ATorrent) objects.
+
+## `finished( )`
+
+Returns a list of completed torrents.
 
 ```perl
 my $done = $client->finished();
-say $_->name for @$done;
 ```
+
+This method returns an array reference of all managed torrents that have completed their download.
 
 ## `wait( [$condition], [$timeout] )`
 
-Blocks (while calling `tick()`) until a condition is met or a timeout occurs.
+Blocks execution until a condition is met.
 
-```perl
-# Wait for all torrents to finish
+```
 $client->wait();
-
-# Wait up to 60 seconds for at least one seeder
-$client->wait(sub ($c) {
-    any { $_->discovered_peers > 0 } $c->torrents->@*;
-}, 60);
 ```
 
-- **Use Case**: Writing simple scripts that need to wait for a download to complete.
-- **Parameters**: `$condition` (Optional CodeRef), `$timeout` (Optional Int: seconds).
-- **Returns**: Boolean (True if condition met, False on timeout).
+This method runs the internal event loop until the provided condition returns true or a timeout is reached. It returns
+a boolean indicating if the condition was met.
+
+Expected parameters:
+
+- `$condition` - optional
+
+    A code reference that returns true to stop waiting. Defaults to waiting for all torrents to finish.
+
+- `$timeout` - optional
+
+    The maximum number of seconds to wait.
 
 ## `tick( [$timeout] )`
 
-The "heartbeat" of the library. Each tick processes internal logic.
+The "heartbeat" of the library.
 
-- **Use Case**: Driving the client in a manual event loop.
-- **Parameters**: `$timeout` (Optional Num: duration in seconds since last call).
-- **Internal Logic**: This method utilizes a "time debt" system. If a large delta is provided (e.g., 1.0s),
-it will process multiple internal slices (up to 0.1s each) to ensure rate limiters and hashing queues remain
-accurate. It includes a real-time cap (default 200ms) per call to maintain responsiveness for the caller's loop.
-- **Intent**: This method performs discovery (DHT/LPD), updates swarm logic (choking/picking), and handles retransmissions (uTP).
+```
+$client->tick(0.1);
+```
 
-## `save_state( $path )` / `load_state( $path )`
+This method performs discovery, updates swarm logic, and handles network I/O.
 
-Persists session state (node ID, torrent progress) to a JSON file.
+Expected parameters:
 
-## `dht_get( $target, $callback )` / `dht_put( $value, [$callback] )`
+- `$timeout` - optional
 
-High-level **BEP 44** API for storing and retrieving arbitrary data in the DHT.
+    The duration in seconds since the last call. Defaults to 0.1.
+
+## `save_state( $path )`
+
+Persists session state to a file.
+
+```
+$client->save_state('session.json');
+```
+
+This method saves the current client state to a JSON file.
+
+Expected parameters:
+
+- `$path`
+
+    The file path where the state will be saved.
+
+## `load_state( $path )`
+
+Restores session state from a file.
+
+```
+$client->load_state('session.json');
+```
+
+This method loads client state from a JSON file.
+
+Expected parameters:
+
+- `$path`
+
+    The file path to load the state from.
+
+## `dht_get( $target, $callback )`
+
+Retrieves data from the DHT.
 
 ```perl
-$client->dht_put('My Shared Note', sub { say "Stored!" });
+$client->dht_get($target_hash, sub ($value, $node) { ... });
 ```
+
+This method initiates a DHT lookup for the specified target hash.
+
+Expected parameters:
+
+- `$target`
+
+    The 20-byte SHA-1 hash of the data key.
+
+- `$callback`
+
+    The code reference called when data is found.
+
+## `dht_put( $value, [$callback] )`
+
+Stores data in the DHT.
+
+```
+$client->dht_put('My Shared Note');
+```
+
+This method stores immutable data in the DHT.
+
+Expected parameters:
+
+- `$value`
+
+    The data to store.
+
+- `$callback` - optional
+
+    The code reference called when the store operation completes.
 
 ## `dht_scrape( $infohash, $callback )`
 
-Performs a decentralized scrape (**BEP 33**) to find seeder/leecher counts.
+Performs a decentralized scrape.
 
-## `shutdown()`
+```perl
+$client->dht_scrape($infohash, sub ($stats) { ... });
+```
 
-Gracefully stops all swarms and releases system resources.
+This method queries the DHT for seeder and leecher counts.
 
-# Supported Specifications
+Expected parameters:
+
+- `$infohash`
+
+    The infohash to scrape.
+
+- `$callback`
+
+    The code reference called with the scrape results.
+
+## `shutdown( )`
+
+Gracefully stops the client.
+
+```
+$client->shutdown();
+```
+
+This method stops all swarms, unmaps ports, and releases resources.
+
+## `features( )`
+
+Returns the enabled features.
+
+```perl
+my $f = $client->features();
+```
+
+This method returns a hash reference containing the status of various BEPs.
+
+## `set_limit_down( $val )`
+
+Sets the global download rate limit.
+
+```
+$client->set_limit_down( 1024 * 1024 ); # 1MiB/s
+```
+
+This method sets the maximum download rate in bytes per second.
+
+Expected parameters:
+
+- `$val`
+
+    The limit in bytes per second. Use 0 for unlimited.
+
+## `hashing_queue_size( )`
+
+Returns the number of pieces waiting for verification.
+
+```perl
+my $size = $client->hashing_queue_size();
+```
+
+This method returns the current size of the background hashing queue.
+
+## `queue_verification( $torrent, $index, $data )`
+
+Queues a piece for background verification.
+
+```
+$client->queue_verification( $torrent, $index, $data );
+```
+
+This method adds a piece to the throttled background hashing queue.
+
+Expected parameters:
+
+- `$torrent`
+
+    The [Net::BitTorrent::Torrent](https://metacpan.org/pod/Net%3A%3ABitTorrent%3A%3ATorrent) object the piece belongs to.
+
+- `$index`
+
+    The piece index.
+
+- `$data`
+
+    The piece data.
+
+# SUPPORTED BEPS
 
 - **BEP 03**: The BitTorrent Protocol (TCP)
 - **BEP 05**: Mainline DHT

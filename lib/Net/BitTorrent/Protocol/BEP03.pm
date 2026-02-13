@@ -151,8 +151,8 @@ class Net::BitTorrent::Protocol::BEP03 v2.0.0 : isa(Net::BitTorrent::Emitter) {
         $state       = 'OPEN';
         $detected_ih = $remote_ih;
         $reserved    = $remote_res;
-        $self->_emit( log => "    [DEBUG] Received handshake from " . unpack( 'H*', $remote_id ) . "\n", level => 'debug' ) if $debug;
-        $self->on_handshake( $remote_ih, $remote_id );
+        $self->_emit( log       => "    [DEBUG] Received handshake from " . unpack( 'H*', $remote_id ) . "\n", level => 'debug' ) if $debug;
+        $self->_emit( handshake => $remote_ih,                                                                 $remote_id );
     }
 
     method _process_messages () {
@@ -172,7 +172,6 @@ class Net::BitTorrent::Protocol::BEP03 v2.0.0 : isa(Net::BitTorrent::Emitter) {
             $self->_handle_message( $id, $payload );
         }
     }
-    method on_handshake    ( $ih, $id )      { }
     method _handle_message ( $id, $payload ) { }
 
     method send_message ( $id, $payload = '' ) {

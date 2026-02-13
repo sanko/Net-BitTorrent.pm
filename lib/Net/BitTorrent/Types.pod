@@ -1,0 +1,93 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Net::BitTorrent::Types - Shared constants for Net::BitTorrent
+
+=head1 SYNOPSIS
+
+    use Net::BitTorrent::Types qw[:all];
+
+    if ($torrent->state == STATE_RUNNING) { ... }
+
+=head1 DESCRIPTION
+
+This module exports constants used throughout the Net::BitTorrent suite.
+
+=head1 CONSTANTS
+
+=head2 Encryption Levels (C<:encryption>)
+
+=over
+
+=item C<ENCRYPTION_NONE>
+
+No protocol encryption is allowed. Only plaintext connections.
+
+=item C<ENCRYPTION_PREFERRED>
+
+Attempt encryption but fall back to plaintext if the peer doesn't support it.
+
+=item C<ENCRYPTION_REQUIRED>
+
+Only encrypted connections are allowed. Plaintext handshakes will be rejected.
+
+=back
+
+=head2 Swarm States (C<:state>)
+
+=over
+
+=item C<STATE_STOPPED>
+
+The swarm is inactive. No network or disk I/O.
+
+=item C<STATE_STARTING>
+
+The swarm is initializing (allocating files, announcing to trackers).
+
+=item C<STATE_RUNNING>
+
+The swarm is actively transferring data.
+
+=item C<STATE_PAUSED>
+
+The swarm is active but data transfer is suspended.
+
+=item C<STATE_METADATA>
+
+The swarm is in magnet-mode, fetching the info dictionary.
+
+=back
+
+=head2 Piece Picking Strategies (C<:pick>)
+
+=over
+
+=item C<PICK_SEQUENTIAL>
+
+Download pieces in order (0, 1, 2, ...). Useful for streaming.
+
+=item C<PICK_RAREST_FIRST>
+
+Download the pieces that are least common in the swarm first. Standard strategy.
+
+=item C<PICK_STREAMING>
+
+A hybrid strategy optimized for media playback.
+
+=back
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2008-2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
+
+=cut

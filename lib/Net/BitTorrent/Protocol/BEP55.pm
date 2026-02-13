@@ -7,6 +7,42 @@ class Net::BitTorrent::Protocol::BEP55 v2.0.0 : isa(Net::BitTorrent::Protocol::B
 
     # BEP 55 Message IDs (internal to ut_holepunch)
     use constant { HP_RENDEZVOUS => 0, HP_CONNECT => 1, HP_ERROR => 2, };
+    ADJUST {
+        $self->on(
+            extended_message => sub ( $self, $name, $payload ) {
+                return unless $name eq 'ut_holepunch';
+                my $type = unpack( 'C', substr( $payload, 0, 1, '' ) );
+                my $dict;
+                try {
+                    my @res = bdecode( $payload, 1 );
+                    if ( @res > 2 ) {
+                        pop @res;    # Discard leftover
+                        $dict = {@res};
+                    }
+                    else {
+                        $dict = $res[0];
+                    }
+                }
+                catch ($e) {
+                    $self->_emit( log => "  [ERROR] Malformed ut_holepunch message: $e\n", level => 'error' );
+                    return;
+                }
+                if ( ref $dict ne 'HASH' ) {
+                    $self->_emit( log => "  [ERROR] Malformed ut_holepunch message: dict is not a hash\n", level => 'error' );
+                    return;
+                }
+                if ( $type == HP_RENDEZVOUS ) {
+                    $self->_emit( hp_rendezvous => $dict->{id} );
+                }
+                elsif ( $type == HP_CONNECT ) {
+                    $self->_emit( hp_connect => $dict->{addr}, $dict->{port} );
+                }
+                elsif ( $type == HP_ERROR ) {
+                    $self->_emit( hp_error => $dict->{e} );
+                }
+            }
+        );
+    }
 
     method send_hp_rendezvous ($target_id) {
         return unless exists $self->remote_extensions->{ut_holepunch};
@@ -25,72 +61,4 @@ class Net::BitTorrent::Protocol::BEP55 v2.0.0 : isa(Net::BitTorrent::Protocol::B
         my $payload = bencode( { e => $err_code, } );
         $self->send_ext_message( 'ut_holepunch', pack( 'C a*', HP_ERROR, $payload ) );
     }
-
-    method on_extended_message ( $name, $payload ) {
-        if ( $name eq 'ut_holepunch' ) {
-            my $type = unpack( 'C', substr( $payload, 0, 1, '' ) );
-            my $dict;
-            try {
-                my @res = bdecode( $payload, 1 );
-                if ( @res > 2 ) {
-                    pop @res;    # Discard leftover
-                    $dict = {@res};
-                }
-                else {
-                    $dict = $res[0];
-                }
-            }
-            catch ($e) {
-                $self->_emit( log => "  [ERROR] Malformed ut_holepunch message: $e\n", level => 'error' );
-                return;
-            }
-            if ( ref $dict ne 'HASH' ) {
-                $self->_emit( log => "  [ERROR] Malformed ut_holepunch message: dict is not a hash\n", level => 'error' );
-                return;
-            }
-            if ( $type == HP_RENDEZVOUS ) {
-                $self->on_hp_rendezvous( $dict->{id} );
-            }
-            elsif ( $type == HP_CONNECT ) {
-                $self->on_hp_connect( $dict->{addr}, $dict->{port} );
-            }
-            elsif ( $type == HP_ERROR ) {
-                $self->on_hp_error( $dict->{e} );
-            }
-        }
-        else {
-            $self->SUPER::on_extended_message( $name, $payload );
-        }
-    }
-    method on_hp_rendezvous ($id)          { }
-    method on_hp_connect    ( $ip, $port ) { }
-    method on_hp_error      ($err)         { }
 } 1;
-__END__
-
-=pod
-
-=head1 NAME
-
-Net::BitTorrent::Protocol::BEP55 - Holepunching Extension (NAT Traversal)
-
-=head1 DESCRIPTION
-
-This module implements the C<ut_holepunch> extension (BEP 55), allowing  peers to coordinate NAT traversal for uTP
-connections.
-
-=head1 METHODS
-
-=head2 send_hp_rendezvous($target_id)
-
-Requests a rendezvous with a target peer via this peer.
-
-=head2 send_hp_connect($ip, $port)
-
-Instructs a target peer to connect back to a source peer.
-
-=head2 send_hp_error($err_code)
-
-Sends an error message (e.g. peer not found).
-
-=cut

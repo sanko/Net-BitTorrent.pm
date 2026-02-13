@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Protocol::MSE - Message Stream Encryption (MSE/PE)
+Net::BitTorrent::Protocol::MSE - Message Stream Encryption (PE/MSE)
 
 =head1 SYNOPSIS
 
@@ -19,7 +19,7 @@ Net::BitTorrent::Protocol::MSE - Message Stream Encryption (MSE/PE)
     my $out = $mse->write_buffer( );
 
     # Step 2: Feed data from socket until state is 'PAYLOAD'
-    while ($mse->state ne PAYLOAD) {
+    while ($mse->state ne 'PAYLOAD') {
         $mse->receive_data($raw_incoming);
         my $reply = $mse->write_buffer( );
         # send $reply to peer
@@ -31,9 +31,9 @@ Net::BitTorrent::Protocol::MSE - Message Stream Encryption (MSE/PE)
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Protocol::MSE> implements the Message Stream Encryption (MSE) protocol, also known as Protocol
-Encryption (PE). This protocol provides a layer of obfuscation for BitTorrent traffic, helping to prevent passive
-traffic analysis and "throttling" by ISPs.
+This module implements the Message Stream Encryption protocol used by BitTorrent to avoid traffic shaping and improve
+privacy. It provides a layer of obfuscation for BitTorrent traffic, helping to prevent passive traffic analysis and
+"throttling" by ISPs.
 
 =head2 Security Disclaimer
 
@@ -42,18 +42,98 @@ designed to make the BitTorrent protocol difficult to identify via simple patter
 
 =head1 METHODS
 
+=head2 C<new( %params )>
+
+Creates a new MSE handler object.
+
+Expected parameters:
+
+=over
+
+=item C<infohash>
+
+The 20-byte binary infohash of the torrent. Can be C<undef> for initiators if using C<on_infohash_probe>.
+
+=item C<is_initiator>
+
+Boolean. True if we are starting the connection.
+
+=item C<on_infohash_probe> - optional
+
+A code reference used by the responder to identify the infohash in incoming connections.
+
+=item C<allow_plaintext> - optional
+
+Boolean. Whether to allow falling back to plaintext. Defaults to true.
+
+=back
+
 =head2 C<receive_data( $data )>
 
-Feeds raw bytes from the transport layer. During the handshake, it advances the MSE state machine. Once the state is
-C<PAYLOAD>, it returns the decrypted plaintext.
+Handles incoming handshake or payload data.
 
-=head2 C<encrypt_data( $data )> / C<decrypt_data( $data )>
+    my $decrypted = $mse->receive_data( $raw_chunk );
 
-High level methods for stream obfuscation. These should only be used once C<state( )> returns C<PAYLOAD>.
+This method processes the MSE handshake phases. Once the handshake is complete (state is 'PAYLOAD'), it returns
+decrypted data.
+
+Expected parameters:
+
+=over
+
+=item C<$data>
+
+The raw data received from the transport.
+
+=back
+
+=head2 C<encrypt_data( $data )>
+
+Encrypts outgoing data.
+
+    my $encrypted = $mse->encrypt_data( $pwp_message );
+
+This method encrypts data using the negotiated RC4 key if the handshake is complete.
+
+Expected parameters:
+
+=over
+
+=item C<$data>
+
+The plaintext data to encrypt.
+
+=back
+
+=head2 C<decrypt_data( $data )>
+
+Decrypts incoming data.
+
+    my $decrypted = $mse->decrypt_data( $raw_chunk );
+
+Alias for C<receive_data>.
+
+Expected parameters:
+
+=over
+
+=item C<$data>
+
+The encrypted data.
+
+=back
 
 =head2 C<write_buffer( )>
 
 Returns pending bytes that must be sent to the remote peer to advance the handshake or provide encryption responses.
+
+    my $out = $mse->write_buffer();
+
+=head2 C<supported( )>
+
+Returns true if MSE is supported by the system.
+
+    say "MSE enabled" if $mse->supported();
 
 =head2 C<state( )>
 
@@ -69,7 +149,15 @@ Returns the current MSE handshake state:
 
 =back
 
-=head1 Architecture
+=head2 C<buffer_in( )>
+
+Returns the internal input buffer.
+
+=head2 C<buffer_out( )>
+
+Returns the internal output buffer.
+
+=head1 ARCHITECTURE
 
 MSE uses a 768-bit Diffie-Hellman key exchange to derive a shared secret, which is then used to seed two RC4 stream
 ciphers (one for each direction).

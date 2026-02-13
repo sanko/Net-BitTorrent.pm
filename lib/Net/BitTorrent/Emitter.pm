@@ -38,4 +38,5 @@ class Net::BitTorrent::Emitter v2.0.0 {
             $parent_emitter->_emit( $event, @args );
         }
     }
-} 1;
+};
+1;

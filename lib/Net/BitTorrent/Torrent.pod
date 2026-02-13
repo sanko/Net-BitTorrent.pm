@@ -55,15 +55,38 @@ piece picker, and the storage layer.
 
 =head1 METHODS
 
-=head2 C<start()> / C<stop()> / C<pause()> / C<resume()>
+=head2 C<start( )>
 
-Controls the operational state of the swarm.
+Starts the swarm.
 
     $torrent->start();
-    # ... later ...
+
+This method triggers DHT lookups, tracker announces, and local peer discovery. It transitions the swarm to the STARTING
+or METADATA state.
+
+=head2 C<stop( )>
+
+Stops the swarm.
+
+    $torrent->stop();
+
+This method stops network activity, disconnects peers, and flushes storage.
+
+=head2 C<pause( )>
+
+Pauses the swarm.
+
     $torrent->pause();
 
-C<start( )> triggers DHT lookups, tracker announces, and local peer discovery.
+This method keeps connections alive but stops data transfer.
+
+=head2 C<resume( )>
+
+Resumes a paused swarm.
+
+    $torrent->resume();
+
+This method resumes data transfer on existing connections.
 
 =head2 C<on( $event, $callback )>
 
@@ -71,19 +94,20 @@ Registers a callback for swarm events.
 
     $torrent->on(piece_verified => sub ($t, $idx) { ... });
 
-Currently emits the following events:
+This method allows listening for events specific to this torrent.
+
+Expected parameters:
 
 =over
 
-=item * C<piece_verified>: C<($torrent, $index)>
+=item C<$event>
 
-=item * C<piece_failed>: C<($torrent, $index)>
+The name of the event to listen for. Supported events: C<piece_verified>, C<piece_failed>, C<status_update>,
+C<peer_discovered>, C<started>, C<stopped>, C<paused>, C<resumed>.
 
-=item * C<status_update>: C<($torrent, $stats_hash)>
+=item C<$callback>
 
-=item * C<peer_discovered>: C<($torrent, $peer_hash)>
-
-=item * C<started>, C<stopped>, C<paused>, C<resumed>: C<($torrent)>
+The code reference to execute when the event is emitted.
 
 =back
 
@@ -93,63 +117,371 @@ Returns a human-readable name for the torrent.
 
     say 'Downloading: ' . $torrent->name;
 
-The name from the metadata if returned or a hex infohash as a fallback.
+This method returns the name from the metadata if available, or a hex infohash as a fallback.
 
 =head2 C<progress( )>
 
-Returns the download completion percentage (0.0 to 100.0).
+Returns the download completion percentage.
 
     printf 'Done: %.2f%%\r', $torrent->progress;
 
+This method returns a floating-point number between 0.0 and 100.0 representing the completion status.
+
 =head2 C<is_finished( )>
 
-Returns true if the download is 100% complete and verified.
+Checks if the download is complete.
 
     say 'Download complete!' if $torrent->is_finished;
 
+This method returns true if the download is 100% complete and verified.
+
 =head2 C<is_seed( )>
 
-Returns true if the client is currently acting as a seeder for this swarm (all pieces available).
+Checks if the client is seeding.
+
+    if ($torrent->is_seed) { ... }
+
+This method returns true if the client has all pieces and is acting as a seeder.
 
 =head2 C<is_metadata_complete( )>
 
-Returns true if the torrent's metadata (info dictionary) has been loaded. This is always true for C<.torrent> files and
-becomes true for magnets once B<BEP 09> exchange completes.
+Checks if metadata is loaded.
+
+    if ($torrent->is_metadata_complete) { ... }
+
+This method returns true if the info dictionary is available.
 
 =head2 C<is_running( )>
 
-Returns true if the swarm is in an active state (STARTING, RUNNING, or METADATA).
+Checks if the swarm is active.
+
+    if ($torrent->is_running) { ... }
+
+This method returns true if the state is STARTING, RUNNING, or METADATA.
 
 =head2 C<primary_pieces_root( )>
 
-Returns the SHA-256 pieces root for the first file in the torrent (v2 only).
+Returns the pieces root for the first file (v2).
+
+    my $root = $torrent->primary_pieces_root();
+
+This method returns the SHA-256 Merkle tree root for the primary file in a BitTorrent v2 torrent.
 
 =head2 C<set_piece_priority( $index, $priority )>
 
-Sets the weight for a specific piece.
+Sets the priority for a specific piece.
 
-    # Skip a piece
-    $torrent->set_piece_priority( 5, 0 ); # $priority values: 0=skip, 1=normal, 2+=high
+    $torrent->set_piece_priority( 5, 0 );
+
+This method allows adjusting the download priority of individual pieces. A priority of 0 means the piece will not be
+downloaded.
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The zero-based piece index.
+
+=item C<$priority>
+
+The priority level (0 = do not download, 1 = normal, higher values = higher priority).
+
+=back
 
 =head2 C<set_picking_strategy( $strategy )>
 
-Switch between algorithms: C<PICK_RAREST_FIRST>, C<PICK_SEQUENTIAL>, or C<PICK_STREAMING>.
+Sets the piece picking algorithm.
 
-=head2 C<infohash_v1( )> / C<infohash_v2( )>
+    $torrent->set_picking_strategy(PICK_SEQUENTIAL);
 
-Returns the binary infohashes for the swarm.
+This method changes how the client selects pieces to download. Available strategies are defined in
+L<Net::BitTorrent::Types>.
+
+Expected parameters:
+
+=over
+
+=item C<$strategy>
+
+The strategy constant to use (e.g., C<PICK_RAREST_FIRST>, C<PICK_SEQUENTIAL>).
+
+=back
+
+=head2 C<infohash_v1( )>
+
+Returns the v1 infohash.
+
+    my $ih = $torrent->infohash_v1;
+
+This method returns the 20-byte binary SHA-1 infohash for BitTorrent v1. Returns C<undef> if not available.
+
+=head2 C<infohash_v2( )>
+
+Returns the v2 infohash.
+
+    my $ih = $torrent->infohash_v2;
+
+This method returns the 32-byte binary SHA-256 infohash for BitTorrent v2. Returns C<undef> if not available.
 
 =head2 C<files( )>
 
-Returns an arrayref of absolute paths (as strings) for all files in the torrent.
+Returns a list of file paths.
+
+    my $paths = $torrent->files;
+
+This method returns an array reference containing the absolute paths of all files in the torrent.
 
 =head2 C<discovered_peers( )>
 
-Returns a list of peers found via DHT, Trackers, PEX, and LPD.
+Returns a list of known peers.
 
-=head2 C<dump_state( )> / C<load_state( $state )>
+    my $peers = $torrent->discovered_peers;
 
-Internal persistence methods for L<Net::BitTorrent/save_state>.
+This method returns an array reference of peer structures discovered via various mechanisms.
+
+=head2 C<dump_state( )>
+
+Exports the torrent state.
+
+    my $state = $torrent->dump_state;
+
+This method returns a data structure representing the current state of the torrent, suitable for persistence.
+
+=head2 C<load_state( $state )>
+
+Restores the torrent state.
+
+    $torrent->load_state($state);
+
+This method restores the torrent state from a previously dumped structure.
+
+Expected parameters:
+
+=over
+
+=item C<$state>
+
+The state data structure (hash reference).
+
+=back
+
+=head2 C<get_superseed_piece( $peer )>
+
+Retrieves a piece index for super-seeding.
+
+    my $idx = $torrent->get_superseed_piece($peer);
+
+This method selects a piece to offer to a peer when in super-seeding mode (BEP 16).
+
+Expected parameters:
+
+=over
+
+=item C<$peer>
+
+The L<Net::BitTorrent::Peer> object.
+
+=back
+
+=head2 C<metadata_received_count( )>
+
+Returns the number of metadata bytes received.
+
+    my $count = $torrent->metadata_received_count();
+
+This method returns the total number of bytes of the info dictionary currently received.
+
+=head2 C<set_limit_up( $val )>
+
+Sets the upload rate limit for this torrent.
+
+    $torrent->set_limit_up( 512 * 1024 );
+
+This method sets the maximum upload rate in bytes per second for this specific swarm.
+
+Expected parameters:
+
+=over
+
+=item C<$val>
+
+The limit in bytes per second. Use 0 for unlimited.
+
+=back
+
+=head2 C<set_limit_down( $val )>
+
+Sets the download rate limit for this torrent.
+
+    $torrent->set_limit_down( 1024 * 1024 );
+
+This method sets the maximum download rate in bytes per second for this specific swarm.
+
+Expected parameters:
+
+=over
+
+=item C<$val>
+
+The limit in bytes per second. Use 0 for unlimited.
+
+=back
+
+=head2 C<can_read( $amount )>
+
+Checks if a download amount is allowed by rate limits.
+
+    my $allowed = $torrent->can_read( 16384 );
+
+This method checks both global and per-torrent rate limits and returns the amount that can be consumed.
+
+Expected parameters:
+
+=over
+
+=item C<$amount>
+
+The requested number of bytes to download.
+
+=back
+
+=head2 C<can_write( $amount )>
+
+Checks if an upload amount is allowed by rate limits.
+
+    my $allowed = $torrent->can_write( 16384 );
+
+This method checks both global and per-torrent rate limits and returns the amount that can be consumed.
+
+Expected parameters:
+
+=over
+
+=item C<$amount>
+
+The requested number of bytes to upload.
+
+=back
+
+=head2 C<tick( [$delta] )>
+
+Performs periodic maintenance for the swarm.
+
+    $torrent->tick( 0.1 );
+
+This method handles peer connections, piece requests, choking logic, and tracker announces for this swarm.
+
+Expected parameters:
+
+=over
+
+=item C<$delta> - optional
+
+The time elapsed since the last tick in seconds. Defaults to 0.1.
+
+=back
+
+=head2 C<add_peer( $peer )>
+
+Adds a discovered peer to the swarm.
+
+    $torrent->add_peer({ ip => '1.2.3.4', port => 6881 });
+
+This method adds a peer to the list of potential connections.
+
+Expected parameters:
+
+=over
+
+=item C<$peer>
+
+A hash reference or object containing C<ip> and C<port>.
+
+=back
+
+=head2 C<add_dht_nodes( $nodes )>
+
+Adds DHT nodes to the search frontier.
+
+    $torrent->add_dht_nodes( $nodes_list );
+
+This method adds nodes discovered via the DHT to the search frontier for this torrent.
+
+Expected parameters:
+
+=over
+
+=item C<$nodes>
+
+An array reference of node structures.
+
+=back
+
+=head2 C<ban_peer( $ip, $port )>
+
+Bans a peer from the swarm.
+
+    $torrent->ban_peer( '1.2.3.4', 6881 );
+
+This method removes a peer and prevents reconnection for a period of time.
+
+Expected parameters:
+
+=over
+
+=item C<$ip>
+
+The IP address of the peer.
+
+=item C<$port>
+
+The port number of the peer.
+
+=back
+
+=head2 C<register_peer_object( $peer_obj )>
+
+Registers an active peer connection.
+
+    $torrent->register_peer_object( $peer );
+
+This method registers a L<Net::BitTorrent::Peer> object as an active connection for this swarm.
+
+Expected parameters:
+
+=over
+
+=item C<$peer_obj>
+
+The L<Net::BitTorrent::Peer> object.
+
+=back
+
+=head2 C<start_dht_lookup( )>
+
+Manually triggers a DHT lookup for peers.
+
+    $torrent->start_dht_lookup();
+
+This method initiates an iterative DHT search for peers on all supported infohashes.
+
+=head2 C<peer_id( )>
+
+Returns the local peer ID used for this torrent.
+
+    my $id = $torrent->peer_id();
+
+This method returns the 20-byte binary peer ID.
+
+=head2 C<trackers( )>
+
+Returns the list of trackers.
+
+    my $trackers = $torrent->trackers();
+
+This method returns an array reference of L<Net::BitTorrent::Tracker::Base> objects.
 
 =head1 Specifications
 

@@ -7,7 +7,10 @@ class Net::BitTorrent::Protocol::PeerHandler v2.0.0 : isa(Net::BitTorrent::Proto
 
     method set_peer ($p) {
         $peer = $p;
-        builtin::weaken($peer) if defined $peer;
+        if ( defined $peer ) {
+            builtin::weaken($peer);
+            $self->set_parent_emitter($peer);
+        }
     }
     ADJUST {
         # Default all features to 1 if not provided
@@ -27,6 +30,60 @@ class Net::BitTorrent::Protocol::PeerHandler v2.0.0 : isa(Net::BitTorrent::Proto
         $self->set_reserved_bit( 5, 0x10 ) if $features->{bep10};
         $self->set_reserved_bit( 7, 0x01 ) if $features->{bep05};
         $self->set_reserved_bit( 7, 0x04 ) if $features->{bep06};
+
+        # Event Listeners
+        $self->on(
+            handshake => sub ( $self, $ih, $id ) {
+                if ( $id eq $self->peer_id ) {
+                    $self->_emit( log => "  [DEBUG] Closing self-connection and banning endpoint\n", level => 'debug' ) if $self->debug;
+                    if ( $peer && $peer->torrent ) {
+                        $peer->torrent->ban_peer( $peer->ip, $peer->port );
+                    }
+                    $peer->disconnected() if $peer;
+                    return;
+                }
+                if ( $features->{bep10} ) {
+                    my $res = $self->reserved;
+                    if ( ord( substr( $res, 5, 1 ) ) & 0x10 ) {
+                        $self->_emit( log => "    [DEBUG] Remote supports BEP 10, sending extended handshake\n", level => 'debug' ) if $self->debug;
+                        $self->send_ext_handshake();
+                    }
+                }
+                $peer->_emit('handshake_complete') if $peer;
+            }
+        );
+        $self->on(
+            ext_handshake => sub ( $self, $data ) {
+                $self->_emit( log => "    [DEBUG] Received extended handshake from peer\n", level => 'debug' ) if $self->debug;
+            }
+        );
+        $self->on( metadata_request => sub ( $self, $piece ) { $peer->handle_metadata_request($piece) if $peer } );
+        $self->on(
+            metadata_data => sub ( $self, $piece, $total_size, $data ) {
+                $peer->handle_metadata_data( $piece, $total_size, $data ) if $peer;
+            }
+        );
+        $self->on( metadata_reject => sub ( $self, $piece ) { $peer->handle_metadata_reject($piece) if $peer } );
+        $self->on(
+            hash_request => sub ( $self, $root, $proof_layer, $base_layer, $index, $length ) {
+                $peer->handle_hash_request( $root, $proof_layer, $base_layer, $index, $length ) if $peer;
+            }
+        );
+        $self->on(
+            hashes => sub ( $self, $root, $proof_layer, $base_layer, $index, $length, $hashes ) {
+                $peer->handle_hashes( $root, $proof_layer, $base_layer, $index, $length, $hashes ) if $peer;
+            }
+        );
+        $self->on(
+            hash_reject => sub ( $self, $root, $proof_layer, $base_layer, $index, $length ) {
+                $peer->handle_hash_reject( $root, $proof_layer, $base_layer, $index, $length ) if $peer;
+            }
+        );
+        $self->on(
+            pex => sub ( $self, $added, $dropped, $added6, $dropped6 ) { $peer->handle_pex( $added, $dropped, $added6, $dropped6 ) if $peer } );
+        $self->on( hp_rendezvous => sub ( $self, $id ) { $peer->handle_hp_rendezvous($id) if $peer && $peer->can('handle_hp_rendezvous') } );
+        $self->on( hp_connect => sub ( $self, $ip, $port ) { $peer->handle_hp_connect( $ip, $port ) if $peer && $peer->can('handle_hp_connect') } );
+        $self->on( hp_error   => sub ( $self, $err ) { $peer->handle_hp_error($err) if $peer && $peer->can('handle_hp_error') } );
     }
 
     method _handle_message ( $id, $payload ) {
@@ -45,81 +102,6 @@ class Net::BitTorrent::Protocol::PeerHandler v2.0.0 : isa(Net::BitTorrent::Proto
         if ($peer) {
             $peer->handle_message( $id, $payload );
         }
-        $self->SUPER::_handle_message( $id, $payload );
-    }
-
-    method on_handshake ( $ih, $id ) {
-        if ( $id eq $self->peer_id ) {
-            $self->_emit( log => "  [DEBUG] Closing self-connection and banning endpoint\n", level => 'debug' ) if $self->debug;
-            if ( $peer && $peer->torrent ) {
-                $peer->torrent->ban_peer( $peer->ip, $peer->port );
-            }
-            $peer->disconnected() if $peer;
-            return;
-        }
-        if ( $features->{bep10} ) {
-            my $res = $self->reserved;
-            if ( ord( substr( $res, 5, 1 ) ) & 0x10 ) {
-                $self->_emit( log => "    [DEBUG] Remote supports BEP 10, sending extended handshake\n", level => 'debug' ) if $self->debug;
-                $self->send_ext_handshake();
-            }
-        }
-        $peer->_emit('handshake_complete') if $peer;
-    }
-
-    method on_ext_handshake ($data) {
-        $self->_emit( log => "    [DEBUG] Received extended handshake from peer\n", level => 'debug' ) if $self->debug;
-    }
-
-    method on_metadata_request ($piece) {
-        if ($peer) {
-            $peer->handle_metadata_request($piece);
-        }
-    }
-
-    method on_metadata_data ( $piece, $total_size, $data ) {
-        if ($peer) {
-            $peer->handle_metadata_data( $piece, $total_size, $data );
-        }
-    }
-
-    method on_metadata_reject ($piece) {
-        if ($peer) {
-            $peer->handle_metadata_reject($piece);
-        }
-    }
-
-    method on_hash_request ( $root, $proof_layer, $base_layer, $index, $length ) {
-        if ($peer) {
-            $peer->handle_hash_request( $root, $proof_layer, $base_layer, $index, $length );
-        }
-    }
-
-    method on_hashes ( $root, $proof_layer, $base_layer, $index, $length, $hashes ) {
-        if ($peer) {
-            $peer->handle_hashes( $root, $proof_layer, $base_layer, $index, $length, $hashes );
-        }
-    }
-
-    method on_hash_reject ( $root, $proof_layer, $base_layer, $index, $length ) {
-        if ($peer) {
-            $peer->handle_hash_reject( $root, $proof_layer, $base_layer, $index, $length );
-        }
-    }
-
-    method on_pex ( $added, $dropped, $added6, $dropped6 ) {
-        $peer->handle_pex( $added, $dropped, $added6, $dropped6 ) if $peer;
-    }
-
-    method on_hp_rendezvous ($id) {
-        $peer->handle_hp_rendezvous($id) if $peer && $peer->can('handle_hp_rendezvous');
-    }
-
-    method on_hp_connect ( $ip, $port ) {
-        $peer->handle_hp_connect( $ip, $port ) if $peer && $peer->can('handle_hp_connect');
-    }
-
-    method on_hp_error ($err) {
-        $peer->handle_hp_error($err) if $peer && $peer->can('handle_hp_error');
+        $self->next::method( $id, $payload );
     }
 } 1;

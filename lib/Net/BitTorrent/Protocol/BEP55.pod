@@ -17,7 +17,7 @@ Net::BitTorrent::Protocol::BEP55 - Holepunching Extension (NAT Traversal)
     $p->send_hp_rendezvous($target_peer_id);
 
     # Handle incoming connection requests
-    $p->on('hp_connect', sub ($ip, $port) {
+    $p->on(hp_connect => sub ( $emitter, $ip, $port ) {
         say "Attempting holepunch connect to $ip:$port";
     });
 
@@ -25,31 +25,121 @@ Net::BitTorrent::Protocol::BEP55 - Holepunching Extension (NAT Traversal)
 
 C<Net::BitTorrent::Protocol::BEP55> implements the B<Holepunching Extension (BEP 55)>. This extension allows two peers
 who are both behind NAT (Network Address Translation) to coordinate a simultaneous UDP connection (uTP) using a third,
-mutually connected peer  as a signaling relay.
+mutually connected peer as a signaling relay.
 
 It runs as a sub-protocol of the Extension Protocol (BEP 10) under the name C<ut_holepunch>.
 
 =head1 METHODS
 
-=head2 C<send_hp_rendezvous( $target_peer_id )>
+=head2 C<send_hp_rendezvous( $target_id )>
 
-Sends a rendezvous request to a peer we are both connected to. The relay peer will then send a C<CONNECT> message to
-the target.
+Requests a rendezvous with a target peer.
+
+    $p->send_hp_rendezvous( $target_peer_id );
+
+This method asks the peer to act as a mediator to coordinate a holepunch with another peer.
+
+Expected parameters:
+
+=over
+
+=item C<$target_id>
+
+The 20-byte binary peer ID of the target.
+
+=back
 
 =head2 C<send_hp_connect( $ip, $port )>
 
-Sent by the relay peer to the target, instructing it to initiate a uTP connection to the original requester at
-C<$ip:$port>.
+Instructs a peer to connect to a specific address.
 
-=head2 C<send_hp_error( $error_code )>
+    $p->send_hp_connect( '1.2.3.4', 6881 );
 
-Sent if the rendezvous cannot be completed (e.g., target peer is no longer connected).
+This method is sent by the mediator to the target peer, instructing it to initiate a uTP connection.
 
-=head1 Callbacks
+Expected parameters:
 
-=head2 C<on_hp_rendezvous( $id )> / C<on_hp_connect( $ip, $port )> / C<on_hp_error( $code )>
+=over
 
-Overridable handlers for incoming holepunching control messages.
+=item C<$ip>
+
+The IP address.
+
+=item C<$port>
+
+The port number.
+
+=back
+
+=head2 C<send_hp_error( $err_code )>
+
+Sends a holepunch error.
+
+    $p->send_hp_error( 0x01 );
+
+This method informs the requester that the holepunch operation failed.
+
+Expected parameters:
+
+=over
+
+=item C<$err_code>
+
+The error code (e.g., 0x01 for peer not found).
+
+=back
+
+=head2 C<hp_rendezvous> event
+
+Emitted when a rendezvous request is received.
+
+    $p->on( hp_rendezvous => sub ( $self, $id ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$id>
+
+The target peer ID.
+
+=back
+
+=head2 C<hp_connect> event
+
+Emitted when a connect instruction is received.
+
+    $p->on( hp_connect => sub ( $self, $ip, $port ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$ip>
+
+The IP to connect to.
+
+=item C<$port>
+
+The port to connect to.
+
+=back
+
+=head2 C<hp_error> event
+
+Emitted when a holepunch error is received.
+
+    $p->on( hp_error => sub ( $self, $err ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$err>
+
+The error code.
+
+=back
 
 =head1 Specifications
 

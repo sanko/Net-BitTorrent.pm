@@ -5,12 +5,14 @@ no warnings;
 use Net::BitTorrent::Protocol::PeerHandler;
 
 class MockBEP06 : isa(Net::BitTorrent::Protocol::PeerHandler) {
-    field $got_all   : reader = 0;
-    field $got_none  : reader = 0;
-    field $suggested : reader;
-    method on_have_all ()    { $got_all   = 1 }
-    method on_have_none ()   { $got_none  = 1 }
-    method on_suggest ($idx) { $suggested = $idx }
+    field $got_all   : reader : writer(set_got_all)  = 0;
+    field $got_none  : reader : writer(set_got_none) = 0;
+    field $suggested : reader : writer(set_suggested);
+    ADJUST {
+        $self->on( have_all  => sub ($self) { $self->set_got_all(1) } );
+        $self->on( have_none => sub ($self) { $self->set_got_none(1) } );
+        $self->on( suggest   => sub ( $self, $idx ) { $self->set_suggested($idx) } );
+    }
 }
 subtest 'Fast Extension Messages' => sub {
     my $pwp = MockBEP06->new( infohash => 'A' x 20, peer_id => 'B' x 20 );

@@ -198,7 +198,7 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
         # We wait for the first chunk of data to decide if it's PWP or MSE
         $transport->on(
-            data => sub ( $trans, $data ) {
+            data => sub ( $emitter, $trans, $data ) {
                 return unless $weak_self && $weak_transport;
                 my $entry = $weak_self->pending_peers_hash->{$weak_transport};
                 return unless $entry;
@@ -294,7 +294,7 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         builtin::weaken($weak_transport);
         $mse->on(
             'infohash_identified',
-            sub ( $mse_obj, $ih ) {
+            sub ( $emitter, $mse_obj, $ih ) {
                 return unless $weak_self && $weak_transport;
                 $weak_self->_upgrade_pending_peer( $weak_transport, $ih, undef, $weak_transport->socket->peerhost,
                     $weak_transport->socket->peerport );
@@ -443,7 +443,7 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
             my $mse = Net::BitTorrent::Protocol::MSE->new( infohash => $ih, is_initiator => 1, );
             $mse->on(
                 'infohash_identified',
-                sub ( $mse_obj, $ih ) {
+                sub ( $emitter, $mse_obj, $ih ) {
                     return unless $weak_self && $weak_transport;
                     $weak_self->_upgrade_pending_peer(
                         $weak_transport, $ih, undef,
@@ -456,7 +456,7 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
             $pending_peers{$transport}{mse} = $mse;
             $transport->on(
                 'filter_failed',
-                sub ( $trans, $leftover ) {
+                sub ( $emitter, $trans, $leftover ) {
                     return unless $weak_self && $weak_transport;
                     $weak_self->_emit( log => "    [DEBUG] connect_to_peer: MSE failed, falling back to plaintext\n", level => 'debug' )
                         if $weak_self->debug;
@@ -476,7 +476,7 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         # Reuse incoming data handler logic
         $transport->on(
             'data',
-            sub ( $trans, $data ) {
+            sub ( $emitter, $trans, $data ) {
                 return unless $weak_self && $weak_transport;
                 my $entry = $weak_self->pending_peers_hash->{$weak_transport};
                 return unless $entry;    # Might have been upgraded already
@@ -560,13 +560,13 @@ class Net::BitTorrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
                 bep32       => 1,
                 bep42       => 0,
                 debug       => $debug,
-                boot_nodes  => [ [ 'router.bittorrent.com', 6881 ], [ 'router.utorrent.com', 6881 ], [ 'dht.transmissionbt.com', 6881 ], ]
+                boot_nodes  => [ [ 'router.bittorrent.com', 6881 ], [ 'router.utorrent.com', 6881 ], [ 'dht.transmissionbt.com', 6881 ] ]
             );
             my $weak_self = $self;
             builtin::weaken($weak_self);
             $dht->on(
                 'external_ip_detected',
-                sub ($ip) {
+                sub ( $emitter, $ip ) {
                     return unless $weak_self;
 
                     #~ warn "    [DHT] External IP detected: $ip. Rotating node_id.\n";

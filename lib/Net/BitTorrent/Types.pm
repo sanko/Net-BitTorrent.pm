@@ -37,5 +37,5 @@ package Net::BitTorrent::Types v2.0.0 {
         PICK_RAREST_FIRST    => 1,
         PICK_STREAMING       => 2,
     };
-}
+};
 1;

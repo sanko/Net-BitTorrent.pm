@@ -5,10 +5,12 @@ no warnings;
 use Net::BitTorrent::Protocol::BEP09;
 
 class MockBEP09 : isa(Net::BitTorrent::Protocol::BEP09) {
-    field $req_piece : reader;
-    field $got_data  : reader;
-    method on_metadata_request ($p)           { $req_piece = $p }
-    method on_metadata_data    ( $p, $s, $d ) { $got_data  = { piece => $p, size => $s, data => $d } }
+    field $req_piece : reader : writer(set_req_piece);
+    field $got_data  : reader : writer(set_got_data);
+    ADJUST {
+        $self->on( metadata_request => sub ( $self, $p ) { $self->set_req_piece($p) } );
+        $self->on( metadata_data => sub ( $self, $p, $s, $d ) { $self->set_got_data( { piece => $p, size => $s, data => $d } ) } );
+    }
 }
 subtest 'Metadata Messages' => sub {
     my $pwp = MockBEP09->new( infohash => 'A' x 20, peer_id => 'B' x 20, local_extensions => { ut_metadata => 3 } );

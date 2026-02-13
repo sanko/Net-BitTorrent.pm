@@ -246,7 +246,7 @@
          "version" : "v2.0.0"
       }
    },
-   "release_status" : "testing",
+   "release_status" : "stable",
    "resources" : {
       "bugtracker" : {
          "web" : "https://github.com/sanko/Net-BitTorrent.pm/issues"

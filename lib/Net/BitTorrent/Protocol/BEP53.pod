@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Protocol::BEP53 - Magnet URI extension
+Net::BitTorrent::Protocol::BEP53 - Magnet URI Parser and Generator
 
 =head1 SYNOPSIS
 
@@ -43,28 +43,64 @@ This module correctly identifies and extracts:
 
 =head1 METHODS
 
-=head2 C<parse( $class, $uri )>
+=head2 C<parse( $uri )>
 
-Class method. Deconstructs a magnet string into an object. Supports both C<&> and C<;> separators.
+Parses a Magnet URI string.
+
+    my $m = Net::BitTorrent::Protocol::BEP53->parse( $uri );
+
+This method parses the query parameters of a magnet link and returns a new C<Net::BitTorrent::Protocol::BEP53> object.
+It handles multihash identifiers (BEP 53).
+
+Expected parameters:
+
+=over
+
+=item C<$uri>
+
+The Magnet URI string.
+
+=back
 
 =head2 C<to_string( )>
 
-Generates a URI-encoded magnet string based on the object's current state.
+Generates a Magnet URI string.
 
-=head2 C<infohash_v1( )> / C<infohash_v2( )>
+    my $uri = $m->to_string();
 
-Returns the binary infohash strings. C<infohash_v2> is returned B<without> the 4-byte multihash prefix (C<0x12 0x20>).
+This method returns the URI-encoded magnet representation of the object's current state.
+
+=head2 C<infohash_v1( )>
+
+Returns the 20-byte binary v1 infohash.
+
+    my $ih = $m->infohash_v1();
+
+=head2 C<infohash_v2( )>
+
+Returns the 32-byte binary v2 infohash.
+
+    my $ih = $m->infohash_v2();
 
 =head2 C<trackers( )>
 
-Returns an arrayref of C<tr> (tracker) URLs found in the URI.
+Returns the list of tracker URLs.
+
+    my $tr = $m->trackers();
+
+=head2 C<name( )>
+
+Returns the display name (dn).
+
+    my $name = $m->name();
 
 =head2 C<nodes( )>
 
-Returns an arrayref of C<x.pe> (peer exchange) nodes. These allow a client to connect directly to initial peers without
-waiting for DHT or tracker responses.
+Returns the list of DHT bootstrap nodes (x.pe).
 
-=head1 Specifications
+    my $nodes = $m->nodes();
+
+=head1 SPECIFICATIONS
 
 =over
 

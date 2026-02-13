@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::DHT::Security - BEP 42 security extensions for BitTorrent DHT
+Net::BitTorrent::DHT::Security - BEP 42 Security Extensions
 
 =head1 SYNOPSIS
 
@@ -18,8 +18,8 @@ Net::BitTorrent::DHT::Security - BEP 42 security extensions for BitTorrent DHT
 
 =head1 DESCRIPTION
 
-This class implements the security extensions defined in BEP 42. It provides methods for generating and validating Node
-IDs based on the node's IP address to prevent Sybil attacks and routing table poisoning.
+This module implements the security extensions defined in BEP 42. It provides methods for generating and validating
+Node IDs based on the node's IP address to prevent Sybil attacks and routing table poisoning.
 
 =head2 CRC32c Implementation
 
@@ -28,15 +28,51 @@ by BEP 42 for Node ID calculation.
 
 =head1 METHODS
 
-=head2 generate_node_id( $ip, $seed? )
+=head2 C<generate_node_id( $ip, [$seed] )>
 
-Generates a 20-byte Node ID compliant with BEP 42 for the given IP address. An optional 1-byte seed (0-255) can be
-provided.
+Generates a secure, BEP 42 compliant Node ID.
 
-=head2 validate_node_id( $id, $ip )
+    my $id = $sec->generate_node_id( '1.2.3.4' );
 
-Returns true if the provided Node ID is valid for the given IP address according to the BEP 42 criteria (matching the
-first 21 bits of the ID).
+This method computes a node ID based on the provided IP address using the CRC32C algorithm as specified in BEP 42. This
+hardens the ID against Sybil attacks by binding it to the IP address.
+
+Expected parameters:
+
+=over
+
+=item C<$ip>
+
+String. The external IP address string (e.g., '1.2.3.4').
+
+=item C<$seed> - optional
+
+A 1-byte integer seed (0-255). If omitted, a random one is used.
+
+=back
+
+=head2 C<validate_node_id( $id_bin, $ip )>
+
+Validates a node ID against an IP address.
+
+    my $ok = $sec->validate_node_id( $id, $ip );
+
+This method checks if the provided Node ID is valid for the given IP address according to BEP 42 criteria (matching the
+first 21 bits of the CRC32c hash).
+
+Expected parameters:
+
+=over
+
+=item C<$id_bin>
+
+String. The 20-byte binary node ID.
+
+=item C<$ip>
+
+String. The IP address string associated with the node.
+
+=back
 
 =head1 SEE ALSO
 

@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Torrent::Generator - Create modern v1, v2, and Hybrid Torrents
+Net::BitTorrent::Torrent::Generator - .torrent File Generator
 
 =head1 SYNOPSIS
 
@@ -32,39 +32,144 @@ Net::BitTorrent::Torrent::Generator - Create modern v1, v2, and Hybrid Torrents
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Torrent::Generator> allows you to programmatically create BitTorrent metadata files. It supports the
-latest BEP 52 standards for BitTorrent v2 and hybrid swarms.
+C<Net::BitTorrent::Torrent::Generator> allows you to programmatically create BitTorrent metadata files (.torrent). It
+supports the latest BEP 52 standards for BitTorrent v2 and hybrid swarms.
 
 =head1 METHODS
 
+=head2 C<new( %params )>
+
+Creates a new Generator object.
+
+    my $gen = Net::BitTorrent::Torrent::Generator->new(
+        base_path => './data'
+    );
+
+Expected parameters:
+
+=over
+
+=item C<base_path>
+
+The root directory containing the files to be included in the torrent.
+
+=item C<piece_length> - optional
+
+The size of each piece in bytes. Defaults to 262144 (256KiB).
+
+=back
+
 =head2 C<add_file( $rel_path )>
 
-Adds a file from the C<base_path> to the torrent. If C<set_align_files( 1 )> has been called, this will automatically
-insert padding files (BEP 47) to ensure files start on piece boundaries, which is highly recommended for hybrid
-torrents.
+Adds a file from the C<base_path> to the metainfo.
+
+    $gen->add_file( 'data/movie.mp4' );
+
+If C<set_align_files( 1 )> has been called, this will automatically insert padding files (BEP 47) to ensure files start
+on piece boundaries, which is highly recommended for hybrid torrents.
+
+Expected parameters:
+
+=over
+
+=item C<$rel_path>
+
+The relative path to the file from the base path.
+
+=back
+
+=head2 C<add_tracker( $url )>
+
+Adds a tracker URL.
+
+    $gen->add_tracker( 'udp://tracker.openbittorrent.com:80/announce' );
+
+Expected parameters:
+
+=over
+
+=item C<$url>
+
+The tracker announce URL.
+
+=back
+
+=head2 C<add_node( $host, $port )>
+
+Adds a DHT bootstrap node.
+
+    $gen->add_node( 'router.bittorrent.com', 6881 );
+
+Expected parameters:
+
+=over
+
+=item C<$host>
+
+The hostname or IP.
+
+=item C<$port>
+
+The port number.
+
+=back
+
+=head2 C<set_private( $val )>
+
+Sets the C<private> flag.
+
+    $gen->set_private( 1 );
+
+If true, a client will only use trackers and will B<not> enable DHT or PEX for this swarm.
+
+Expected parameters:
+
+=over
+
+=item C<$val>
+
+Boolean.
+
+=back
+
+=head2 C<set_align_files( $val )>
+
+Sets whether to align files to piece boundaries (v2/hybrid).
+
+    $gen->set_align_files( 1 );
+
+If true, ensures every file starts at the beginning of a piece by adding zero-filled padding files. This optimizes
+performance and allows for better cross-swarm deduplication.
+
+Expected parameters:
+
+=over
+
+=item C<$val>
+
+Boolean.
+
+=back
 
 =head2 C<generate_v1( )>
 
-Generates a legacy BitTorrent v1 torrent using SHA-1 piece hashes. Compatible with all clients.
+Generates a BitTorrent v1 .torrent file using SHA-1 piece hashes. Compatible with all clients.
+
+    my $raw = $gen->generate_v1();
 
 =head2 C<generate_v2( )>
 
-Generates a modern BitTorrent v2 torrent. Uses SHA-256 and Merkle trees. Only compatible with v2-aware clients
+Generates a BitTorrent v2 .torrent file. Uses SHA-256 and Merkle trees. Only compatible with v2-aware clients
 (Net::BitTorrent, libtorrent, etc.).
+
+    my $raw = $gen->generate_v2();
 
 =head2 C<generate_hybrid( )>
 
 Generates a torrent containing B<both> v1 and v2 metadata. This allows v1-only clients to participate in the same swarm
 as v2 clients. Recommended for maximum compatibility.
 
-=head2 C<set_private( $boolean )>
-
-Sets the C<private> flag. If true, a client will only use trackers and will B<not> enable DHT or PEX for this swarm.
-
-=head2 C<set_align_files( $boolean )>
-
-If true, ensures every file starts at the beginning of a piece by adding zero-filled padding  files. This optimizes
-performance and allows for better cross-swarm deduplication.
+    my $raw = $gen->generate_hybrid();
 
 =head1 AUTHOR
 

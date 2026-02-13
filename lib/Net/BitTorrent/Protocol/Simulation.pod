@@ -1,34 +1,49 @@
+=pod
+
+=encoding utf-8
+
 =head1 NAME
 
-Net::BitTorrent::Protocol::Simulation - BitTorrent protocol handler for swarm simulations
+Net::BitTorrent::Protocol::Simulation - Protocol handler for tests and swarm simulations
 
 =head1 SYNOPSIS
 
     use Net::BitTorrent::Protocol::Simulation;
 
     my $proto = Net::BitTorrent::Protocol::Simulation->new(
-        peer_id => $my_id,
+        peer_id  => $my_id,
         infohash => $ih
     );
     $proto->peer($peer_object);
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Protocol::Simulation> is a subclass of L<Net::BitTorrent::Protocol::BEP11> (which includes PEX and
-Peer Exchange) designed for use in tests and simulations.
+C<Net::BitTorrent::Protocol::Simulation> is a subclass of L<Net::BitTorrent::Protocol::BEP11> designed for use in tests
+and simulations.
 
 It allows a L<Net::BitTorrent::Peer> object to be associated directly with the protocol handler, bypassing the usual
 event-driven network transport for easier manipulation of peer state during simulated swarm behavior.
 
-=head1 ATTRIBUTES
-
-=head2 peer
-
-A L<Net::BitTorrent::Peer> object (or compatible mock) that should receive notifications of incoming messages.
-
 =head1 METHODS
 
-=head2 _handle_message ( $id, $payload )
+=head2 C<peer( )>
+
+Returns or sets the associated Peer object.
+
+    my $p = $proto->peer();
+    $proto->peer( $p );
+
+Expected parameters:
+
+=over
+
+=item C<$peer> - optional
+
+The Peer object to associate with this handler.
+
+=back
+
+=head2 C<_handle_message( $id, $payload )>
 
 Internal method that overrides the default message handling to forward messages to the associated C<peer> object before
 passing them up the inheritance chain.

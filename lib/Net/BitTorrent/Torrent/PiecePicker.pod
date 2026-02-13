@@ -4,15 +4,16 @@
 
 =head1 NAME
 
-Net::BitTorrent::Torrent::PiecePicker - Algorithmic Piece Selection
+Net::BitTorrent::Torrent::PiecePicker - Intelligent Piece Selection
 
 =head1 SYNOPSIS
 
-    use Net::BitTorrent::Torrent::PiecePicker qw[:all]; # Import strategies
+    use Net::BitTorrent::Torrent::PiecePicker;
+    use Net::BitTorrent::Types qw[:pick];
 
     my $picker = Net::BitTorrent::Torrent::PiecePicker->new(
         bitfield => $my_bitfield,
-        strategy => RAREST_FIRST
+        strategy => PICK_RAREST_FIRST
     );
 
     # Update global swarm availability
@@ -20,28 +21,27 @@ Net::BitTorrent::Torrent::PiecePicker - Algorithmic Piece Selection
     $picker->update_availability($peer_bitfield, -1); # peer left
 
     # Pick the next piece to request from a peer
-    my $idx = $picker->pick_piece($peer_bitfield, \%blocks_pending);
+    my ($idx, $off, $len) = $picker->pick_block($peer, \%blocks_pending);
 
 =head1 DESCRIPTION
 
-C<Net::BitTorrent::Torrent::PiecePicker> implements the selection logic used to decide which  torrent piece to request
-next. A good picker is essential for swarm health and performance.
+C<Net::BitTorrent::Torrent::PiecePicker> implements the selection logic used to decide which torrent piece or block to
+request next. A good picker is essential for swarm health and performance.
 
 =head1 SELECTION STRATEGIES
 
 =over
 
-=item * B<RAREST_FIRST> (Default)
-
+=item * B<PICK_RAREST_FIRST> (Default)
 
 Prioritizes pieces that have the lowest availability in the local swarm. This ensures that rare pieces are replicated
 quickly, preventing "stalled" torrents where the last few pieces are missing.
 
-=item * B<SEQUENTIAL>
+=item * B<PICK_SEQUENTIAL>
 
 Picks pieces in simple numerical order. Useful for linear media playback where early data is needed first.
 
-=item * B<STREAMING>
+=item * B<PICK_STREAMING>
 
 A hybrid approach that prioritizes early pieces while still respecting per-piece priorities.
 
@@ -49,51 +49,193 @@ A hybrid approach that prioritizes early pieces while still respecting per-piece
 
 =head1 METHODS
 
-=head2 C<pick_piece( $peer_bitfield, \%blocks_pending )>
+=head2 C<new( %params )>
 
-Finds the "best" piece to request from a specific peer based on the current strategy.
+Creates a new PiecePicker object.
+
+    my $picker = Net::BitTorrent::Torrent::PiecePicker->new(
+        bitfield => $bitfield
+    );
+
+Expected parameters:
 
 =over
 
-=item * Filters out pieces we already have or have already skipped (priority 0).
+=item C<bitfield>
 
-=item * Accounts for End Game mode.
+The L<Acme::Bitfield> object representing the local client's pieces.
 
-=item * Uses randomization to break ties and prevent "thundering herd" issues.
+=item C<piece_priorities> - optional
+
+An array reference of priority levels for each piece.
+
+=item C<strategy> - optional
+
+The selection strategy constant. Defaults to C<PICK_RAREST_FIRST>.
 
 =back
 
-=head2 C<pick_block( $peer, \%blocks_pending )>
+=head2 C<update_availability( $peer_bitfield, $delta )>
 
-Selects the next available block (16KiB) to request from a specific peer.
+Updates internal availability counts when a peer's bitfield changes.
 
-Unlike C<pick_piece>, which returns a whole piece index, C<pick_block> iterates through the prioritized candidates and
-returns the first block that is not already pending or received. This naturally allows the client to work on multiple
-pieces simultaneously (multi-piece parallelism) to keep peer pipelines full.
+    $picker->update_availability( $bf, 1 );
 
-=head2 C<update_availability( $bitfield, $delta )>
-
-Increments or decrements the availability count for every piece in the provided bitfield. This is called whenever a
-peer's C<BITFIELD>, C<HAVE>, or C<HAVE_ALL> message is processed.
-
-=head2 C<set_priority( $index, $priority )>
-
-Weights a specific piece.
+Expected parameters:
 
 =over
 
-=item C<0>: Skip (do not request).
+=item C<$peer_bitfield>
 
-=item C<1>: Normal.
+The bitfield object representing the peer's pieces.
 
-=item C<2+>: High priority.
+=item C<$delta>
+
+The change in availability (usually 1 when a peer connects/has, -1 when a peer disconnects).
+
+=back
+
+=head2 C<set_priority( $index, $priority )>
+
+Sets the priority for a specific piece.
+
+    $picker->set_priority( 0, 2 );
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The piece index.
+
+=item C<$priority>
+
+The priority level (0 = skip, 1 = normal, higher = higher).
+
+=back
+
+=head2 C<get_priority( $index )>
+
+Returns the priority of a piece.
+
+    my $p = $picker->get_priority( 0 );
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The piece index.
+
+=back
+
+=head2 C<get_availability( $index )>
+
+Returns the number of peers that have a specific piece.
+
+    my $count = $picker->get_availability( 0 );
+
+Expected parameters:
+
+=over
+
+=item C<$index>
+
+The piece index.
+
+=back
+
+=head2 C<is_interesting( $peer )>
+
+Checks if a peer has any pieces that we lack and want.
+
+    if ($picker->is_interesting( $peer )) { ... }
+
+Expected parameters:
+
+=over
+
+=item C<$peer>
+
+The Peer object to check.
+
+=back
+
+=head2 C<pick_piece( $peer_bitfield, $blocks_pending )>
+
+Selects a piece to request from a peer based on the current strategy.
+
+    my $idx = $picker->pick_piece( $p_bf, $pending );
+
+Expected parameters:
+
+=over
+
+=item C<$peer_bitfield>
+
+The peer's bitfield.
+
+=item C<$blocks_pending>
+
+Hash reference of currently pending blocks.
+
+=back
+
+=head2 C<pick_block( $peer, $blocks_pending )>
+
+Selects a specific block (16KiB) to request from a specific peer.
+
+    my ($idx, $off, $len) = $picker->pick_block( $peer, $pending );
+
+Iterates through prioritized piece candidates and returns the first block that is not already pending or received.
+
+Expected parameters:
+
+=over
+
+=item C<$peer>
+
+The Peer object.
+
+=item C<$blocks_pending>
+
+Hash reference of currently pending blocks.
 
 =back
 
 =head2 C<enter_end_game( )>
 
-Enables End Game mode. In this mode, the picker becomes more aggressive, allowing requests for the same block to be
-sent to multiple peers simultaneously to finish the torrent faster.
+Enables End Game mode.
+
+    $picker->enter_end_game();
+
+In this mode, the picker becomes more aggressive, allowing requests for the same block to be sent to multiple peers
+simultaneously to finish the torrent faster.
+
+=head2 C<strategy( )>
+
+Returns or sets the picking strategy.
+
+    my $s = $picker->strategy();
+    $picker->strategy( PICK_SEQUENTIAL );
+
+Expected parameters:
+
+=over
+
+=item C<$strategy> - optional
+
+The new strategy constant.
+
+=back
+
+=head2 C<end_game( )>
+
+Returns true if in end game mode.
+
+    if ($picker->end_game) { ... }
 
 =head1 AUTHOR
 

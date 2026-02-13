@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Net::BitTorrent::Protocol::BEP11 - Peer Exchange (PEX)
+Net::BitTorrent::Protocol::BEP11 - Peer Exchange (PEX) Implementation
 
 =head1 SYNOPSIS
 
@@ -27,30 +27,68 @@ It runs as a sub-protocol of the Extension Protocol (BEP 10) under the name C<ut
 
 =head1 METHODS
 
-=head2 C<send_pex( $added, $dropped, $added6, $dropped6 )>
+=head2 C<send_pex( [$added], [$dropped], [$added6], [$dropped6] )>
 
-Sends a PEX update message.
+Sends a Peer Exchange update.
 
-Params:
+    $proto->send_pex(
+        [{ ip => '1.2.3.4', port => 6881 }],
+        [{ ip => '5.6.7.8', port => 6881 }]
+    );
+
+This method sends a C<ut_pex> message containing lists of newly discovered and recently disconnected peers.
+
+Expected parameters:
 
 =over
 
-=item * C<$added> / C<$dropped>: Arrayrefs of IPv4 peer hashrefs (C<{ip, port}>).
+=item C<$added> - optional
 
-=item * C<$added6> / C<$dropped6>: Arrayrefs of IPv6 peer hashrefs.
+Array reference of newly discovered IPv4 peers. Each must be a hash reference with C<ip> and C<port>.
+
+=item C<$dropped> - optional
+
+Array reference of IPv4 peers that have disconnected.
+
+=item C<$added6> - optional
+
+Array reference of newly discovered IPv6 peers.
+
+=item C<$dropped6> - optional
+
+Array reference of IPv6 peers that have disconnected.
 
 =back
 
-Peer addresses are automatically compacted into the 6-byte (v4) or 18-byte (v6) binary formats defined in BEP 23.
+=head2 C<pex> event
 
-=head1 Callbacks
+Emitted when a PEX message is received.
 
-=head2 C<on_pex( $added, $dropped, $added6, $dropped6 )>
+    $proto->on( pex => sub ( $self, $added, $dropped, $added6, $dropped6 ) { ... } );
 
-Triggered when a PEX message is received from a remote peer. The arguments are arrayrefs of hashrefs containing C<ip>
-and C<port>.
+Expected parameters:
 
-=head1 Specifications
+=over
+
+=item C<$added>
+
+Array reference of added IPv4 peers.
+
+=item C<$dropped>
+
+Array reference of dropped IPv4 peers.
+
+=item C<$added6>
+
+Array reference of added IPv6 peers.
+
+=item C<$dropped6>
+
+Array reference of dropped IPv6 peers.
+
+=back
+
+=head1 SPECIFICATIONS
 
 =over
 

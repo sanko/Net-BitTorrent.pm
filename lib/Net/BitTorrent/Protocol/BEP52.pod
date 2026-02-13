@@ -19,8 +19,8 @@ Net::BitTorrent::Protocol::BEP52 - BitTorrent v2 Protocol Extensions
 =head1 DESCRIPTION
 
 C<Net::BitTorrent::Protocol::BEP52> extends the standard peer wire protocol with support for B<BitTorrent v2 (BEP 52)>.
-It specifically handles the synchronization of Merkle tree hashes  between peers, which is required for block-level
-data verification.
+It specifically handles the synchronization of Merkle tree hashes between peers, which is required for block-level data
+verification.
 
 Unlike v1, where piece hashes are contained in the C<.torrent> file, v2 uses a dynamic hash fetching mechanism. When a
 peer receives a block, it may need to request the corresponding Merkle proof nodes from the swarm to verify the block
@@ -32,38 +32,209 @@ It is typically used via L<Net::BitTorrent::Protocol::PeerHandler>.
 
 =head2 C<send_hash_request( $pieces_root, $proof_layer, $base_layer, $index, $length )>
 
-Sends a C<HASH_REQUEST> (ID 21) message.
+Sends a request for a range of hashes.
 
-Parameters:
+    $p->send_hash_request( $root, 0, 0, 0, 10 );
+
+This method sends a C<HASH_REQUEST> (ID 21) message to retrieve hashes required for v2 piece verification.
+
+Expected parameters:
 
 =over
 
-=item * C<$pieces_root>: The 32-byte binary SHA-256 Merkle root of the file.
+=item C<$pieces_root>
 
-=item * C<$proof_layer>: The height of the layer containing the proof nodes.
+The 32-byte binary SHA-256 Merkle root of the file.
 
-=item * C<$base_layer>: The height of the layer being requested.
+=item C<$proof_layer>
 
-=item * C<$index>: The start index within the base layer.
+The layer index for proof nodes.
 
-=item * C<$length>: The number of hashes requested.
+=item C<$base_layer>
+
+The layer index for the requested hashes.
+
+=item C<$index>
+
+The starting node index in the base layer.
+
+=item C<$length>
+
+The number of hashes requested.
 
 =back
 
 =head2 C<send_hashes( $pieces_root, $proof_layer, $base_layer, $index, $length, $hashes )>
 
-Sends a C<HASHES> (ID 22) message containing the requested binary hash string.
+Sends a response with hashes.
+
+    $p->send_hashes( $root, 0, 0, 0, 1, $hash_data );
+
+This method sends a C<HASHES> (ID 22) message containing the requested binary hashes.
+
+Expected parameters:
+
+=over
+
+=item C<$pieces_root>
+
+The 32-byte Merkle root.
+
+=item C<$proof_layer>
+
+The proof layer index.
+
+=item C<$base_layer>
+
+The base layer index.
+
+=item C<$index>
+
+The starting index.
+
+=item C<$length>
+
+The number of hashes included.
+
+=item C<$hashes>
+
+The concatenated binary hashes.
+
+=back
 
 =head2 C<send_hash_reject( $pieces_root, $proof_layer, $base_layer, $index, $length )>
 
-Sends a C<HASH_REJECT> (ID 23) message to indicate the hashes cannot be provided.
+Rejects a hash request.
 
-=head1 Callbacks
+    $p->send_hash_reject( $root, 0, 0, 0, 10 );
 
-=head2 C<on_hash_request(...)> / C<on_hashes(...)> / C<on_hash_reject(...)>
+This method sends a C<HASH_REJECT> (ID 23) message.
 
-These methods are designed to be overridden or implemented by the C<PeerHandler>. They are  triggered when the
-corresponding wire-format messages are received.
+Expected parameters:
+
+=over
+
+=item C<$pieces_root>
+
+The 32-byte Merkle root.
+
+=item C<$proof_layer>
+
+The proof layer index.
+
+=item C<$base_layer>
+
+The base layer index.
+
+=item C<$index>
+
+The starting index.
+
+=item C<$length>
+
+The number of hashes rejected.
+
+=back
+
+=head2 C<hash_request> event
+
+Emitted when a hash request is received.
+
+    $p->on( hash_request => sub ( $self, $root, $proof, $base, $idx, $len ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$root>
+
+The 32-byte Merkle root.
+
+=item C<$proof>
+
+The proof layer.
+
+=item C<$base>
+
+The base layer.
+
+=item C<$idx>
+
+The starting index.
+
+=item C<$len>
+
+The length requested.
+
+=back
+
+=head2 C<hashes> event
+
+Emitted when hashes are received.
+
+    $p->on( hashes => sub ( $self, $root, $proof, $base, $idx, $len, $hashes ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$root>
+
+The 32-byte Merkle root.
+
+=item C<$proof>
+
+The proof layer.
+
+=item C<$base>
+
+The base layer.
+
+=item C<$idx>
+
+The starting index.
+
+=item C<$len>
+
+The number of hashes.
+
+=item C<$hashes>
+
+The binary hash data.
+
+=back
+
+=head2 C<hash_reject> event
+
+Emitted when a hash request is rejected.
+
+    $p->on( hash_reject => sub ( $self, $root, $proof, $base, $idx, $len ) { ... } );
+
+Expected parameters:
+
+=over
+
+=item C<$root>
+
+The 32-byte Merkle root.
+
+=item C<$proof>
+
+The proof layer.
+
+=item C<$base>
+
+The base layer.
+
+=item C<$idx>
+
+The starting index.
+
+=item C<$len>
+
+The rejected length.
+
+=back
 
 =head1 AUTHOR
 
