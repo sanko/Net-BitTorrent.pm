@@ -111,7 +111,7 @@
    "provides" : {
       "Net::BitTorrent" : {
          "file" : "lib/Net/BitTorrent.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.0.1"
       },
       "Net::BitTorrent::DHT" : {
          "file" : "lib/Net/BitTorrent/DHT.pm",
@@ -191,7 +191,7 @@
       },
       "Net::BitTorrent::Protocol::PeerHandler" : {
          "file" : "lib/Net/BitTorrent/Protocol/PeerHandler.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.0.1"
       },
       "Net::BitTorrent::Protocol::Simulation" : {
          "file" : "lib/Net/BitTorrent/Protocol/Simulation.pm",
@@ -199,7 +199,7 @@
       },
       "Net::BitTorrent::Storage" : {
          "file" : "lib/Net/BitTorrent/Storage.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.0.1"
       },
       "Net::BitTorrent::Storage::File" : {
          "file" : "lib/Net/BitTorrent/Storage/File.pm",
@@ -261,7 +261,7 @@
          "web" : "https://github.com/sanko/Net-BitTorrent.pm"
       }
    },
-   "version" : "v2.0.0",
+   "version" : "v2.0.1",
    "x_help_wanted" : [
       "Tester",
       "Documenter"

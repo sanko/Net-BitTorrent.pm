@@ -63,10 +63,11 @@ while (1) {
     my $delta = $now - $last_tick;
     $client->tick($delta) if $delta > 0;
     $last_tick = $now;
-    if ( time() - $start_time > 300 ) {
-        say "\nTimeout reached (300s). Exiting...";
-        last;
-    }
+
+    #~ if ( time() - $start_time > 300 ) {
+    #~ say "\nTimeout reached (300s). Exiting...";
+    #~ last;
+    #~ }
     sleep(0.1);
 
     # Stop if we finished (though a real client would keep seeding)

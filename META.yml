@@ -41,7 +41,7 @@ optional_features:
 provides:
   Net::BitTorrent:
     file: lib/Net/BitTorrent.pm
-    version: v2.0.0
+    version: v2.0.1
   Net::BitTorrent::DHT:
     file: lib/Net/BitTorrent/DHT.pm
     version: v2.0.6
@@ -101,13 +101,13 @@ provides:
     version: v2.0.0
   Net::BitTorrent::Protocol::PeerHandler:
     file: lib/Net/BitTorrent/Protocol/PeerHandler.pm
-    version: v2.0.0
+    version: v2.0.1
   Net::BitTorrent::Protocol::Simulation:
     file: lib/Net/BitTorrent/Protocol/Simulation.pm
     version: v2.0.0
   Net::BitTorrent::Storage:
     file: lib/Net/BitTorrent/Storage.pm
-    version: v2.0.0
+    version: v2.0.1
   Net::BitTorrent::Storage::File:
     file: lib/Net/BitTorrent/Storage/File.pm
     version: v2.0.0
@@ -170,7 +170,7 @@ resources:
   homepage: https://github.com/sanko/Net-BitTorrent.pm
   license: http://www.perlfoundation.org/artistic_license_2_0
   repository: git://github.com/sanko/Net-BitTorrent.pm.git
-version: v2.0.0
+version: v2.0.1
 x_help_wanted:
   - Tester
   - Documenter

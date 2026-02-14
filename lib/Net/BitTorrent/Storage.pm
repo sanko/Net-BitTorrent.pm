@@ -206,7 +206,7 @@ class Net::BitTorrent::Storage v2.0.1 : isa(Net::BitTorrent::Emitter) {
         }
         if ( exists $cache{$id} && exists $cache{$id}{$offset} ) {
             $current_cache_size -= length( delete $cache{$id}{$offset} );
-            delete $cache{$id} unless keys %{ $cache{$id} }; # Clean up empty file entry
+            delete $cache{$id} unless keys %{ $cache{$id} };    # Clean up empty file entry
         }
         return 1;
     }
@@ -227,9 +227,9 @@ class Net::BitTorrent::Storage v2.0.1 : isa(Net::BitTorrent::Emitter) {
         if ( exists $cache{$id}{$offset} && delete $cache_dirty{$id}{$offset} ) {
             my $data = $cache{$id}{$offset};
             $file->write( $offset, $data );
-            $current_cache_size -= length( delete $cache{$id}{$offset} ); # Remove from cache after flush
-            delete $cache{$id} unless keys %{ $cache{$id} }; # Clean up empty file entry
-            delete $cache_dirty{$id} unless keys %{ $cache_dirty{$id} }; # Clean up empty dirty entry
+            $current_cache_size -= length( delete $cache{$id}{$offset} );    # Remove from cache after flush
+            delete $cache{$id}       unless keys %{ $cache{$id} };           # Clean up empty file entry
+            delete $cache_dirty{$id} unless keys %{ $cache_dirty{$id} };     # Clean up empty dirty entry
             return 1;
         }
         return 0;

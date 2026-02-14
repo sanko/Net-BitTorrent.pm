@@ -5,11 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v2.0.1] - 2026-02-14
 
 ### Fixed
 - Corrected callbacks for 'data', 'infohash_identified', and other events.
-- Fixed LRU cache bug in `Net::BitTorrent::Storage` where `_evict_one` incorrectly deleted entire file caches and `_flush_one` failed to remove data from cache after writing to disk, leading to memory ballooning.
+- Fixed LRU cache bug in `Net::BitTorrent::Storage` where `_evict_one` incorrectly deleted entire file caches and `_flush_one` failed to remove data from cache after writing to disk.
 
 ## [v2.0.0] - 2026-02-13
 
@@ -317,7 +317,8 @@ This is a documentation update.  100% coverage.
 - It actually exists
 - See above
 
-[Unreleased]: https://github.com/sanko/Net-BitTorrent.pm/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/sanko/Net-BitTorrent.pm/compare/v2.0.1...HEAD
+[v2.0.1]: https://github.com/sanko/Net-BitTorrent.pm/compare/v2.0.0...v2.0.1
 [v2.0.0]: https://github.com/sanko/Net-BitTorrent.pm/compare/0.052...v2.0.0
 [0.052]: https://github.com/sanko/Net-BitTorrent.pm/compare/0.051...0.052
 [0.051]: https://github.com/sanko/Net-BitTorrent.pm/compare/0.050...0.051
