@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Corrected callbacks for 'data', 'infohash_identified', and other events.
+- Fixed LRU cache bug in `Net::BitTorrent::Storage` where `_evict_one` incorrectly deleted entire file caches and `_flush_one` failed to remove data from cache after writing to disk, leading to memory ballooning.
 
 ## [v2.0.0] - 2026-02-13
 
