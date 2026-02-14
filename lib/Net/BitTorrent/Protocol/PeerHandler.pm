@@ -1,7 +1,7 @@
 use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
-class Net::BitTorrent::Protocol::PeerHandler v2.0.0 : isa(Net::BitTorrent::Protocol::BEP06) {
+class Net::BitTorrent::Protocol::PeerHandler v2.0.1 : isa(Net::BitTorrent::Protocol::BEP06) {
     field $peer : reader;
     field $features : param = {};
 
@@ -102,6 +102,6 @@ class Net::BitTorrent::Protocol::PeerHandler v2.0.0 : isa(Net::BitTorrent::Proto
         if ($peer) {
             $peer->handle_message( $id, $payload );
         }
-        $self->next::method( $id, $payload );
+        $self->SUPER::_handle_message( $id, $payload );
     }
 } 1;
