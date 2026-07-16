@@ -505,7 +505,7 @@ This method returns an array reference of L<Net::BitTorrent::Tracker::Base> obje
 
 =head1 AUTHOR
 
-Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+Sanko Robinson - L<https://github.com/sanko>
 
 =head1 COPYRIGHT
 

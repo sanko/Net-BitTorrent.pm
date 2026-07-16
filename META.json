@@ -2,7 +2,7 @@
    "X_No_Archive" : "Yes",
    "abstract" : "Pure Perl BitTorrent Client",
    "author" : [
-      "Sanko Robinson <sanko@cpan.org>"
+      "Sanko Robinson"
    ],
    "description" : "You know what it is.",
    "dynamic_config" : 0,

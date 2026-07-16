@@ -470,7 +470,7 @@ Expected parameters:
 
 # AUTHOR
 
-Sanko Robinson <sanko@cpan.org>
+Sanko Robinson - [https://github.com/sanko](https://github.com/sanko)
 
 # COPYRIGHT
 

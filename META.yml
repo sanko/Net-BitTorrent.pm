@@ -2,7 +2,7 @@
 X_No_Archive: Yes
 abstract: 'Pure Perl BitTorrent Client'
 author:
-  - 'Sanko Robinson <sanko@cpan.org>'
+  - 'Sanko Robinson'
 build_requires:
   Module::Build::Tiny: '0'
   Test2::V1: '0'
