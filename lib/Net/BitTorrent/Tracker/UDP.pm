@@ -4,6 +4,7 @@ no warnings 'experimental::class', 'experimental::try';
 class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base) {
     use Net::BitTorrent::Protocol::BEP23;
     use IO::Socket::IP;
+    use Crypt::URandom qw[urandom];
     use Config;
     use constant HAS_64BIT => $Config{ivsize} >= 8;
     field $connection_id      = HAS_64BIT ? 0 : pack( 'NN', 0, 0 );
@@ -34,7 +35,7 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
     }
 
     method _new_transaction_id () {
-        return $transaction_id = int( rand( 2**31 ) );
+        return $transaction_id = unpack( 'N', urandom(4) ) & 0x7FFFFFFF;
     }
 
     method _is_connected () {
@@ -175,7 +176,7 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
         my $ih_len    = length($ih);
 
         # Mandatory key for tracker identification
-        my $key = $params->{key} // int( rand( 2**31 ) );
+        my $key = $params->{key} // ( unpack( 'N', urandom(4) ) & 0x7FFFFFFF );
 
         # BEP 52: Support 32-byte infohashes
         # For UDP trackers, we use the v1 infohash if available,

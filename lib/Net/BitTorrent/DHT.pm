@@ -10,7 +10,7 @@ class Net::BitTorrent::DHT::Peer v2.0.6 {
     method to_string () {"$ip:$port"}
 };
 #
-class Net::BitTorrent::DHT v2.0.6 : isa(Net::BitTorrent::Emitter) {
+class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use Algorithm::Kademlia;
     use Net::BitTorrent::DHT::Security;
     use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode bdecode];
@@ -18,9 +18,10 @@ class Net::BitTorrent::DHT v2.0.6 : isa(Net::BitTorrent::Emitter) {
     use Socket
         qw[sockaddr_family pack_sockaddr_in unpack_sockaddr_in inet_aton inet_ntoa AF_INET AF_INET6 pack_sockaddr_in6 unpack_sockaddr_in6 inet_pton inet_ntop getaddrinfo SOCK_DGRAM];
     use IO::Select;
-    use Digest::SHA qw[sha1];
+    use Digest::SHA    qw[sha1];
+    use Crypt::URandom qw[urandom];
     #
-    field $node_id_bin : param : reader //= pack 'C*', map { int( rand(256) ) } 1 .. 20;
+    field $node_id_bin : param : reader //= urandom(20);
     field $port             : param : reader = 6881;
     field $address          : param //= undef;
     field $want_v4          : param : reader //= 1;
@@ -38,10 +39,10 @@ class Net::BitTorrent::DHT v2.0.6 : isa(Net::BitTorrent::Emitter) {
     field $data_storage     : reader = Algorithm::Kademlia::Storage->new( ttl => 7200 );
     field $socket           : param : reader //= IO::Socket::IP->new( LocalAddr => $address, LocalPort => $port, Proto => 'udp', Blocking => 0 );
     field $select //= IO::Select->new($socket);
-    field $token_secret                      = pack( 'N', rand( 2**32 ) ) . pack( 'N', rand( 2**32 ) );
+    field $token_secret                      = urandom(8);
     field $token_old_secret                  = $token_secret;
     field $last_rotation                     = time;
-    field $node_id_rotation_interval : param = 7200;                                                      # 2 hours
+    field $node_id_rotation_interval : param = 7200;            # 2 hours
     field $last_node_id_rotation             = time;
     field $boot_nodes : param : reader : writer //= [ [ 'router.bittorrent.com', 6881 ], [ 'router.utorrent.com', 6881 ],
         [ 'dht.transmissionbt.com', 6881 ] ];
@@ -51,7 +52,7 @@ class Net::BitTorrent::DHT v2.0.6 : isa(Net::BitTorrent::Emitter) {
     field $_ed25519_backend = ();
     field $running          = 0;
     field %_blacklist;
-    field %ip_votes;                                                                                      # external_ip => count
+    field %ip_votes;                                            # external_ip => count
     field $external_ip : reader = undef;
     field %_pending_queries;
     field $_tid_counter = 0;
@@ -160,7 +161,7 @@ class Net::BitTorrent::DHT v2.0.6 : isa(Net::BitTorrent::Emitter) {
     method _rotate_tokens () {
         if ( time - $last_rotation > 300 ) {
             $token_old_secret = $token_secret;
-            $token_secret     = pack( 'N', rand( 2**32 ) ) . pack( 'N', rand( 2**32 ) );
+            $token_secret     = urandom(8);
             $last_rotation    = time;
         }
     }

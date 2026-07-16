@@ -88,6 +88,7 @@
             "Acme::UPnP" : "0",
             "Algorithm::Kademlia" : "v1.0.1",
             "Algorithm::RateLimiter::TokenBucket" : "0",
+            "Crypt::URandom" : "0.55",
             "Digest::Merkle::SHA256" : "0",
             "Digest::SHA" : "0",
             "HTTP::Tiny" : "0",
@@ -111,11 +112,11 @@
    "provides" : {
       "Net::BitTorrent" : {
          "file" : "lib/Net/BitTorrent.pm",
-         "version" : "v2.0.1"
+         "version" : "v2.1.0"
       },
       "Net::BitTorrent::DHT" : {
          "file" : "lib/Net/BitTorrent/DHT.pm",
-         "version" : "v2.0.6"
+         "version" : "v2.1.0"
       },
       "Net::BitTorrent::DHT::Peer" : {
          "file" : "lib/Net/BitTorrent/DHT.pm",
@@ -123,7 +124,7 @@
       },
       "Net::BitTorrent::DHT::Security" : {
          "file" : "lib/Net/BitTorrent/DHT/Security.pm",
-         "version" : "v2.0.6"
+         "version" : "v2.1.0"
       },
       "Net::BitTorrent::Emitter" : {
          "file" : "lib/Net/BitTorrent/Emitter.pm",
@@ -183,7 +184,7 @@
       },
       "Net::BitTorrent::Protocol::MSE::KeyExchange" : {
          "file" : "lib/Net/BitTorrent/Protocol/MSE/KeyExchange.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.0"
       },
       "Net::BitTorrent::Protocol::MSE::RC4" : {
          "file" : "lib/Net/BitTorrent/Protocol/MSE/KeyExchange.pm",
@@ -246,7 +247,7 @@
          "version" : "v2.0.0"
       }
    },
-   "release_status" : "stable",
+   "release_status" : "testing",
    "resources" : {
       "bugtracker" : {
          "web" : "https://github.com/sanko/Net-BitTorrent.pm/issues"
@@ -261,7 +262,7 @@
          "web" : "https://github.com/sanko/Net-BitTorrent.pm"
       }
    },
-   "version" : "v2.0.1",
+   "version" : "v2.1.0",
    "x_help_wanted" : [
       "Tester",
       "Documenter"

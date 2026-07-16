@@ -3,11 +3,12 @@ use feature 'class', 'try';
 no warnings 'experimental::class', 'experimental::builtin', 'experimental::try';
 use Net::BitTorrent::Emitter;
 #
-class Net::BitTorrent v2.0.1 : isa(Net::BitTorrent::Emitter) {
+class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use Net::BitTorrent::Torrent;
     use Net::BitTorrent::DHT;
     use Net::uTP::Manager;    # Standalone spin-off
-    use Digest::SHA qw[sha1];
+    use Digest::SHA    qw[sha1];
+    use Crypt::URandom qw[urandom];
     use version;
     use Time::HiRes            qw[time];
     use Net::BitTorrent::Types qw[:encryption];
@@ -145,7 +146,7 @@ class Net::BitTorrent v2.0.1 : isa(Net::BitTorrent::Emitter) {
     sub _generate_peer_id () {
         my $v_id  = '200';                                                                  # Hardcoded version for stability in ID generation
         my $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
-        return pack( 'a20', sprintf( '-NB%sS-%sSanko', $v_id, join( '', map { substr( $chars, rand(66), 1 ) } 1 .. 7 ) ) );
+        return pack( 'a20', sprintf( '-NB%sS-%sSanko', $v_id, join( '', map { substr( $chars, unpack( 'N', urandom(4) ) % 66, 1 ) } 1 .. 7 ) ) );
 
         #~ $self->_emit( log => '    [DEBUG] Generated Peer ID: ' . unpack( 'H*', $id ) . " (" . $id . ")\n", level => 'debug' ) if $self->debug;
     }
@@ -419,7 +420,7 @@ class Net::BitTorrent v2.0.1 : isa(Net::BitTorrent::Emitter) {
         return unless $self->dht;
 
         # Random sample to discover new infohashes
-        my $random_target = pack( 'H*', join( '', map { sprintf( '%02x', rand(256) ) } 1 .. 20 ) );
+        my $random_target = urandom(20);
         $self->dht->sample($random_target);
     }
     method dht_index () { return \%dht_index }

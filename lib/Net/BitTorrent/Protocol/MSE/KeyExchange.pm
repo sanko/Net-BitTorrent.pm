@@ -2,20 +2,21 @@ use v5.40;
 use feature 'class';
 no warnings qw[experimental::class experimental::builtin];
 use Net::BitTorrent::Emitter;
-class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.0 : isa(Net::BitTorrent::Emitter) {
+class Net::BitTorrent::Protocol::MSE::KeyExchange v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use Digest::SHA qw[sha1];
+    use Crypt::URandom qw[urandom];
     use Math::BigInt try => 'GMP';
 
-    # -- Parameters --
+    # Parameters
     field $infohash     : param : reader;
     field $is_initiator : param : reader;
 
-    # -- Internal State --
+    # Internal state
     field $private_key;
     field $public_key : reader;
     field $shared_secret;
 
-    # -- Cipher State --
+    # Cipher state
     field $encrypt_rc4 : reader;
     field $decrypt_rc4 : reader;
 
@@ -33,8 +34,7 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.0 : isa(Net::BitTorrent::
         my $g = Math::BigInt->new(2);
 
         # Private Key: Random 160 bits
-        my $priv_hex = join '', map { sprintf "%02x", rand(256) } 1 .. 20;
-        $private_key = Math::BigInt->from_hex($priv_hex);
+        $private_key = Math::BigInt->from_bytes( urandom(20) );
 
         # Public Key: Y = G^X mod P
         my $pub_val = $g->copy->bmodpow( $private_key, $p );
@@ -92,8 +92,8 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.0 : isa(Net::BitTorrent::
 
     method init_rc4 ($ih) {
         $infohash = $ih;
-        my $keyA = sha1( "keyA" . $shared_secret . $infohash );
-        my $keyB = sha1( "keyB" . $shared_secret . $infohash );
+        my $keyA = sha1( 'keyA' . $shared_secret . $infohash );
+        my $keyB = sha1( 'keyB' . $shared_secret . $infohash );
         my ( $key_enc, $key_dec );
         if ($is_initiator) {
             $key_enc = $keyA;
@@ -146,7 +146,7 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.0.0 : isa(Net::BitTorrent::
     }
     }
 
-    # -- Pure Perl RC4 Implementation --
+    # Pure Perl RC4 Implementation
     class Net::BitTorrent::Protocol::MSE::RC4 v2.0.0 : isa(Net::BitTorrent::Emitter) {
     field @S;
     field $x = 0;
