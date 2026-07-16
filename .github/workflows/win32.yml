@@ -8,7 +8,7 @@ jobs:
         with:
           submodules: true
       - name: Setup Perl environment
-        uses: shogo82148/actions-setup-perl@v1.37.0
+        uses: shogo82148/actions-setup-perl@v1.42.0
         with:
           distribution: "${{ inputs.flags == '-Dusethreads' && 'strawberry' || 'default' }}"
           install-modules-args: --with-configure --installdeps --notest -v .
