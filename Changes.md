@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - verifying piece requests, suggestions, and have messages (size, data boundary, etc.)
   - limiting size of incoming PEX packets
   - limiting size of HTTP/UDP tracker responses
+  - tossing public keys crafted outside of spec (it's a start...)
 
 ## [v2.0.1] - 2026-02-14
 

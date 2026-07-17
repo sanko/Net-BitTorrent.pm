@@ -364,7 +364,7 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
         elsif ( $id == 17 ) {    # ALLOWED_FAST
             my $index       = unpack( 'N', $payload );
             my $max_allowed = $torrent->bitfield ? ( $torrent->bitfield->size < 10 ? $torrent->bitfield->size : 10 ) : 10;
-            push @allowed_fast_set, $index if scalar @allowed_fast_set < $max_allowed && !grep { $_ == $index } @allowed_fast_set ;
+            push @allowed_fast_set, $index if scalar @allowed_fast_set < $max_allowed && !grep { $_ == $index } @allowed_fast_set;
             $self->_check_interest();
         }
     }

@@ -63,6 +63,14 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.1.0 : isa(Net::BitTorrent::
         my $p          = Math::BigInt->from_hex($P_STR);
         my $remote_val = Math::BigInt->from_bytes($remote_pub_bytes);
 
+        # Reject degenerate keys that defeat forward secrecy (RFC 2631 / FIPS 186-4)
+        my $two       = Math::BigInt->new(2);
+        my $p_minus_2 = $p->copy->bsub($two);
+        if ( $remote_val < $two || $remote_val > $p_minus_2 ) {
+            $self->_emit_log( 'fatal', 'Remote public key out of valid range [2, P-2]' );
+            return undef;
+        }
+
         # S = Y_remote ^ X_local mod P
         my $s_val = $remote_val->copy->bmodpow( $private_key, $p );
         $shared_secret = $self->_int_to_bytes($s_val);

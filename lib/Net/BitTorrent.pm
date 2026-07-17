@@ -819,7 +819,7 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         use Path::Tiny qw[path];
         return unless path($path)->exists;
         my $data = decode_json( path($path)->slurp_utf8 );
-        $node_id = $data->{node_id} if $data->{node_id};
+        $node_id = $data->{node_id} if $data->{node_id} && length( $data->{node_id} ) == 20;
         for my $ih_hex ( keys %{ $data->{torrents} // {} } ) {
             my $ih = pack( 'H*', $ih_hex );
             if ( my $t = $torrents{$ih} ) {
