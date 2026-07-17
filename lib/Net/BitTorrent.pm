@@ -831,12 +831,28 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         use JSON::PP   qw[decode_json];
         use Path::Tiny qw[path];
         return unless path($path)->exists;
-        my $data = decode_json( path($path)->slurp_utf8 );
-        $node_id = $data->{node_id} if $data->{node_id} && length( $data->{node_id} ) == 20;
-        for my $ih_hex ( keys %{ $data->{torrents} // {} } ) {
-            my $ih = pack( 'H*', $ih_hex );
-            if ( my $t = $torrents{$ih} ) {
-                $t->load_state( $data->{torrents}{$ih_hex} );
+        my $raw = path($path)->slurp_utf8;
+        my $data;
+        try { $data = decode_json($raw) }
+        catch ($e) {
+            $self->_emit_log( 'error', "Failed to parse state file: $e" );
+            return;
+        }
+        return unless ref $data eq 'HASH';
+        if ( defined $data->{node_id} && length( $data->{node_id} ) == 20 ) {
+            $node_id = $data->{node_id};
+        }
+        else {
+            $self->_emit_log( 'warn', 'State file missing or invalid node_id, keeping current' );
+        }
+        if ( ref $data->{torrents} eq 'HASH' ) {
+            for my $ih_hex ( keys %{ $data->{torrents} } ) {
+                next unless $ih_hex =~ /^[0-9a-f]{40}$/i;
+                next unless ref $data->{torrents}{$ih_hex} eq 'HASH';
+                my $ih = pack( 'H*', $ih_hex );
+                if ( my $t = $torrents{$ih} ) {
+                    $t->load_state( $data->{torrents}{$ih_hex} );
+                }
             }
         }
     }
