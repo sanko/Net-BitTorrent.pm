@@ -4,6 +4,7 @@ package Net::BitTorrent::Protocol::BEP03::Bencode v2.1.0 {
     our %EXPORT_TAGS = ( all => [ our @EXPORT_OK = qw[bencode bdecode] ], bencode => [] );
     #
     use constant MAX_BDECODE_DEPTH => 100;
+    use constant MAX_STRING_SIZE   => 64 * 1024 * 1024;    # 64MB
 
     sub bencode ( $ref //= return ) {
         return ( ( ( length $ref ) && $ref =~ m[^([-\+][1-9])?\d*$] ) ? ( 'i' . $ref . 'e' ) : ( length($ref) . ':' . $ref ) ) if !ref $ref;
@@ -18,6 +19,7 @@ package Net::BitTorrent::Protocol::BEP03::Bencode v2.1.0 {
         my $return;
         if ( $string =~ s[^(0+|[1-9]\d*):][] ) {
             my $size = $1;
+            die "bencode string too large ($size bytes, max " . MAX_STRING_SIZE . ')' if $size > MAX_STRING_SIZE;
             $return = '' if $size =~ m[^0+$];
             $return .= substr( $string, 0, $size, '' );
             return if length $return < $size;
