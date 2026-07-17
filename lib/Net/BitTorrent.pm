@@ -376,7 +376,7 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     method hashing_queue_size () { scalar @hashing_queue }
 
     method queue_verification ( $torrent, $index, $data ) {
-        $self->_emit_log( 'info', "\nPIECE $index: Queuing for verification (" . length($data) . " bytes)" );
+        $self->_emit_log( 'info', "PIECE $index: Queuing for verification (" . length($data) . " bytes)" );
         push @hashing_queue, { torrent => $torrent, index => $index, data => $data };
     }
 
@@ -392,7 +392,7 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
             if ( $hashing_allowance >= $len ) {
                 shift @hashing_queue;
                 $hashing_allowance -= $len;
-                $self->_emit_log( 'info', "\nPIECE $task->{index}: Processing hash..." );
+                $self->_emit_log( 'info', "PIECE $task->{index}: Processing hash..." );
                 $task->{torrent}->_verify_queued_piece( $task->{index}, $task->{data} );
             }
             else {

@@ -802,7 +802,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
             $bitfield->set($index);
             $bytes_downloaded += length($piece_data);
             $bytes_left       -= length($piece_data);
-            $self->_emit_log( 'debug', "\nPiece $index VERIFIED successfully via throttled queue" ) if $debug;
+            $self->_emit_log( 'debug', "Piece $index VERIFIED successfully via throttled queue" ) if $debug;
             $self->_clear_piece_cache($index);
             $self->_emit( 'piece_verified', $index );
             for my $peer ( values %$sources ) {
