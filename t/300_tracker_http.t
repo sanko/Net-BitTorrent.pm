@@ -20,4 +20,5 @@ subtest 'Response Parsing' => sub {
     is scalar @{ $res->{peers} }, 1,           'One peer found';
     is $res->{peers}[0]{ip},      '127.0.0.1', 'Peer IP correct';
 };
+#
 done_testing;

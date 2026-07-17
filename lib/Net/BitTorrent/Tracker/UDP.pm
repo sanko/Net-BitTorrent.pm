@@ -200,12 +200,16 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
     method parse_announce_response ($data) {
         my ( $action, $tid, $interval, $leechers, $seeders ) = unpack( 'N N N N N', $data );
         my $peers_raw = substr( $data, 20 );
+
+        # Cap peer list: max 500 peers per response (UDP datagram is ~4096 bytes anyway)
         my $peers;
         if ( length($peers_raw) % 18 == 0 && length($peers_raw) % 6 != 0 ) {
-            $peers = Net::BitTorrent::Protocol::BEP23::unpack_peers_ipv6($peers_raw);
+            $peers_raw = substr( $peers_raw, 0, 500 * 18 );
+            $peers     = Net::BitTorrent::Protocol::BEP23::unpack_peers_ipv6($peers_raw);
         }
         else {
-            $peers = Net::BitTorrent::Protocol::BEP23::unpack_peers_ipv4($peers_raw);
+            $peers_raw = substr( $peers_raw, 0, 500 * 6 );
+            $peers     = Net::BitTorrent::Protocol::BEP23::unpack_peers_ipv4($peers_raw);
         }
         return { interval => $interval, leechers => $leechers, seeders => $seeders, peers => $peers, };
     }

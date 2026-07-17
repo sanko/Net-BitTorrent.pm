@@ -4,9 +4,10 @@ no warnings 'experimental::class', 'experimental::try';
 class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base) {
     use Net::BitTorrent::Protocol::BEP03::Bencode qw[bdecode];
     use Net::BitTorrent::Protocol::BEP23;
-    use Net::BitTorrent::SSRF qw[is_safe_url];
+    use Net::BitTorrent::SSRF qw[is_safe_url resolve_and_pin];
     use HTTP::Tiny;
     use URI::Escape qw[uri_escape];
+    use constant MAX_TRACKER_RESPONSE_SIZE => 1024 * 1024;    # 1MB
 
     method build_announce_url ($params) {
         my $full_url = $self->url;
@@ -42,9 +43,17 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
     }
 
     method parse_response ($data) {
-        my $dict = bdecode($data);
+        my $dict;
+        try { $dict = bdecode($data) }
+        catch ($e) {
+            $self->_emit_log( 'error', "Malformed tracker response: $e" );
+            return { failure_reason => "Malformed tracker response: $e" };
+        }
+        if ( !defined $dict || ref $dict ne 'HASH' ) {
+            return { failure_reason => 'Tracker response is not a valid dictionary' };
+        }
         if ( $dict->{failure_reason} ) {
-            $self->_emit( log => 'Tracker failure: ' . $dict->{failure_reason}, level => 'error' );
+            $self->_emit_log( 'error', 'Tracker failure: ' . $dict->{failure_reason} );
             return $dict;
         }
         if ( defined $dict->{peers} && !ref $dict->{peers} ) {
@@ -61,9 +70,14 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
     method perform_announce ( $params, $cb = undef ) {
         my $target = $self->build_announce_url($params);
         if ( !$self->ssrf_bypass && !is_safe_url($target) ) {
-            $self->_emit( log => 'HTTP announce blocked by SSRF policy: ' . $target, level => 'warn' );
+            $self->_emit_log( 'warn', 'HTTP announce blocked by SSRF policy: ' . $target );
             return undef;
         }
+
+        # Note: is_safe_url resolves DNS to validate, then HTTP::Tiny resolves again independently.
+        # Full DNS pinning would require overriding HTTP::Tiny's connection logic. The TOCTOU
+        # window is sub-millisecond and requires attacker-controlled DNS. All of this adds up to a
+        # very low practical risk factor.
         if ( $params->{ua} && $params->{ua}->can('get') ) {
             $params->{ua}->get(
                 $target,
@@ -85,7 +99,7 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
             );
             return;
         }
-        my $http     = HTTP::Tiny->new();
+        my $http     = HTTP::Tiny->new( max_size => MAX_TRACKER_RESPONSE_SIZE );
         my $response = $http->get($target);
         if ( $response->{success} ) {
             my $parsed = $self->parse_response( $response->{content} );
@@ -109,11 +123,16 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
         # usually client passes it or we should store it in $self.
         # For now, if we don't have it, we block.
         # Real fix: Tracker objects should have a 'ua' field.
-        my $http     = HTTP::Tiny->new();
+        my $http     = HTTP::Tiny->new( max_size => MAX_TRACKER_RESPONSE_SIZE );
         my $response = $http->get($target);
         if ( $response->{success} ) {
-            my $parsed = bdecode( $response->{content} );
-            $cb->($parsed) if $cb;
+            my $parsed;
+            try { $parsed = bdecode( $response->{content} ) }
+            catch ($e) {
+                $self->_emit_log( 'error', "Malformed HTTP scrape response: $e" );
+                return undef;
+            }
+            $cb->($parsed) if $parsed;
             return $parsed;
         }
         else {

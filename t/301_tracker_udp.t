@@ -17,4 +17,20 @@ subtest 'UDP Packet Building' => sub {
     ok $ann_req, 'Announce packet built';
     is length($ann_req), 98, 'Announce packet is 98 bytes';
 };
+#
+subtest 'parse_announce_response caps peer list at 500' => sub {
+    my $tracker = Net::BitTorrent::Tracker::UDP->new( url => 'udp://tracker.example.com:8080/announce', ssrf_bypass => 1 );
+
+    # Build an announce response with 600 IPv4 peers (600 * 6 = 3600 bytes after header)
+    my $header    = pack( 'N N N N N', 1, 12345, 1800, 50, 10 );    # action=1, tid, interval, leechers, seeders
+    my $peer_data = '';
+    for my $i ( 1 .. 600 ) {
+        $peer_data .= pack( 'C4 n', 10, 0, int( $i / 256 ), $i % 256, 6881 );
+    }
+    my $response = $tracker->parse_announce_response( $header . $peer_data );
+    ok scalar @{ $response->{peers} } <= 500, 'peer list capped at 500 (got ' . scalar @{ $response->{peers} } . ')';
+    is $response->{interval}, 1800, 'interval still parsed correctly';
+    is $response->{seeders},  10,   'seeders still parsed correctly';
+};
+#
 done_testing;
