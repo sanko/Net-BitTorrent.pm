@@ -54,6 +54,7 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
     field $_ed25519_backend = ();
     field $running          = 0;
     field %_blacklist;
+    field %_query_rate;                                         # ip => [ timestamps ] for per-IP rate limiting
     field %ip_votes;                                            # external_ip => count
     field $external_ip : reader = undef;
     field %_pending_queries;
@@ -139,7 +140,7 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method import_state ($state) {
-        $node_id_bin = $state->{id} if defined $state->{id};
+        $node_id_bin = $state->{id} if defined $state->{id} && length( $state->{id} ) == 20;
         if ( $state->{nodes} ) {
             my @to_import = map { { id => $_->{id}, data => { ip => $_->{ip}, port => $_->{port} } } } $state->{nodes}->@*;
             $routing_table_v4->import_peers( \@to_import );
@@ -323,7 +324,9 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
             if ($debug) {
                 my $code = $msg->{e}->[0] // 'unknown';
                 my $text = $msg->{e}->[1] // 'no message';
-                $self->_emit( log => "[DEBUG] RECV ERROR $code: $text from $ip:$port", level => 'debug' );
+                $text = substr( "$text", 0, 200 );    # Truncate
+                $text =~ s/[^\x20-\x7E]/./g;          # Sanitize non-printable
+                $self->_emit_log( 'debug', "RECV ERROR $code: $text from $ip:$port" );
             }
             return ( [], [], undef );
         }
@@ -348,6 +351,17 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method _handle_query ( $msg, $sender, $ip, $port ) {
         return if $_blacklist{$ip};
+
+        # Max 20 queries per IP in a given 10s window
+        my $now = time;
+        $_query_rate{$ip} //= [];
+        @{ $_query_rate{$ip} } = grep { $_ > $now - 10 } @{ $_query_rate{$ip} };
+        if ( scalar @{ $_query_rate{$ip} } >= 20 ) {
+            $_blacklist{$ip} = 1;
+            $self->_emit_log( 'debug', "Rate-limited DHT query from $ip (exceeded 20/10s)" ) if $debug;
+            return;
+        }
+        push @{ $_query_rate{$ip} }, $now;
         my $q  = $msg->{q} // return;
         my $a  = $msg->{a} // return;
         my $id = $a->{id}  // return;
