@@ -16,8 +16,8 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use Net::BitTorrent::Types qw[:state :pick];
 
     # Security limits
-    use constant MAX_METADATA_SIZE => 10 * 1024 * 1024;    # 10 MB which would be... massive
-
+    use constant MAX_METADATA_SIZE   => 10 * 1024 * 1024;    # 10 MB which would be... massive
+    use constant MAX_FILE_TREE_DEPTH => 128;
     #
     field $path             : param = undef;
     field $base_path        : param;
@@ -260,7 +260,11 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         }
     }
 
-    method _validate_file_tree ($tree) {
+    method _validate_file_tree ( $tree, $depth = 0 ) {
+        if ( $depth > MAX_FILE_TREE_DEPTH ) {
+            $self->_emit( log => "File tree depth limit exceeded (max " . MAX_FILE_TREE_DEPTH . " levels)", level => 'fatal' );
+            return;
+        }
         if ( ref $tree ne 'HASH' ) {
             $self->_emit( log => 'Invalid file tree', level => 'fatal' );
             return;
@@ -282,7 +286,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
                 }
             }
             else {
-                $self->_validate_file_tree($node);
+                $self->_validate_file_tree( $node, $depth + 1 );
             }
         }
     }

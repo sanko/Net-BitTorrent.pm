@@ -140,7 +140,7 @@
       },
       "Net::BitTorrent::Protocol::BEP03::Bencode" : {
          "file" : "lib/Net/BitTorrent/Protocol/BEP03/Bencode.pm",
-         "version" : "v2.0.1"
+         "version" : "v2.1.0"
       },
       "Net::BitTorrent::Protocol::BEP06" : {
          "file" : "lib/Net/BitTorrent/Protocol/BEP06.pm",
