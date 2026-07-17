@@ -2,13 +2,14 @@ use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
 use Net::BitTorrent::Emitter;
-class Net::BitTorrent::Transport::TCP v2.0.0 : isa(Net::BitTorrent::Emitter) {
+class Net::BitTorrent::Transport::TCP v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use IO::Select;
     use Errno;
     field $socket : param : reader;
     field $write_buffer = '';
     field $connecting : param  = 1;
     field $filter     : reader = undef;
+    my $MAX_WRITE_BUFFER_SIZE = 4 * 1024 * 1024;    # 4 MB
     ADJUST {
         if ( $socket && $socket->opened ) {
             $socket->blocking(0);
@@ -33,6 +34,12 @@ class Net::BitTorrent::Transport::TCP v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
         # warn "    [DEBUG] TCP::send_data: " . length($data) . " bytes\n";
         $write_buffer .= $data;
+        if ( length($write_buffer) > $MAX_WRITE_BUFFER_SIZE ) {
+            $self->_emit_log( 'error', 'Write buffer exceeded maximum size, disconnecting slow peer' );
+            substr( $write_buffer, 0, length($write_buffer) - $MAX_WRITE_BUFFER_SIZE, '' );
+            $self->_emit('disconnected');
+            return 0;
+        }
         $self->_flush_write_buffer();
         return length $data;
     }
