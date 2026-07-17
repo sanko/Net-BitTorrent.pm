@@ -1,0 +1,78 @@
+---
+jobs:
+  build:
+    name: "${{ inputs.title != '' && inputs.title || (inputs.flags == '-Dusethreads' && 'Strawberry' || 'Default') }}"
+    runs-on: '${{ inputs.os }}'
+    steps:
+      - uses: actions/checkout@v5.0.0
+        with:
+          submodules: true
+      - name: Setup Perl environment
+        uses: shogo82148/actions-setup-perl@v1.37.1
+        with:
+          distribution: "${{ inputs.flags == '-Dusethreads' && 'strawberry' || 'default' }}"
+          multi-thread: "${{ inputs.flags == '-Dusethreads' && true || false }}"
+          perl-version: '${{ inputs.perl }}'
+      - name: Install prereqs
+        run: cpanm --installdeps --notest --with-suggests --with-recommends --with-configure -v .
+      - name: Detect host arch
+        run: |
+          $hwArch = (Get-CimInstance Win32_Processor).Architecture
+          Write-Output "WMI Processor Architecture: $hwArch (0=x86 5=ARM 9=x64 12=ARM64)"
+          if ($hwArch -eq 12) {
+            "BROCKEN_ARCH=arm64" | Out-File -FilePath $env:GITHUB_ENV -Append
+          } elseif ($hwArch -eq 9) {
+            "BROCKEN_ARCH=x64" | Out-File -FilePath $env:GITHUB_ENV -Append
+          } elseif ($hwArch -eq 5) {
+            "BROCKEN_ARCH=arm" | Out-File -FilePath $env:GITHUB_ENV -Append
+          } else {
+            "BROCKEN_ARCH=x64" | Out-File -FilePath $env:GITHUB_ENV -Append
+          }
+          Write-Output "PROCESSOR_ARCHITECTURE=$env:PROCESSOR_ARCHITECTURE"
+          Write-Output "PROCESSOR_ARCHITECTUREW6432=$env:PROCESSOR_ARCHITECTUREW6432"
+        shell: pwsh
+      - name: Run tests
+        run: |
+          perl -V
+          if ('${{ inputs.test_files }}' -ne '') {
+            perl Build.PL
+            perl Build
+            prove -Ilib -lv ${{ inputs.test_files }}
+          } else {
+            cpanm --test-only -v .
+          }
+          
+          if ($LASTEXITCODE -eq 0) {
+            perl -V > test-output-${{ inputs.os }}-${{ inputs.perl }}${{ inputs.flags }}.txt
+          } else {
+            Out-File -FilePath "test-output-${{ inputs.os }}-${{ inputs.perl }}${{ inputs.flags }}.txt" -InputObject "Error" -Append
+            exit $LASTEXITCODE
+          }
+      - name: Upload results as artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          if-no-files-found: error
+          name: 'test-output-${{ inputs.os }}-${{ inputs.perl }}${{ inputs.flags }}'
+          path: 'test-output-${{ inputs.os }}-${{ inputs.perl }}${{ inputs.flags }}.txt'
+          retention-days: 1
+name: windows module
+on:
+  workflow_call:
+    inputs:
+      flags:
+        required: false
+        type: string
+      os:
+        required: true
+        type: string
+      perl:
+        required: true
+        type: string
+      test_files:
+        default: ''
+        required: false
+        type: string
+      title:
+        default: ''
+        required: false
+        type: string
