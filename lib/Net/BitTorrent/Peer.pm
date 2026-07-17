@@ -294,7 +294,13 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
             $self->_emit('not_interested');
         }
         elsif ( $id == 4 ) {    # HAVE
-            my $index = unpack( 'N', $payload );
+            my $index      = unpack( 'N', $payload );
+            my $num_pieces = $torrent->bitfield ? $torrent->bitfield->size : 0;
+            if ( !defined $num_pieces || $num_pieces == 0 || $index >= $num_pieces ) {
+                $self->_emit_log( 'debug', "Peer sent HAVE with out-of-range index $index (num_pieces=$num_pieces)" ) if $debug;
+                $self->adjust_reputation(-2);
+                return;
+            }
             $torrent->update_peer_have( $self, $index );
 
             # BEP 16: If we see this peer (or others) have our offered piece,
@@ -315,6 +321,20 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
         }
         elsif ( $id == 6 ) {    # REQUEST
             my ( $index, $begin, $len ) = unpack( 'N N N', $payload );
+            my $num_pieces = $torrent->bitfield ? $torrent->bitfield->size : 0;
+            my $piece_len  = $torrent->metadata->{info}{'piece length'} // 16384;
+            if ( $num_pieces == 0 || $index >= $num_pieces ) {
+                $self->_emit_log( 'debug', "Peer REQUEST with out-of-range index $index" ) if $debug;
+                return;
+            }
+            if ( $len == 0 || $len > 131072 ) {    # 2^17 = 128 KiB max block
+                $self->_emit_log( 'debug', "Peer REQUEST with invalid len $len" ) if $debug;
+                return;
+            }
+            if ( $begin + $len > $piece_len ) {
+                $self->_emit_log( 'debug', 'Peer REQUEST extends beyond piece boundary' ) if $debug;
+                return;
+            }
             $self->_handle_request( $index, $begin, $len );
         }
         elsif ( $id == 7 ) {    # PIECE
@@ -323,7 +343,7 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
         }
         elsif ( $id == 13 ) {    # SUGGEST_PIECE
             my $index = unpack( 'N', $payload );
-            push @suggested_pieces, $index;
+            push @suggested_pieces, $index if scalar @suggested_pieces < 100 && !grep { $_ == $index } @suggested_pieces;
             $self->_check_interest();
         }
         elsif ( $id == 14 ) {    # HAVE_ALL
@@ -342,8 +362,9 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
             $self->_handle_reject( $index, $begin, $len );
         }
         elsif ( $id == 17 ) {    # ALLOWED_FAST
-            my $index = unpack( 'N', $payload );
-            push @allowed_fast_set, $index;
+            my $index       = unpack( 'N', $payload );
+            my $max_allowed = $torrent->bitfield ? ( $torrent->bitfield->size < 10 ? $torrent->bitfield->size : 10 ) : 10;
+            push @allowed_fast_set, $index if scalar @allowed_fast_set < $max_allowed && !grep { $_ == $index } @allowed_fast_set ;
             $self->_check_interest();
         }
     }

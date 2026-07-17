@@ -17,7 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reject metadata over `MAX_METADATA_SIZE` (currently 10MB)
 - Outbound connections to RFC 1918 private ranges, loopback, link-local, multicast, cloud metadata endpoints, etc. are now blocked by default
 - New `max_peers` fields for `Net::BitTorrent` (client-wide limit) and `Net::BitTorrent::Torrent` (per-torrent limit)
-- Protect ourselves from OOM attacks by limiting MSE handshake buffer size
+- Protect ourselves from OOM and other attacks by...
+  - limiting MSE handshake buffer size
+  - limiting the number of concurrent DHT queries per IP
+  - limiting the number of outstanding suggested (BEP 06) and requested pieces per peer
+  - verifying piece requests, suggestions, and have messages (size, data boundary, etc.)
 
 ## [v2.0.1] - 2026-02-14
 
