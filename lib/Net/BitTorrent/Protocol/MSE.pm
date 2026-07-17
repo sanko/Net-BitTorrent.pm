@@ -2,7 +2,7 @@ use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
 use Net::BitTorrent::Emitter;
-class Net::BitTorrent::Protocol::MSE v2.0.0 : isa(Net::BitTorrent::Emitter) {
+class Net::BitTorrent::Protocol::MSE v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use Net::BitTorrent::Protocol::MSE::KeyExchange;
     use Digest::SHA qw[sha1];
     #
@@ -37,8 +37,10 @@ class Net::BitTorrent::Protocol::MSE v2.0.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method _random_pad () {
-        my $len = int( rand(513) );
-        return pack( 'C*', map { int( rand(256) ) } 1 .. $len );
+        use Crypt::URandom qw[urandom];
+        my $len_bytes = urandom(2);
+        my $len       = unpack( 'n', $len_bytes ) % 513;
+        return urandom($len);
     }
 
     method write_buffer () {
