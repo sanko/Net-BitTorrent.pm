@@ -2,7 +2,7 @@ package Net::BitTorrent::SSRF v2.1.0 {
     use v5.40;
     use Exporter qw[import];
     use Socket   qw[inet_pton inet_ntop AF_INET AF_INET6 AF_UNSPEC SOCK_STREAM getaddrinfo getnameinfo NI_NUMERICHOST];
-    our @EXPORT_OK = qw[is_safe_ip is_safe_host is_safe_url];
+    our @EXPORT_OK = qw[is_safe_ip is_safe_host is_safe_url resolve_and_pin];
 
     # This should honestly be part of a dist all on its own...
     sub is_safe_ip ($ip) {
@@ -48,6 +48,20 @@ package Net::BitTorrent::SSRF v2.1.0 {
         my $uri  = URI->new($url);
         my $host = $uri->host;
         return is_safe_host($host);
+    }
+
+    sub resolve_and_pin ( $host, $port = undef ) {
+        return ( $host, $port ) if is_safe_ip($host);
+        my ( $err, @results ) = getaddrinfo( $host, $port, { family => AF_UNSPEC, socktype => SOCK_STREAM } );
+        return () if $err || !@results;
+        for my $res (@results) {
+            my ( $gerr, $ip ) = getnameinfo( $res->{addr}, NI_NUMERICHOST );
+            next if $gerr || !defined $ip;
+            next unless is_safe_ip($ip);
+            my $resolved_port = $res->{port} // $port;
+            return ( $ip, $resolved_port );
+        }
+        return ();
     }
 };
 1;

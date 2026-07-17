@@ -8,7 +8,7 @@ Net::BitTorrent::SSRF - Server-Side Request Forgery Protection
 
 =head1 SYNOPSIS
 
-    use Net::BitTorrent::SSRF qw[is_safe_ip is_safe_host is_safe_url];
+    use Net::BitTorrent::SSRF qw[is_safe_ip is_safe_host is_safe_url resolve_and_pin];
 
     # Check a raw IP address
     die 'unsafe' unless is_safe_ip('8.8.8.8');
@@ -18,6 +18,10 @@ Net::BitTorrent::SSRF - Server-Side Request Forgery Protection
 
     # Check a full URL (extracts host, resolves, validates)
     die 'unsafe' unless is_safe_url('http://tracker.example.com/announce');
+
+    # Resolve a hostname to a validated safe IP + port (DNS pinning)
+    my ($ip, $port) = resolve_and_pin('tracker.example.com', 80)
+        or die 'could not resolve to a safe address';
 
 =head1 DESCRIPTION
 
@@ -89,6 +93,23 @@ resolves to only public IPs.
     if ( is_safe_url( $target_url ) ) {
         my $res = $http->get( $target_url );
     }
+
+=head2 C<resolve_and_pin( $host, $port = undef )>
+
+Resolves C<$host> via C<getaddrinfo>, validates every resolved IP with C<is_safe_ip>, and returns C<($safe_ip, $port)>
+for the first safe result. Returns an empty list on failure (DNS error, no results, or all resolved IPs are unsafe).
+
+    my ($ip, $port) = resolve_and_pin('tracker.example.com', 80)
+        or die 'could not resolve to a safe address';
+    # $ip is now a validated public IP, $port is the resolved or original port
+
+If C<$host> is already a valid safe IP (passes C<is_safe_ip>), it is returned immediately without DNS resolution. This
+function is intended for DNS pinning: resolve once, validate, and use the result for the actual connection to minimize
+the TOCTOU window between resolution and connection.
+
+A full TOCTOU elimination would require overriding L<HTTP::Tiny>'s internal connection logic. The residual window when
+using this function is sub-millisecond and requires attacker-controlled DNS — documented in code comments within the
+callers.
 
 =head1 INTEGRATION
 
