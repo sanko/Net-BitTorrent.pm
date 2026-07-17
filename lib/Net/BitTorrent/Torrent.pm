@@ -14,6 +14,10 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use IO::Select;
     use IO::Socket::IP;
     use Net::BitTorrent::Types qw[:state :pick];
+
+    # Security limits
+    use constant MAX_METADATA_SIZE => 10 * 1024 * 1024;    # 10 MB which would be... massive
+
     #
     field $path             : param = undef;
     field $base_path        : param;
@@ -92,8 +96,8 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     field $pex_timer        = 0;
     field $tracker_timer    = 0;
     field $dht_lookup_timer = 0;
-    field %pex_added;                                  # ip:port => { ip, port }
-    field %pex_dropped;                                # ip:port => { ip, port }
+    field %pex_added;                                      # ip:port => { ip, port }
+    field %pex_dropped;                                    # ip:port => { ip, port }
 
     # Magnet/Metadata fetching
     field %metadata_pieces;
@@ -628,7 +632,13 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method handle_metadata_data ( $peer, $piece, $total_size, $data ) {
         delete $metadata_pending{$peer} if defined $peer;
-        $metadata_size = $total_size    if $metadata_size == 0;
+        if ( $metadata_size == 0 ) {
+            if ( $total_size > MAX_METADATA_SIZE ) {
+                $self->_emit( log => "Metadata too large ($total_size bytes, max " . MAX_METADATA_SIZE . ")", level => 'fatal' );
+                return;
+            }
+            $metadata_size = $total_size;
+        }
         $self->_emit(
             log   => "    [DEBUG] Received metadata piece $piece (len " . length($data) . ") from " . ( $peer ? $peer->ip : "unknown" ) . "\n",
             level => 'debug'
