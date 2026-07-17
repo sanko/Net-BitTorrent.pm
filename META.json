@@ -208,7 +208,7 @@
       },
       "Net::BitTorrent::Torrent" : {
          "file" : "lib/Net/BitTorrent/Torrent.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.0"
       },
       "Net::BitTorrent::Torrent::Generator" : {
          "file" : "lib/Net/BitTorrent/Torrent/Generator.pm",

@@ -2,7 +2,7 @@ use v5.40;
 use feature 'class', 'try';
 no warnings 'experimental::class', 'experimental::try';
 use Net::BitTorrent::Emitter;
-class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
+class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode bdecode];
     use Net::BitTorrent::Storage;
     use Net::BitTorrent::Tracker;
@@ -295,6 +295,15 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
         }
         if ( !defined $info->{name} || !length $info->{name} ) {
             $self->_emit( log => 'Missing name', level => 'fatal' );
+            return;
+        }
+        if ( $info->{name} =~ /[\\\/]/ || $info->{name} eq '..' || $info->{name} =~ /\0/ ) {
+            $self->_emit( log => 'Invalid name: path traversal characters detected', level => 'fatal' );
+            return;
+        }
+        require File::Spec;
+        if ( File::Spec->file_name_is_absolute( $info->{name} ) ) {
+            $self->_emit( log => 'Invalid name: absolute path', level => 'fatal' );
             return;
         }
         if ( !$info->{pieces} && !$info->{'file tree'} ) {
@@ -653,6 +662,22 @@ class Net::BitTorrent::Torrent v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
     method _on_metadata_received () {
         $self->_emit( log => "    [DEBUG] Metadata fully received and verified\n", level => 'debug' ) if $debug;
+
+        # Validate name for path traversal before using it
+        my $name = $metadata->{info}{name};
+        if ( !defined $name || !length $name ) {
+            $self->_emit( log => 'Missing name in metadata', level => 'fatal' );
+            return;
+        }
+        if ( $name =~ /[\\\/]/ || $name eq '..' || $name =~ /\0/ ) {
+            $self->_emit( log => 'Invalid name: path traversal characters detected', level => 'fatal' );
+            return;
+        }
+        require File::Spec;
+        if ( File::Spec->file_name_is_absolute($name) ) {
+            $self->_emit( log => 'Invalid name: absolute path', level => 'fatal' );
+            return;
+        }
 
         # Multi-file torrents should be in a directory named after the torrent
         my $storage_path = $base_path;
