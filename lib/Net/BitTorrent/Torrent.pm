@@ -96,8 +96,8 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     field $pex_timer        = 0;
     field $tracker_timer    = 0;
     field $dht_lookup_timer = 0;
-    field %pex_added;                                      # ip:port => { ip, port }
-    field %pex_dropped;                                    # ip:port => { ip, port }
+    field %pex_added;                                  # ip:port => { ip, port }
+    field %pex_dropped;                                # ip:port => { ip, port }
 
     # Magnet/Metadata fetching
     field %metadata_pieces;
@@ -1237,7 +1237,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
             # Pick the top N closest unvisited candidates
             # Note: ^. is bitwise XOR on strings in Modern Perl
-            my @to_query = sort { ( $a->{id} ^.$ih ) cmp( $b->{id} ^.$ih ) } grep { !$_->{visited} && $_->{ip} } values %dht_frontier;
+            my @to_query = sort { ( $a->{id} ^.$ih ) cmp ( $b->{id} ^.$ih ) } grep { !$_->{visited} && $_->{ip} } values %dht_frontier;
             if (@to_query) {
                 my $best_dist = unpack( 'H*', $to_query[0]{id} ^.$ih );
                 $self->_emit(

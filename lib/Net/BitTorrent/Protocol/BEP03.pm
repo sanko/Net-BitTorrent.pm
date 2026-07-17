@@ -31,6 +31,9 @@ class Net::BitTorrent::Protocol::BEP03 v2.0.0 : isa(Net::BitTorrent::Emitter) {
         HASH_REQUEST => 21,
         HASHES       => 22,
         HASH_REJECT  => 23,
+
+        # Security limits
+        MAX_MESSAGE_SIZE => 16 * 1024 * 1024,    # 16 MB
     };
 
     method set_reserved_bit ( $byte, $mask ) {
@@ -161,6 +164,11 @@ class Net::BitTorrent::Protocol::BEP03 v2.0.0 : isa(Net::BitTorrent::Emitter) {
             if ( $msg_len == 0 ) {
                 substr( $buffer_in, 0, 4, '' );    # Keep-alive
                 next;
+            }
+            if ( $msg_len > MAX_MESSAGE_SIZE ) {
+                $state = 'CLOSED';
+                $self->_emit( log => "Message too large ($msg_len bytes, max " . MAX_MESSAGE_SIZE . ")", level => 'fatal' );
+                return;
             }
             if ( length($buffer_in) < 4 + $msg_len ) {
                 return;

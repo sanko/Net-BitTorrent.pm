@@ -94,7 +94,7 @@ subtest BEP09 => sub {
         my $died = 0;
         try { $t->handle_metadata_data( undef, 0, 100 * 1024 * 1024, 'x' x 16384 ) }
         catch ($e) { $died = 1 };
-        ok $died, 'oversized metadata (100 MiB) triggers fatal die';
+        ok $died, 'oversized metadata (100 MB) triggers fatal die';
         is $t->metadata_size, 0, 'metadata_size stays 0 after rejection';
     };
     #

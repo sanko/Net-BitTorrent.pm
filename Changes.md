@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Require `Crypt::URandom` to replace Perl's `CORE::rand(...)` and resolve [CVE-2026-57082](https://github.com/sanko/Net-BitTorrent.pm/security/advisories/GHSA-g444-x2c5-94hc)
 - Toss metadata containing paths that attempt to traverse upward, etc. to resolve [CVE-2026-57079](https://github.com/sanko/Net-BitTorrent.pm/security/advisories/GHSA-5wc6-r65f-62rr)
+- Tip over when we see a message over 16MB in an attempt to resolve [CVE-2026-57080](https://github.com/sanko/Net-BitTorrent.pm/security/advisories/GHSA-7jr6-2jf4-6qc4)
 
 ### Changed
 - Reject metadata over `MAX_METADATA_SIZE` (currently 10MB)
