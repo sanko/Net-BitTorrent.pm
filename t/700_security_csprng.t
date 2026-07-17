@@ -78,7 +78,7 @@ subtest MSE => sub {
 #
 subtest 'UDP tracker' => sub {
     subtest 'unique transaction IDs for UDP trackers' => sub {
-        my $t    = Net::BitTorrent::Tracker::UDP->new( url => 'udp://tracker.example.com:8080/announce' );
+        my $t    = Net::BitTorrent::Tracker::UDP->new( url => 'udp://tracker.example.com:8080/announce', ssrf_bypass => 1 );
         my %seen = map { $t->_new_transaction_id() => 1 } 1 .. 100;
         ok scalar keys %seen > 95, '100 transaction IDs have high uniqueness (>95 distinct)';
         diag 'Actual uniqueness: ' . scalar keys %seen;

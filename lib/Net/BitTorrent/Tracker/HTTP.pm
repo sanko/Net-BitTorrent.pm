@@ -1,9 +1,10 @@
 use v5.40;
 use feature 'class', 'try';
 no warnings 'experimental::class', 'experimental::try';
-class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base) {
+class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base) {
     use Net::BitTorrent::Protocol::BEP03::Bencode qw[bdecode];
     use Net::BitTorrent::Protocol::BEP23;
+    use Net::BitTorrent::SSRF qw[is_safe_url];
     use HTTP::Tiny;
     use URI::Escape qw[uri_escape];
 
@@ -43,7 +44,7 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
     method parse_response ($data) {
         my $dict = bdecode($data);
         if ( $dict->{failure_reason} ) {
-            $self->_emit( log => "Tracker failure: $dict->{failure_reason}", level => 'error' );
+            $self->_emit( log => 'Tracker failure: ' . $dict->{failure_reason}, level => 'error' );
             return $dict;
         }
         if ( defined $dict->{peers} && !ref $dict->{peers} ) {
@@ -59,6 +60,10 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
 
     method perform_announce ( $params, $cb = undef ) {
         my $target = $self->build_announce_url($params);
+        if ( !$self->ssrf_bypass && !is_safe_url($target) ) {
+            $self->_emit( log => 'HTTP announce blocked by SSRF policy: ' . $target, level => 'warn' );
+            return undef;
+        }
         if ( $params->{ua} && $params->{ua}->can('get') ) {
             $params->{ua}->get(
                 $target,
@@ -70,11 +75,11 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
                             }
                         }
                         catch ($e) {
-                            $self->_emit( log => "Error in HTTP announce callback: $e", level => 'error' );
+                            $self->_emit( log => 'Error in HTTP announce callback: ' . $e, level => 'error' );
                         }
                     }
                     else {
-                        $self->_emit( log => "Async HTTP error during announce: $res->{status} $res->{reason}\n", level => 'error' );
+                        $self->_emit( log => "Async HTTP error during announce: $res->{status} $res->{reason}", level => 'error' );
                     }
                 }
             );
@@ -95,6 +100,10 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
 
     method perform_scrape ( $infohashes, $cb = undef ) {
         my $target = $self->build_scrape_url($infohashes);
+        if ( !$self->ssrf_bypass && !is_safe_url($target) ) {
+            $self->_emit( log => 'HTTP scrape blocked by SSRF policy: ' . $target, level => 'warn' );
+            return undef;
+        }
 
         # Note: Scrape might not have a 'ua' in $infohashes params,
         # usually client passes it or we should store it in $self.
@@ -112,4 +121,5 @@ class Net::BitTorrent::Tracker::HTTP v2.0.0 : isa(Net::BitTorrent::Tracker::Base
             return undef;
         }
     }
-} 1;
+};
+1;

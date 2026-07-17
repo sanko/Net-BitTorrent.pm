@@ -5,7 +5,7 @@ use Net::BitTorrent::Tracker::UDP;
 use Config;
 use constant HAS_64BIT => $Config{ivsize} >= 8;
 subtest 'UDP Packet Building' => sub {
-    my $tracker = Net::BitTorrent::Tracker::UDP->new( url => 'udp://127.0.0.1:6881' );
+    my $tracker = Net::BitTorrent::Tracker::UDP->new( url => 'udp://127.0.0.1:6881', ssrf_bypass => 1 );
     my ( $tid, $conn_req ) = $tracker->build_connect_packet();
     is length($conn_req), 16, 'Connect packet is 16 bytes';
     my $cid      = HAS_64BIT ? 0x12345678 : pack( 'NN', 0, 0x12345678 );

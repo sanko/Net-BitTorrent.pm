@@ -99,6 +99,7 @@
             "Net::uTP" : "0",
             "Path::Tiny" : "0",
             "Socket" : "0",
+            "URI" : "0",
             "URI::Escape" : "0",
             "perl" : "v5.42.0"
          }
@@ -132,7 +133,7 @@
       },
       "Net::BitTorrent::Peer" : {
          "file" : "lib/Net/BitTorrent/Peer.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.0"
       },
       "Net::BitTorrent::Protocol::BEP03" : {
          "file" : "lib/Net/BitTorrent/Protocol/BEP03.pm",
@@ -198,6 +199,10 @@
          "file" : "lib/Net/BitTorrent/Protocol/Simulation.pm",
          "version" : "v2.0.0"
       },
+      "Net::BitTorrent::SSRF" : {
+         "file" : "lib/Net/BitTorrent/SSRF.pm",
+         "version" : "v2.1.0"
+      },
       "Net::BitTorrent::Storage" : {
          "file" : "lib/Net/BitTorrent/Storage.pm",
          "version" : "v2.0.1"
@@ -224,19 +229,19 @@
       },
       "Net::BitTorrent::Tracker::Base" : {
          "file" : "lib/Net/BitTorrent/Tracker/Base.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.0"
       },
       "Net::BitTorrent::Tracker::HTTP" : {
          "file" : "lib/Net/BitTorrent/Tracker/HTTP.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.0"
       },
       "Net::BitTorrent::Tracker::UDP" : {
          "file" : "lib/Net/BitTorrent/Tracker/UDP.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.0"
       },
       "Net::BitTorrent::Tracker::WebSeed" : {
          "file" : "lib/Net/BitTorrent/Tracker/WebSeed.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.0"
       },
       "Net::BitTorrent::Transport::TCP" : {
          "file" : "lib/Net/BitTorrent/Transport/TCP.pm",

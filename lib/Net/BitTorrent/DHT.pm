@@ -16,10 +16,11 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode bdecode];
     use IO::Socket::IP;
     use Socket
-        qw[sockaddr_family pack_sockaddr_in unpack_sockaddr_in inet_aton inet_ntoa AF_INET AF_INET6 pack_sockaddr_in6 unpack_sockaddr_in6 inet_pton inet_ntop getaddrinfo SOCK_DGRAM];
+        qw[sockaddr_family pack_sockaddr_in unpack_sockaddr_in inet_aton inet_ntoa AF_INET AF_INET6 pack_sockaddr_in6 unpack_sockaddr_in6 inet_pton inet_ntop getaddrinfo getnameinfo NI_NUMERICHOST SOCK_DGRAM];
     use IO::Select;
-    use Digest::SHA    qw[sha1];
-    use Crypt::URandom qw[urandom];
+    use Digest::SHA           qw[sha1];
+    use Crypt::URandom        qw[urandom];
+    use Net::BitTorrent::SSRF qw[is_safe_ip is_safe_host];
     #
     field $node_id_bin : param : reader //= urandom(20);
     field $port             : param : reader = 6881;
@@ -32,6 +33,7 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
     field $bep44            : param : reader //= 1;
     field $bep51            : param : reader //= 1;
     field $read_only        : param  = 0;
+    field $ssrf_bypass      : param  = 0;
     field $security         : reader = Net::BitTorrent::DHT::Security->new();
     field $routing_table_v4 : reader = Algorithm::Kademlia::RoutingTable->new( local_id_bin => $node_id_bin, k => 8 );
     field $routing_table_v6 : reader = Algorithm::Kademlia::RoutingTable->new( local_id_bin => $node_id_bin, k => 8 );
@@ -63,13 +65,13 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
         $routing_table_v6->set_local_id_bin($new_id);
     }
     ADJUST {
-        $socket // die "Could not create UDP socket: $!";
+        $socket // $self->_emit( log => 'Could not create UDP socket: ' . $!, level => 'fatal' );
 
         # Pre-resolve bootstrap nodes
         for my $r (@$boot_nodes) {
             my ( $err, @res ) = getaddrinfo( $r->[0], $r->[1], { socktype => SOCK_DGRAM } );
             if ($err) {
-                warn "[WARN] Could not resolve bootstrap node $r->[0]:$r->[1]: $err" if $debug;
+                $self->_emit( log => "[WARN] Could not resolve bootstrap node $r->[0]:$r->[1]: $err", level => 'debug' );
                 next;
             }
             push @_resolved_boot_nodes, $res[0]{addr};
@@ -170,7 +172,7 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
         if ( $external_ip && $bep42 ) {
             my $new_id = $security->generate_node_id($external_ip);
             if ( $new_id ne $node_id_bin ) {
-                warn "    [DHT] Rotating Node ID for $external_ip\n" if $debug;
+                $self->_emit( log => '    [DHT] Rotating Node ID for ' . $external_ip, level => 'debug' );
                 $self->set_node_id($new_id);
             }
         }
@@ -311,7 +313,7 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
         if ($debug) {
             my $type = ( $msg->{y} // '' ) eq 'q' ? "QUERY ($msg->{q})" : "RESPONSE";
-            say "[DEBUG] RECV $type from $ip:$port";
+            $self->_emit( log => "[DEBUG] RECV $type from $ip:$port", level => 'debug' );
         }
         if ( ( $msg->{y} // '' ) eq 'q' ) {
             my $node = $self->_handle_query( $msg, $sender, $ip, $port );
@@ -321,7 +323,7 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
             if ($debug) {
                 my $code = $msg->{e}->[0] // 'unknown';
                 my $text = $msg->{e}->[1] // 'no message';
-                say "[DEBUG] RECV ERROR $code: $text from $ip:$port";
+                $self->_emit( log => "[DEBUG] RECV ERROR $code: $text from $ip:$port", level => 'debug' );
             }
             return ( [], [], undef );
         }
@@ -493,7 +495,7 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
                 my $num      = scalar @all_keys;
 
                 # BEP 51: return up to 20 samples closest to target
-                my @sorted  = sort { ( $a^.$target ) cmp( $b^.$target ) } @all_keys;
+                my @sorted  = sort { ( $a^.$target ) cmp ( $b^.$target ) } @all_keys;
                 my @samples = splice( @sorted, 0, 20 );
                 $res->{r}{samples}  = join( '', @samples );
                 $res->{r}{num}      = $num;
@@ -580,25 +582,44 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
         $msg->{v}     = $v if defined $v;
         $msg->{a}{ro} = 1  if $read_only && $msg->{y} eq 'q';
         if ( !defined $port && !ref $addr && length($addr) >= 16 ) {
+            if ( !$ssrf_bypass ) {
+                my ( $gerr, $ip ) = getnameinfo( $addr, NI_NUMERICHOST );
+                if ( !$gerr && defined $ip && !is_safe_ip($ip) ) {
+                    $self->_emit( log => "[WARN] DHT send blocked by SSRF policy: $ip", level => 'debug' );
+                    return;
+                }
+            }
             $self->_send_raw( bencode($msg), $addr );
             return;
         }
         ( $addr, $port ) = @$addr if ref $addr eq 'ARRAY';
+        if ( !$ssrf_bypass && !is_safe_host($addr) ) {
+            $self->_emit( log => 'DHT send blocked by SSRF policy: ' . $addr, level => 'debug' );
+            return;
+        }
         my ( $err, @res ) = getaddrinfo( $addr, $port, { socktype => SOCK_DGRAM } );
         if ($err) {
-            warn "[WARN] getaddrinfo failed for $addr" . ( defined $port ? ":$port" : "" ) . ": $err" if $debug;
+            $self->_emit( log =>, 'getaddrinfo failed for ' . $addr . ( defined $port ? ":$port" : '' ) . ": $err", level => 'debug' );
             return;
         }
         for my $res (@res) {
             my $family = sockaddr_family( $res->{addr} );
-            $self->_send_raw( bencode($msg), $res->{addr} ) if ( ( $family == AF_INET && $want_v4 ) || ( $family == AF_INET6 && $want_v6 ) );
+            next unless ( $family == AF_INET && $want_v4 ) || ( $family == AF_INET6 && $want_v6 );
+            if ( !$ssrf_bypass ) {
+                my ( $gerr, $ip ) = getnameinfo( $res->{addr}, NI_NUMERICHOST );
+                if ( !$gerr && defined $ip && !is_safe_ip($ip) ) {
+                    $self->_emit( log => 'DHT send blocked by SSRF policy: ' . $ip, level => 'debug' );
+                    next;
+                }
+            }
+            $self->_send_raw( bencode($msg), $res->{addr} );
         }
     }
 
     method _send_raw ( $data, $dest ) {
         if ($debug) {
             my ( $port, $ip ) = $self->_unpack_address($dest);
-            say "[DEBUG] SEND to $ip:$port";
+            $self->_emit( log => "SEND to $ip:$port", level => 'debug' );
         }
         $socket->send( $data, 0, $dest );
     }
@@ -690,7 +711,7 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
         if ( $ip_votes{$ip} >= 5 ) {    # Threshold for consensus
             if ( !defined $external_ip || $external_ip ne $ip ) {
                 $external_ip = $ip;
-                $self->_emit( 'external_ip_detected', $ip );
+                $self->_emit( external_ip_detected => $ip );
             }
             %ip_votes = ();             # Reset votes after consensus
         }

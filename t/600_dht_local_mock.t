@@ -8,8 +8,8 @@ $|++;
 my $sec   = Net::BitTorrent::DHT::Security->new();
 my $id1   = $sec->generate_node_id('127.0.0.1');
 my $id2   = $sec->generate_node_id('127.0.0.1');
-my $node1 = Net::BitTorrent::DHT->new( node_id_bin => $id1, port => 16881, address => '127.0.0.1' );
-my $node2 = Net::BitTorrent::DHT->new( node_id_bin => $id2, port => 16882, address => '127.0.0.1' );
+my $node1 = Net::BitTorrent::DHT->new( node_id_bin => $id1, port => 16881, address => '127.0.0.1', ssrf_bypass => 1 );
+my $node2 = Net::BitTorrent::DHT->new( node_id_bin => $id2, port => 16882, address => '127.0.0.1', ssrf_bypass => 1 );
 
 # Node 1 pings Node 2
 $node1->ping( '127.0.0.1', 16882 );

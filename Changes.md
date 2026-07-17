@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Reject metadata over `MAX_METADATA_SIZE` (currently 10MB)
+- Outbound connections to RFC 1918 private ranges, loopback, link-local, multicast, cloud metadata endpoints, etc. are now blocked by default
 
 ## [v2.0.1] - 2026-02-14
 

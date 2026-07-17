@@ -2,10 +2,11 @@ use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
 use Net::BitTorrent::Emitter;
-class Net::BitTorrent::Tracker::WebSeed v2.0.0 : isa(Net::BitTorrent::Emitter) {
+class Net::BitTorrent::Tracker::WebSeed v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use HTTP::Tiny;
+    use Net::BitTorrent::SSRF qw[is_safe_url];
     field $url : param : reader;    # Base URL
-    field $disabled : reader = 0;
+    field $disabled : reader = !is_safe_url($url);
 
     method fetch_piece ($segments) {
         return undef if $disabled;
@@ -15,7 +16,11 @@ class Net::BitTorrent::Tracker::WebSeed v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
             # ... URL construction ...
             my $target_url = $self->_build_url($seg);
-            my $response   = $http->get( $target_url, { headers => { Range => "bytes=$seg->{offset}-" . ( $seg->{offset} + $seg->{length} - 1 ) } } );
+            unless ( is_safe_url($target_url) ) {
+                $self->_emit( log => '    [WebSeed] URL blocked by SSRF policy: ' . $target_url, level => 'warn' );
+                return undef;
+            }
+            my $response = $http->get( $target_url, { headers => { Range => "bytes=$seg->{offset}-" . ( $seg->{offset} + $seg->{length} - 1 ) } } );
             if ( $response->{success} ) {
                 $full_data .= $response->{content};
             }
@@ -48,4 +53,5 @@ class Net::BitTorrent::Tracker::WebSeed v2.0.0 : isa(Net::BitTorrent::Emitter) {
         $end = $total_size - 1 if $end >= $total_size;
         return $self->fetch_piece( [ { file => undef, offset => $start, length => ( $end - $start + 1 ), rel_path => undef } ] );
     }
-} 1;
+};
+1;

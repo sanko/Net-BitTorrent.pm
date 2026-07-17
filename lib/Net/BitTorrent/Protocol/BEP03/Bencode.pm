@@ -1,6 +1,6 @@
 package Net::BitTorrent::Protocol::BEP03::Bencode v2.1.0 {
     use v5.40;
-    use parent 'Exporter';
+    use Exporter qw[import];
     our %EXPORT_TAGS = ( all => [ our @EXPORT_OK = qw[bencode bdecode] ], bencode => [] );
     #
     use constant MAX_BDECODE_DEPTH => 100;

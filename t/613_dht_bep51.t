@@ -9,6 +9,7 @@ my $dht     = Net::BitTorrent::DHT->new(
     node_id_bin => $node_id,
     port        => 0,          # Random port
     bep42       => 0,          # Disable security for testing
+    ssrf_bypass => 1
 );
 subtest 'Outgoing sample_infohashes' => sub {
     my $target = pack( 'H*', '2' x 40 );

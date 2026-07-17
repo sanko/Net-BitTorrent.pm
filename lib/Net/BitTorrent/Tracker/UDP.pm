@@ -1,8 +1,9 @@
 use v5.40;
 use feature 'class', 'try';
 no warnings 'experimental::class', 'experimental::try';
-class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base) {
+class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base) {
     use Net::BitTorrent::Protocol::BEP23;
+    use Net::BitTorrent::SSRF qw[is_safe_ip];
     use IO::Socket::IP;
     use Crypt::URandom qw[urandom];
     use Config;
@@ -24,8 +25,12 @@ class Net::BitTorrent::Tracker::UDP v2.0.0 : isa(Net::BitTorrent::Tracker::Base)
     }
     ADJUST {
         if ( $self->url =~ m{^udp://([^:/]+):(\d+)} ) {
-            $host   = $1;
-            $port   = $2;
+            $host = $1;
+            $port = $2;
+            unless ( $self->ssrf_bypass || is_safe_ip($host) ) {
+                $self->_emit( log => "UDP tracker blocked by SSRF policy: $host:$port", level => 'fatal' );
+                return;
+            }
             $socket = IO::Socket::IP->new( Proto => 'udp', Blocking => 0, ) or
                 $self->_emit( log => "Could not create UDP socket: $!", level => 'fatal' );
         }
