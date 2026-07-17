@@ -474,9 +474,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
                 }
 
                 # Request pieces if not choked
-                if ( !$peer->peer_choking && $peer->am_interested ) {
-                    $self->_request_pieces($peer);
-                }
+                $self->_request_pieces($peer) if !$peer->peer_choking && $peer->am_interested;
             }
         }
         $choke_timer += $delta;
@@ -1310,18 +1308,27 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method load_state ($state) {
-        if ( $state->{metadata} ) {
-            $metadata = $state->{metadata};
-            $self->_init_from_metadata();
+        return unless ref $state eq 'HASH';
+        if ( exists $state->{metadata} ) {
+            if ( ref $state->{metadata} eq 'HASH' && ref $state->{metadata}{info} eq 'HASH' ) {
+                $metadata = $state->{metadata};
+                $self->_init_from_metadata();
+            }
+            else {
+                $self->_emit_log( 'warn', 'load_state: invalid metadata structure, skipping' );
+            }
         }
-        if ( $state->{bitfield} ) {
-            $bitfield->set_data( $state->{bitfield} );
-            my $piece_len = $metadata->{info}{'piece length'} // 16384;
-            $bytes_left = ( $bitfield->size - $bitfield->count ) * $piece_len;
+        if ( exists $state->{bitfield} && defined $state->{bitfield} && $bitfield ) {
+            if ( length( $state->{bitfield} ) == int( ( $bitfield->size + 7 ) / 8 ) ) {
+                $bitfield->set_data( $state->{bitfield} );
+                my $piece_len = $metadata->{info}{'piece length'} // 16384;
+                $bytes_left = ( $bitfield->size - $bitfield->count ) * $piece_len;
+            }
+            else {
+                $self->_emit_log( 'warn', 'load_state: bitfield size mismatch, skipping' );
+            }
         }
-        if ( $state->{storage} && $storage ) {
-            $storage->load_state( $state->{storage} );
-        }
+        $storage->load_state( $state->{storage} ) if exists $state->{storage} && $storage;
         $bytes_downloaded = $state->{downloaded} // 0;
         $bytes_uploaded   = $state->{uploaded}   // 0;
     }
@@ -1350,4 +1357,5 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         }
         return $tree;
     }
-} 1;
+};
+1;
