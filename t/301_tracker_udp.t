@@ -1,4 +1,5 @@
 use v5.40;
+use lib 'lib';
 use Test2::V1 -ipP;
 no warnings;
 use Net::BitTorrent::Tracker::UDP;

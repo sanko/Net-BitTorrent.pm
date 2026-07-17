@@ -1,7 +1,7 @@
 use v5.40;
 use Test2::V1 -ipP;
 use lib 'lib', '../lib';
-use Net::BitTorrent::SSRF qw[is_safe_ip is_safe_host is_safe_url];
+use Net::BitTorrent::SSRF qw[is_safe_ip is_safe_host is_safe_url resolve_and_pin];
 #
 subtest 'Blocks loopback IPv4' => sub {
     is is_safe_ip('127.0.0.1'),       F(), '127.0.0.1 blocked';
@@ -133,7 +133,35 @@ subtest resolve_and_pin => sub {
     is Net::BitTorrent::SSRF::resolve_and_pin( '127.0.0.1',                                  80 ), U(), 'loopback IP returns empty list';
     is Net::BitTorrent::SSRF::resolve_and_pin( '192.168.1.1',                                80 ), U(), 'RFC 1918 IP returns empty list';
     is Net::BitTorrent::SSRF::resolve_and_pin( '169.254.169.254',                            80 ), U(), 'cloud metadata IP returns empty list';
+    is Net::BitTorrent::SSRF::resolve_and_pin( 'fe80::1',                                    80 ), U(), 'IPv6 link-local returns empty list';
     is Net::BitTorrent::SSRF::resolve_and_pin( 'this-host-does-not-exist-12345.example.com', 80 ), U(), 'unresolvable hostname returns empty list';
+};
+#
+subtest 'HTTP tracker DNS pinning blocks unsafe hostnames' => sub {
+    require Net::BitTorrent::Tracker::HTTP;
+    my $tracker = Net::BitTorrent::Tracker::HTTP->new( url => 'http://127.0.0.1/announce' );
+    is $tracker->perform_announce( { infohash => 'x' x 20, peer_id => 'x' x 20, port => 6881, downloaded => 0, uploaded => 0, left => 0 } ), U(),
+        'announce to loopback blocked by DNS pinning';
+};
+#
+subtest 'HTTP tracker DNS pinning blocks private hostnames' => sub {
+    require Net::BitTorrent::Tracker::HTTP;
+    my $tracker = Net::BitTorrent::Tracker::HTTP->new( url => 'http://10.0.0.1/announce' );
+    is $tracker->perform_announce( { infohash => 'x' x 20, peer_id => 'x' x 20, port => 6881, downloaded => 0, uploaded => 0, left => 0 } ), U(),
+        'announce to private IP blocked by DNS pinning';
+};
+#
+subtest 'HTTP scrape DNS pinning blocks unsafe hostnames' => sub {
+    require Net::BitTorrent::Tracker::HTTP;
+    my $tracker = Net::BitTorrent::Tracker::HTTP->new( url => 'http://192.168.1.1/scrape' );
+    is $tracker->perform_scrape( [ 'x' x 20 ] ), U(), 'scrape to private IP blocked by DNS pinning';
+};
+#
+subtest 'is_safe_ip unchanged after DNS pinning changes' => sub {
+    is is_safe_ip('8.8.8.8'),     T(), 'public IP still safe';
+    is is_safe_ip('127.0.0.1'),   F(), 'loopback still unsafe';
+    is is_safe_ip('10.0.0.1'),    F(), 'private still unsafe';
+    is is_safe_ip('192.168.1.1'), F(), 'private still unsafe';
 };
 #
 done_testing;

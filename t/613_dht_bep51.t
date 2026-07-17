@@ -1,4 +1,5 @@
 use v5.40;
+use lib 'lib';
 use Test::More;
 use Net::BitTorrent::DHT;
 use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode bdecode];

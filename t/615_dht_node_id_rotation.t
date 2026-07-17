@@ -1,6 +1,6 @@
 use v5.40;
 use Test2::V0;
-use lib '../lib';
+use lib 'lib', '../lib';
 use Net::BitTorrent::DHT;
 use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode];
 use Socket                                    qw[pack_sockaddr_in inet_aton];

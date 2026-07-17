@@ -92,7 +92,7 @@ provides:
     version: v2.0.0
   Net::BitTorrent::Protocol::MSE:
     file: lib/Net/BitTorrent/Protocol/MSE.pm
-    version: v2.0.0
+    version: v2.1.0
   Net::BitTorrent::Protocol::MSE::KeyExchange:
     file: lib/Net/BitTorrent/Protocol/MSE/KeyExchange.pm
     version: v2.1.0
@@ -140,7 +140,7 @@ provides:
     version: v2.1.0
   Net::BitTorrent::Transport::TCP:
     file: lib/Net/BitTorrent/Transport/TCP.pm
-    version: v2.0.0
+    version: v2.1.0
   Net::BitTorrent::Types:
     file: lib/Net/BitTorrent/Types.pm
     version: v2.0.0

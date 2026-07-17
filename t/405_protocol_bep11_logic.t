@@ -1,4 +1,5 @@
 use v5.42;
+use lib 'lib';
 use feature 'class';
 no warnings 'experimental::class';
 use Test2::V1 -ipP;

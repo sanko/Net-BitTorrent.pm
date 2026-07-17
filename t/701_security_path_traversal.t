@@ -118,7 +118,7 @@ subtest BEP09 => sub {
         my $died         = 0;
         try { $t->handle_metadata_data( undef, 0, length($info_encoded), $info_encoded ) }
         catch ($e) { $died = 1 };
-        ok $died,                'traversal name in metadata triggers fatal die';
+        ok !$died,               'traversal name in metadata does not crash (error, not fatal)';
         ok !defined $t->storage, 'no storage created';
         is $t->state, 0, 'torrent remains in STATE_STOPPED';
     }

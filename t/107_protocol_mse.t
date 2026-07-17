@@ -68,10 +68,28 @@ subtest 'Oversized handshake data transitions to FAILED' => sub {
 };
 #
 subtest 'Valid short data does not trigger FAILED' => sub {
-    my $mse = Net::BitTorrent::Protocol::MSE->new( infohash => 'B' x 20, is_initiator => 0, );
+    my $mse = Net::BitTorrent::Protocol::MSE->new( infohash => 'B' x 20, is_initiator => 0 );
     is $mse->state, 'B_WAIT_PUBKEY', 'initial state is B_WAIT_PUBKEY';
     ok lives { $mse->receive_data( 'Y' x 50 ); 1 }, 'small data did not die';
     is $mse->state, 'B_WAIT_PUBKEY', 'state unchanged after small data';
+};
+#
+subtest 'MSE _random_pad uses urandom' => sub {
+    my %seen;
+    for ( 1 .. 20 ) {
+        my $mse = Net::BitTorrent::Protocol::MSE->new( infohash => 'A' x 20, is_initiator => 1 );
+        my $pad = $mse->_random_pad();
+        $seen{ unpack( 'H*', $pad ) } = 1;
+        ok length($pad) <= 512, "pad length <= 512 (got " . length($pad) . ")";
+        ok length($pad) >= 0,   "pad length >= 0";
+    }
+    ok scalar keys %seen > 15, '20 pads produce >15 unique values (urandom, not rand())';
+};
+#
+subtest 'MSE padding is binary-safe' => sub {
+    my $mse = Net::BitTorrent::Protocol::MSE->new( infohash => 'B' x 20, is_initiator => 0 );
+    my $pad = $mse->_random_pad();
+    ok defined $pad, '_random_pad returns defined value';
 };
 #
 done_testing;

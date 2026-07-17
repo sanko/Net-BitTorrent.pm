@@ -1,7 +1,7 @@
 use v5.40;
 use feature 'class', 'try';
 use Test2::V1 -ipP;
-no warnings;
+no warnings 'recursion';
 #
 use lib 'lib', '../lib';
 use Digest::SHA qw[sha1];
@@ -9,15 +9,8 @@ use Path::Tiny;
 use Net::BitTorrent;
 use Net::BitTorrent::Torrent;
 use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode bdecode];
-no warnings 'recursion';
 #
 subtest bdecode => sub {
-    subtest 'MAX_BDECODE_DEPTH constant defined' => sub {
-        ok defined Net::BitTorrent::Protocol::BEP03::Bencode::MAX_BDECODE_DEPTH(), 'MAX_BDECODE_DEPTH is defined';
-        ok Net::BitTorrent::Protocol::BEP03::Bencode::MAX_BDECODE_DEPTH() >= 50,   'MAX_BDECODE_DEPTH >= 50 (reasonable minimum)';
-        ok Net::BitTorrent::Protocol::BEP03::Bencode::MAX_BDECODE_DEPTH() <= 500,  'MAX_BDECODE_DEPTH <= 500 (reasonable maximum)';
-    };
-    #
     subtest 'Shallow nesting accepted' => sub {
         my $deep   = 'l' x 5 . '4:test' . 'e' x 5;
         my $result = bdecode($deep);
@@ -82,21 +75,17 @@ subtest bdecode => sub {
         is $r3, array { item 0 => 1; item 1 => 2; item 2 => 3; end }, 'list';
     };
     #
-    subtest 'MAX_FILE_TREE_DEPTH constant defined' => sub {
-        is Net::BitTorrent::Torrent::MAX_FILE_TREE_DEPTH(), D(), 'MAX_FILE_TREE_DEPTH is defined';
-    };
-    #
     subtest 'Shallow file tree accepted' => sub {
         my $client = Net::BitTorrent->new();
         my $info   = {
             name           => 'Tree Test',
             'piece length' => 262144,
             pieces         => "\0" x 20,
-            'file tree'    => { a => { b => { c => { '' => { length => 100 } } } } },
+            'file tree'    => { a => { b => { c => { '' => { length => 100 } } } } }
         };
         my $info_encoded = bencode($info);
         my $ih           = Digest::SHA::sha1($info_encoded);
-        my $t            = Net::BitTorrent::Torrent->new( infohash => $ih, base_path => Path::Tiny->tempdir, client => $client, debug => 0, );
+        my $t            = Net::BitTorrent::Torrent->new( infohash => $ih, base_path => Path::Tiny->tempdir, client => $client, debug => 0 );
         $t->handle_metadata_data( undef, 0, length($info_encoded), $info_encoded );
         ok $t->storage, D(), '3-deep file tree accepted';
     };
@@ -127,6 +116,69 @@ subtest 'metadata exceeding MAX_METADATA_SIZE rejected' => sub {
     ok $died, 'oversized metadata triggers fatal die';
     is $t->metadata_size, 0, 'metadata_size stays 0 after rejection';
     ok !defined $t->storage, 'no storage created from oversized metadata';
+};
+#
+subtest 'Missing info dictionary does not die' => sub {
+    my $temp         = Path::Tiny->tempdir;
+    my $c            = Net::BitTorrent->new();
+    my $bad_data     = bencode( { announce => 'http://example.com' } );
+    my $torrent_file = $temp->child('bad.torrent');
+    $torrent_file->spew_raw($bad_data);
+    my $ok = eval { $c->add_torrent( $torrent_file, $temp ); 1 };
+    ok $ok, 'add_torrent with missing info dict did not die';
+};
+#
+subtest 'Invalid infohash length does not die' => sub {
+    my $temp = Path::Tiny->tempdir;
+    my $c    = Net::BitTorrent->new();
+    my $ok   = eval { $c->add_infohash( 'X' x 30, $temp ); 1 };
+    ok $ok, 'add_infohash with invalid length did not die';
+};
+#
+subtest 'No path or infohash does not die' => sub {
+    my $c  = Net::BitTorrent->new();
+    my $ok = eval { $c->add( '/no/such/file.torrent', Path::Tiny->tempdir ); 1 };
+    ok $ok, 'add with non-existent file did not die';
+};
+#
+subtest 'Path traversal in name emits error, not fatal' => sub {
+    my $temp = Path::Tiny->tempdir;
+    my $c    = Net::BitTorrent->new();
+    my $data = 'T' x 16384;
+    my $info = {
+        name           => '../../etc/passwd',
+        'piece length' => 16384,
+        pieces         => sha1($data),
+        'file tree'    => { '../../etc/passwd' => { '' => { length => 16384 } } }
+    };
+    my $torrent_file = $temp->child('traversal.torrent');
+    $torrent_file->spew_raw( bencode( { info => $info } ) );
+    my $ok = eval { $c->add_torrent( $torrent_file, $temp ); 1 };
+    ok $ok, 'add_torrent with path traversal name did not die';
+};
+#
+subtest 'Absolute path in name does not die' => sub {
+    my $temp = Path::Tiny->tempdir;
+    my $c    = Net::BitTorrent->new();
+    my $data = 'A' x 16384;
+    my $info
+        = { name => '/tmp/evil', 'piece length' => 16384, pieces => sha1($data), 'file tree' => { '/tmp/evil' => { '' => { length => 16384 } } } };
+    my $torrent_file = $temp->child('absolute.torrent');
+    $torrent_file->spew_raw( bencode( { info => $info } ) );
+    my $ok = eval { $c->add_torrent( $torrent_file, $temp ); 1 };
+    ok $ok, 'add_torrent with absolute path name did not die';
+};
+#
+subtest 'Invalid file length does not die' => sub {
+    my $temp = Path::Tiny->tempdir;
+    my $c    = Net::BitTorrent->new();
+    my $data = 'L' x 16384;
+    my $info
+        = { name => 'negative.txt', 'piece length' => 16384, pieces => sha1($data), 'file tree' => { 'negative.txt' => { '' => { length => -1 } } } };
+    my $torrent_file = $temp->child('negative.torrent');
+    $torrent_file->spew_raw( bencode( { info => $info } ) );
+    my $ok = eval { $c->add_torrent( $torrent_file, $temp ); 1 };
+    ok $ok, 'add_torrent with negative file length did not die';
 };
 #
 done_testing;

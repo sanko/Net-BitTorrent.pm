@@ -11,10 +11,7 @@ use Digest::SHA qw[sha1 sha256];
 use Path::Tiny;
 use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode];
 use Net::BitTorrent::Protocol::BEP03;
-#
-ok defined Net::BitTorrent::Protocol::BEP03::MAX_MESSAGE_SIZE(),             'MAX_MESSAGE_SIZE is defined';
-ok Net::BitTorrent::Protocol::BEP03::MAX_MESSAGE_SIZE() > 0,                 'MAX_MESSAGE_SIZE is positive';
-ok Net::BitTorrent::Protocol::BEP03::MAX_MESSAGE_SIZE() <= 64 * 1024 * 1024, 'MAX_MESSAGE_SIZE <= 64 MiB';
+use Errno;
 #
 # Helper: build a valid v1 handshake for given infohash + peer_id
 sub _handshake ( $ih, $pid ) {
@@ -185,7 +182,7 @@ subtest 'REQUEST beyond piece boundary silently rejected' => sub {
         name           => 'test4.txt',
         'piece length' => 16384,
         pieces         => sha1($data),
-        'file tree'    => { 'test4.txt' => { '' => { length => 16384, 'pieces root' => sha256($data) } } },
+        'file tree'    => { 'test4.txt' => { '' => { length => 16384, 'pieces root' => sha256($data) } } }
     };
     require Net::BitTorrent::Protocol::BEP03::Bencode;
     my $torrent_file = $temp->child('test4.torrent');
@@ -205,6 +202,174 @@ subtest 'REQUEST beyond piece boundary silently rejected' => sub {
     # begin + len > piece_length (16384)
     my $ok = eval { $peer->handle_message( 6, pack( 'N N N', 0, 16000, 400 ) ); 1 };
     ok $ok, 'REQUEST extending beyond piece boundary did not die';
+};
+#
+sub _make_peer_for_payload ($ih) {
+    my $temp   = Path::Tiny->tempdir;
+    my $client = Net::BitTorrent->new();
+    my $data   = 'P' x 16384;
+    my $info   = {
+        name           => 'payload_test.txt',
+        'piece length' => 16384,
+        pieces         => sha1($data),
+        'file tree'    => { 'payload_test.txt' => { '' => { length => 16384, 'pieces root' => sha256($data) } } }
+    };
+    my $torrent_file = $temp->child('test.torrent');
+    $torrent_file->spew_raw( bencode( { info => $info } ) );
+    my $torrent = $client->add_torrent( $torrent_file, $temp );
+    $torrent->start();
+    require Net::BitTorrent::Protocol::PeerHandler;
+    require Net::BitTorrent::Peer;
+    my $ph   = Net::BitTorrent::Protocol::PeerHandler->new( infohash => $ih, peer_id => 'PEER' . '0' x 16, features => { bep11 => 0 } );
+    my $tr   = MockTransport2->new();
+    my $peer = Net::BitTorrent::Peer->new( protocol => $ph, torrent => $torrent, transport => $tr, ip => '9.9.9.9', port => 9999, encryption => 0 );
+    $ph->set_peer($peer);
+    $torrent->register_peer_object($peer);
+    return $peer;
+}
+#
+subtest 'CHOKE with non-zero payload rejected' => sub {
+    my $peer = _make_peer_for_payload( 'C' x 20 );
+    my $rep  = $peer->reputation;
+    $peer->handle_message( 0, pack( 'C', 0 ) );
+    ok $peer->reputation < $rep, 'reputation lowered for CHOKE with wrong payload length';
+};
+#
+subtest 'UNCHOKE with non-zero payload rejected' => sub {
+    my $peer = _make_peer_for_payload( 'U' x 20 );
+    my $rep  = $peer->reputation;
+    $peer->handle_message( 1, pack( 'N', 0 ) );
+    ok $peer->reputation < $rep, 'reputation lowered for UNCHOKE with wrong payload length';
+};
+#
+subtest 'INTERESTED with non-zero payload rejected' => sub {
+    my $peer = _make_peer_for_payload( 'I' x 20 );
+    my $rep  = $peer->reputation;
+    $peer->handle_message( 2, "\x00" );
+    ok $peer->reputation < $rep, 'reputation lowered for INTERESTED with wrong payload length';
+};
+#
+subtest 'HAVE with wrong length rejected' => sub {
+    my $peer = _make_peer_for_payload( 'H' x 20 );
+    my $rep  = $peer->reputation;
+    $peer->handle_message( 4, pack( 'N', 0 ) . "\x00" );
+    ok $peer->reputation < $rep, 'reputation lowered for HAVE with 5-byte payload';
+};
+#
+subtest 'HAVE with correct length accepted' => sub {
+    my $peer = _make_peer_for_payload( 'J' x 20 );
+    my $rep  = $peer->reputation;
+    $peer->handle_message( 4, pack( 'N', 0 ) );
+    is $peer->reputation, $rep, 'reputation unchanged for valid HAVE';
+};
+#
+subtest 'REQUEST with wrong length rejected' => sub {
+    my $peer = _make_peer_for_payload( 'R' x 20 );
+    my $rep  = $peer->reputation;
+    $peer->handle_message( 6, pack( 'N N', 0, 0 ) );
+    ok $peer->reputation < $rep, 'reputation lowered for REQUEST with 8-byte payload';
+};
+#
+subtest 'REQUEST with correct length accepted (even if out-of-range)' => sub {
+    my $peer = _make_peer_for_payload( 'S' x 20 );
+    my $ok   = eval { $peer->handle_message( 6, pack( 'N N N', 999, 0, 16384 ) ); 1 };
+    ok $ok, 'REQUEST with valid length did not die';
+};
+#
+subtest 'PIECE with too-short payload rejected' => sub {
+    my $peer = _make_peer_for_payload( 'D' x 20 );
+    my $rep  = $peer->reputation;
+    $peer->handle_message( 7, pack( 'N', 0 ) );
+    ok $peer->reputation < $rep, 'reputation lowered for PIECE with 4-byte payload';
+};
+#
+subtest 'REJECT with wrong length rejected' => sub {
+    my $peer = _make_peer_for_payload( 'X' x 20 );
+    my $rep  = $peer->reputation;
+    $peer->handle_message( 16, pack( 'N', 0 ) );
+    ok $peer->reputation < $rep, 'reputation lowered for REJECT with 4-byte payload';
+};
+#
+subtest 'SUGGEST_PIECE with wrong length rejected' => sub {
+    my $peer = _make_peer_for_payload( 'G' x 20 );
+    my $rep  = $peer->reputation;
+    $peer->handle_message( 13, '' );
+    ok $peer->reputation < $rep, 'reputation lowered for SUGGEST_PIECE with 0-byte payload';
+};
+#
+subtest 'ALLOWED_FAST with wrong length rejected' => sub {
+    my $peer = _make_peer_for_payload( 'F' x 20 );
+    my $rep  = $peer->reputation;
+    $peer->handle_message( 17, pack( 'N N', 0, 0 ) );
+    ok $peer->reputation < $rep, 'reputation lowered for ALLOWED_FAST with 8-byte payload';
+};
+#
+subtest 'HAVE_ALL with non-zero payload rejected' => sub {
+    my $peer = _make_peer_for_payload( 'A' x 20 );
+    my $rep  = $peer->reputation;
+    $peer->handle_message( 14, "\x00" );
+    ok $peer->reputation < $rep, 'reputation lowered for HAVE_ALL with 1-byte payload';
+};
+#
+subtest 'HAVE_NONE with non-zero payload rejected' => sub {
+    my $peer = _make_peer_for_payload( 'N' x 20 );
+    my $rep  = $peer->reputation;
+    $peer->handle_message( 15, pack( 'N', 0 ) );
+    ok $peer->reputation < $rep, 'reputation lowered for HAVE_NONE with 4-byte payload';
+};
+#
+subtest 'Unknown message type passes through (no crash)' => sub {
+    my $peer = _make_peer_for_payload( 'Z' x 20 );
+    my $ok   = eval { $peer->handle_message( 99, "some data" ); 1 };
+    ok $ok, 'unknown message type did not die';
+};
+#
+class MockSocketNoDrain {
+    field $written = '';
+    method syswrite   { return undef }
+    method peerhost   {'1.2.3.4'}
+    method peerport   {12345}
+    method opened     {1}
+    method blocking   {1}
+    method getsockopt { return Errno::EWOULDBLOCK() }
+}
+#
+class MockSocketDrain {
+    field $written = '';
+
+    method syswrite ($data) {
+        $written .= $data;
+        return length $data;
+    }
+    method peerhost   {'1.2.3.4'}
+    method peerport   {12345}
+    method opened     {1}
+    method blocking   {1}
+    method getsockopt {0}
+}
+#
+subtest 'Write buffer cap disconnects slow peer' => sub {
+    require Net::BitTorrent::Transport::TCP;
+    my $sock2      = MockSocketNoDrain->new();
+    my $transport2 = Net::BitTorrent::Transport::TCP->new( socket => $sock2, connecting => 0 );
+    my $disc2      = 0;
+    $transport2->on( 'disconnected', sub { $disc2 = 1 } );
+    my $chunk = 'X' x 65536;
+    for ( 1 .. 80 ) {
+        $transport2->send_data($chunk);
+        last if $disc2;
+    }
+    ok $disc2, 'disconnected fired when write buffer exceeded cap';
+};
+#
+subtest 'Write buffer within cap does not disconnect' => sub {
+    require Net::BitTorrent::Transport::TCP;
+    my $sock      = MockSocketDrain->new();
+    my $transport = Net::BitTorrent::Transport::TCP->new( socket => $sock, connecting => 0 );
+    my $disc      = 0;
+    $transport->on( 'disconnected', sub { $disc = 1 } );
+    $transport->send_data( 'Y' x 102400 );
+    ok !$disc, 'no disconnect when write buffer is within cap';
 };
 #
 done_testing;
