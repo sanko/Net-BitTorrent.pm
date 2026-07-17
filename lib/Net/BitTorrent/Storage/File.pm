@@ -11,6 +11,7 @@ class Net::BitTorrent::Storage::File v2.1.0 : isa(Net::BitTorrent::Emitter) {
     field $pieces_root : param       : reader = undef;
     field $piece_size  : param       : reader = 0;
     field $merkle      : reader;
+    use constant MAX_FILE_SIZE => 100 * 1024 * 1024 * 1024;    # 100GB
     ADJUST {
         $file_path = Path::Tiny::path($file_path);
         if ($pieces_root) {
@@ -98,6 +99,10 @@ class Net::BitTorrent::Storage::File v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method _ensure_exists () {
         return if $file_path->exists;
+        if ( $size > MAX_FILE_SIZE ) {
+            $self->_emit_log( 'error', "File size $size exceeds maximum allowed (" . MAX_FILE_SIZE . ")" );
+            return;
+        }
         $file_path->parent->mkpath;
         if ( $^O eq 'MSWin32' ) {
             try {
