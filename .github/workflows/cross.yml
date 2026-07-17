@@ -18,6 +18,7 @@ jobs:
           environment_variables: AUTHOR_TESTING AUTOMATED_TESTING
           memory: 5G
           operating_system: '${{ inputs.os }}'
+          shell: cpa.sh {0}
           run: |
             uname -a
             echo $SHELL
