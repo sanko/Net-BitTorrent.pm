@@ -56,6 +56,7 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     field @hashing_queue;                                      # Array of { torrent => $t, index => $i, data => $d }
     field $hashing_rate_limit : writer = 1024 * 1024 * 500;    # 500MB/s limit for hashing
     field $hashing_allowance = 0;
+    my $MAX_HASHING_QUEUE_SIZE = 128;                          # Max pieces waiting for verification
 
     method features () {
         { bep05 => $bep05, bep06 => $bep06, bep09 => $bep09, bep10 => $bep10, bep11 => $bep11, bep52 => $bep52, bep55 => $bep55, };
@@ -376,6 +377,18 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     method hashing_queue_size () { scalar @hashing_queue }
 
     method queue_verification ( $torrent, $index, $data ) {
+        if ( @hashing_queue >= $MAX_HASHING_QUEUE_SIZE ) {
+            $self->_emit_log( 'warn', "Hashing queue full ($MAX_HASHING_QUEUE_SIZE), draining to make room" );
+            while ( @hashing_queue && $hashing_allowance >= length( $hashing_queue[0]{data} ) ) {
+                my $task = shift @hashing_queue;
+                $hashing_allowance -= length( $task->{data} );
+                $task->{torrent}->_verify_queued_piece( $task->{index}, $task->{data} );
+            }
+            if ( @hashing_queue >= $MAX_HASHING_QUEUE_SIZE ) {
+                $self->_emit_log( 'warn', "Hashing queue still full after drain, dropping piece $index verification" );
+                return;
+            }
+        }
         $self->_emit_log( 'info', "PIECE $index: Queuing for verification (" . length($data) . " bytes)" );
         push @hashing_queue, { torrent => $torrent, index => $index, data => $data };
     }

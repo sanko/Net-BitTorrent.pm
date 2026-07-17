@@ -274,26 +274,58 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method handle_message ( $id, $payload ) {
+        my $plen = length($payload);
+
+        # Validate payload length per message type (BEP 03)
+        if ( $id == 0 || $id == 1 || $id == 2 || $id == 3 || $id == 14 || $id == 15 )
+        {    # CHOKE, UNCHOKE, INTERESTED, NOT_INTERESTED, HAVE_ALL, HAVE_NONE
+            if ( $plen != 0 ) {
+                $self->_emit_log( 'debug', "Peer message $id expected 0-byte payload, got $plen" ) if $debug;
+                $self->adjust_reputation(-2);
+                return;
+            }
+        }
+        elsif ( $id == 4 || $id == 13 || $id == 17 ) {    # HAVE, SUGGEST_PIECE, ALLOWED_FAST
+            if ( $plen != 4 ) {
+                $self->_emit_log( 'debug', "Peer message $id expected 4-byte payload, got $plen" ) if $debug;
+                $self->adjust_reputation(-2);
+                return;
+            }
+        }
+        elsif ( $id == 6 || $id == 16 ) {                 # REQUEST, REJECT
+            if ( $plen != 12 ) {
+                $self->_emit_log( 'debug', "Peer message $id expected 12-byte payload, got $plen" ) if $debug;
+                $self->adjust_reputation(-2);
+                return;
+            }
+        }
+        elsif ( $id == 7 ) {                              # PIECE
+            if ( $plen < 8 ) {
+                $self->_emit_log( 'debug', "Peer PIECE message too short ($plen bytes)" ) if $debug;
+                $self->adjust_reputation(-2);
+                return;
+            }
+        }
 
         # warn '  [DEBUG] Peer ' . ($socket ? $socket->peerhost : 'sim') . " sent message ID $id (len " . length($payload) . ")\n";
-        if ( $id == 0 ) {    # CHOKE
+        if ( $id == 0 ) {                                 # CHOKE
             $peer_choking = 1;
             $self->_emit('choked');
         }
-        elsif ( $id == 1 ) {    # UNCHOKE
+        elsif ( $id == 1 ) {                              # UNCHOKE
             $peer_choking = 0;
             $self->_emit('unchoked');
             $self->_request_next_block();
         }
-        elsif ( $id == 2 ) {    # INTERESTED
+        elsif ( $id == 2 ) {                              # INTERESTED
             $peer_interested = 1;
             $self->_emit('interested');
         }
-        elsif ( $id == 3 ) {    # NOT_INTERESTED
+        elsif ( $id == 3 ) {                              # NOT_INTERESTED
             $peer_interested = 0;
             $self->_emit('not_interested');
         }
-        elsif ( $id == 4 ) {    # HAVE
+        elsif ( $id == 4 ) {                              # HAVE
             my $index      = unpack( 'N', $payload );
             my $num_pieces = $torrent->bitfield ? $torrent->bitfield->size : 0;
             if ( !defined $num_pieces || $num_pieces == 0 || $index >= $num_pieces ) {
