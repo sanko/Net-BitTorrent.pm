@@ -58,6 +58,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     field $is_superseed    : reader : writer(set_superseed)    = 0;
     field %superseed_offers;    # Peer object => piece_index
     field $debug : param = 0;
+    field $max_peers : param : reader : writer = 100;
     #
     method get_superseed_piece ($peer) {
         return undef unless $is_superseed;

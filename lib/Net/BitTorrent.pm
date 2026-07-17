@@ -40,6 +40,17 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     field $limit_up     : reader;
     field $limit_down   : reader;
     field $upnp_enabled : param = 0;
+    field $max_peers    : param : reader : writer = 500;
+
+    method _count_active_peers () {
+        my $count = 0;
+        $count += keys %{ $_->peer_objects_hash } for values %torrents;
+        return $count;
+    }
+
+    method _at_global_peer_limit () {
+        return ( ( scalar keys %pending_peers ) + $self->_count_active_peers() ) >= $max_peers;
+    }
 
     # Verification Throttling
     field @hashing_queue;                                      # Array of { torrent => $t, index => $i, data => $d }
@@ -65,15 +76,15 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         use IO::Socket::IP;
         $tcp_listener = IO::Socket::IP->new( LocalPort => $port, Listen => 5, ReuseAddr => 1, Blocking => 0, );
         if ($tcp_listener) {
-            $self->_emit( log => "    [DEBUG] TCP listener started on port $port\n", level => 'debug' ) if $debug;
+            $self->_emit( log => '    [DEBUG] TCP listener started on port ' . $port, level => 'debug' ) if $debug;
         }
         else {
-            $self->_emit( log => "    [ERROR] Could not start TCP listener on port $port: $!\n", level => 'error' );
+            $self->_emit( log => "    [ERROR] Could not start TCP listener on port $port: $!", level => 'error' );
         }
         $utp->on(
-            'new_connection',
-            sub ( $utp_conn, $ip, $port ) {
+            new_connection => sub ( $utp_conn, $ip, $port ) {
                 return unless $weak_self;
+                return if $weak_self->_at_global_peer_limit();
 
                 #~ warn "    [uTP] Incoming connection from $ip:$port\n";
                 use Net::BitTorrent::Protocol::HandshakeOnly;
@@ -325,6 +336,12 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
             $transport->socket->close() if $transport->socket;
             return;
         }
+        if ( keys %{ $torrent->peer_objects_hash } >= $torrent->max_peers ) {
+            $self->_emit( log => "    [DEBUG] Per-torrent peer limit reached for " . unpack( 'H*', $ih ) . " from $ip:$port\n", level => 'debug' )
+                if $debug;
+            $transport->socket->close() if $transport->socket;
+            return;
+        }
         use Net::BitTorrent::Protocol::PeerHandler;
         my $p_handler = Net::BitTorrent::Protocol::PeerHandler->new(
             infohash      => $ih,
@@ -426,6 +443,7 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     method dht_index () { return \%dht_index }
 
     method connect_to_peer ( $ip, $port, $ih ) {
+        return if $self->_at_global_peer_limit();
         use IO::Socket::IP;
         my $socket = IO::Socket::IP->new( PeerHost => $ip, PeerPort => $port, Type => SOCK_STREAM, Blocking => 0, );
         return unless $socket;
@@ -608,6 +626,10 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
             my $sel = IO::Select->new($tcp_listener);
             if ( $sel->can_read(0) ) {
                 while ( my $socket = $tcp_listener->accept() ) {
+                    if ( $self->_at_global_peer_limit() ) {
+                        $socket->close();
+                        next;
+                    }
                     $socket->blocking(0);
                     $self->_emit(
                         log   => "    [DEBUG] Accepted TCP connection from " . $socket->peerhost . ":" . $socket->peerport . "\n",
