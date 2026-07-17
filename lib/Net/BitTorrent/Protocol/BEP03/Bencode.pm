@@ -20,7 +20,7 @@ package Net::BitTorrent::Protocol::BEP03::Bencode v2.1.0 {
         if ( $string =~ s[^(0+|[1-9]\d*):][] ) {
             my $size = $1;
             die "bencode string too large ($size bytes, max " . MAX_STRING_SIZE . ')' if $size > MAX_STRING_SIZE;
-            $return = '' if $size =~ m[^0+$];
+            $return = ''                                                              if $size =~ m[^0+$];
             $return .= substr( $string, 0, $size, '' );
             return if length $return < $size;
             return $k ? ( $return, $string ) : $return;    # byte string

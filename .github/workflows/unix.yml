@@ -5,12 +5,12 @@ jobs:
     runs-on: '${{ inputs.os }}'
     steps:
       - name: Checkout source
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@v7.0.0
         with:
           submodules: true
       - id: cache-perl
         name: Check perl Cache
-        uses: actions/cache@v4.3.0
+        uses: actions/cache@v6.1.0
         with:
           key: '${{ inputs.os }}-perl-v${{ inputs.perl }}${{ inputs.flags }}'
           path: '~/perl5/'
@@ -59,7 +59,7 @@ jobs:
           fi
         shell: bash
       - name: Upload results as artifact
-        uses: actions/upload-artifact@v5.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           if-no-files-found: error
           name: 'test-output-${{ inputs.os }}-${{ inputs.perl }}${{ inputs.flags }}'
