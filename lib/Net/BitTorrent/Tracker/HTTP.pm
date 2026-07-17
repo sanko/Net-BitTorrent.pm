@@ -75,11 +75,11 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
                             }
                         }
                         catch ($e) {
-                            $self->_emit( log => 'Error in HTTP announce callback: ' . $e, level => 'error' );
+                            $self->_emit_log( 'error', 'Error in HTTP announce callback: ' . $e );
                         }
                     }
                     else {
-                        $self->_emit( log => "Async HTTP error during announce: $res->{status} $res->{reason}", level => 'error' );
+                        $self->_emit_log( 'error', "Async HTTP error during announce: $res->{status} $res->{reason}" );
                     }
                 }
             );
@@ -93,7 +93,7 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
             return $parsed;
         }
         else {
-            $self->_emit( log => "HTTP error during announce: $response->{status} $response->{reason}", level => 'error' );
+            $self->_emit_log( 'error', "HTTP error during announce: $response->{status} $response->{reason}" );
             return undef;
         }
     }
@@ -101,7 +101,7 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
     method perform_scrape ( $infohashes, $cb = undef ) {
         my $target = $self->build_scrape_url($infohashes);
         if ( !$self->ssrf_bypass && !is_safe_url($target) ) {
-            $self->_emit( log => 'HTTP scrape blocked by SSRF policy: ' . $target, level => 'warn' );
+            $self->_emit_log( 'warn', 'HTTP scrape blocked by SSRF policy: ' . $target );
             return undef;
         }
 
@@ -117,7 +117,7 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
             return $parsed;
         }
         else {
-            $self->_emit( log => "HTTP scrape error: $response->{status} $response->{reason}", level => 'error' );
+            $self->_emit_log( 'error', "HTTP scrape error: $response->{status} $response->{reason}" );
             return undef;
         }
     }

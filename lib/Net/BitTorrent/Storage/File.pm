@@ -2,7 +2,7 @@ use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
 use Net::BitTorrent::Emitter;
-class Net::BitTorrent::Storage::File v2.0.0 : isa(Net::BitTorrent::Emitter) {
+class Net::BitTorrent::Storage::File v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use Digest::Merkle::SHA256;
     use Path::Tiny  qw();
     use Digest::SHA qw[sha256];
@@ -20,7 +20,7 @@ class Net::BitTorrent::Storage::File v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
     method verify_block ( $index, $data ) {
         if ( !$merkle ) {
-            $self->_emit( log => 'File does not have Merkle tree (no pieces root)', level => 'fatal' );
+            $self->_emit_log( 'fatal', 'File does not have Merkle tree (no pieces root)' );
             return 0;
         }
         my $old_hash = $merkle->get_node( $merkle->height, $index );
@@ -37,7 +37,7 @@ class Net::BitTorrent::Storage::File v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
     method verify_block_audit ( $index, $data, $audit_path ) {
         if ( !$pieces_root ) {
-            $self->_emit( log => 'File does not have pieces root', level => 'fatal' );
+            $self->_emit_log( 'fatal', 'File does not have pieces root' );
             return 0;
         }
         return Digest::Merkle::SHA256->verify_hash( $index, sha256($data), $audit_path, $pieces_root );
@@ -86,11 +86,11 @@ class Net::BitTorrent::Storage::File v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
     method write ( $offset, $data ) {
         $self->_ensure_exists();
-        $self->_emit( log => "    [DEBUG] Writing " . length($data) . " bytes to $file_path at offset $offset\n", level => 'debug' );
+        $self->_emit_log( 'debug', 'Writing ' . length($data) . " bytes to $file_path at offset $offset" );
         my $fh = $file_path->openrw_raw;
         seek $fh, $offset, 0;
         print {$fh} $data or do {
-            $self->_emit( log => "Failed to write to $file_path: $!", level => 'fatal' );
+            $self->_emit_log( 'fatal', "Failed to write to $file_path: $!" );
             return;
         };
         $fh->flush();

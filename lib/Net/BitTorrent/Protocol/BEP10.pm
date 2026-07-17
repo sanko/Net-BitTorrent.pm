@@ -23,7 +23,7 @@ class Net::BitTorrent::Protocol::BEP10 v2.0.0 : isa(Net::BitTorrent::Protocol::B
     method send_ext_message ( $name, $payload ) {
         my $id = $remote_extensions->{$name};
         if ( !defined $id ) {
-            $self->_emit( log => "Remote does not support extension: $name", level => 'fatal' );
+            $self->_emit_log( 'fatal', "Remote does not support extension: $name" );
             return;
         }
         $self->send_message( EXTENDED, pack( 'C a*', $id, $payload ) );
@@ -42,7 +42,7 @@ class Net::BitTorrent::Protocol::BEP10 v2.0.0 : isa(Net::BitTorrent::Protocol::B
                     $self->_emit( extended_message => $name, $payload );
                 }
                 else {
-                    $self->_emit( log => "  [DEBUG] Received unknown extended message ID: $ext_id\n", level => 'debug' ) if $self->debug;
+                    $self->_emit_log( 'debug', "Received unknown extended message ID: $ext_id" ) if $self->debug;
                 }
             }
         }
@@ -64,19 +64,16 @@ class Net::BitTorrent::Protocol::BEP10 v2.0.0 : isa(Net::BitTorrent::Protocol::B
             }
         }
         catch ($e) {
-            $self->_emit( log => "  [ERROR] Malformed extended handshake: $e\n", level => 'error' );
+            $self->_emit_log( 'error', "Malformed extended handshake: $e" );
             return;
         }
         if ( ref $data ne 'HASH' ) {
-            $self->_emit( log => "  [ERROR] Malformed extended handshake: data is not a hash\n", level => 'error' );
+            $self->_emit_log( 'error', 'Malformed extended handshake: data is not a hash' );
             return;
         }
         $remote_extensions = $data->{m} || {};
         if ( $self->debug ) {
-            $self->_emit(
-                log   => "    [DEBUG] Remote extensions: " . join( ", ", map {"$_=$remote_extensions->{$_}"} keys %$remote_extensions ) . "\n",
-                level => 'debug'
-            );
+            $self->_emit_log( 'debug', "Remote extensions: " . join( ", ", map {"$_=$remote_extensions->{$_}"} keys %$remote_extensions ) );
         }
         $remote_version             = $data->{v}             if exists $data->{v};
         $remote_ip                  = $data->{yourip}        if exists $data->{yourip};

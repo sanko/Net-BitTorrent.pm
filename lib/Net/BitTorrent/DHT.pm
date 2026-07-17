@@ -65,13 +65,13 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
         $routing_table_v6->set_local_id_bin($new_id);
     }
     ADJUST {
-        $socket // $self->_emit( log => 'Could not create UDP socket: ' . $!, level => 'fatal' );
+        $socket // $self->_emit_log( 'fatal', 'Could not create UDP socket: ' . $! );
 
         # Pre-resolve bootstrap nodes
         for my $r (@$boot_nodes) {
             my ( $err, @res ) = getaddrinfo( $r->[0], $r->[1], { socktype => SOCK_DGRAM } );
             if ($err) {
-                $self->_emit( log => "[WARN] Could not resolve bootstrap node $r->[0]:$r->[1]: $err", level => 'debug' );
+                $self->_emit_log( 'warn', "Could not resolve bootstrap node $r->[0]:$r->[1]: $err" );
                 next;
             }
             push @_resolved_boot_nodes, $res[0]{addr};
@@ -172,7 +172,7 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
         if ( $external_ip && $bep42 ) {
             my $new_id = $security->generate_node_id($external_ip);
             if ( $new_id ne $node_id_bin ) {
-                $self->_emit( log => '    [DHT] Rotating Node ID for ' . $external_ip, level => 'debug' );
+                $self->_emit_log( 'debug', 'Rotating Node ID for ' . $external_ip );
                 $self->set_node_id($new_id);
             }
         }
@@ -312,8 +312,8 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
         return ( [], [], undef ) unless $ip;
 
         if ($debug) {
-            my $type = ( $msg->{y} // '' ) eq 'q' ? "QUERY ($msg->{q})" : "RESPONSE";
-            $self->_emit( log => "[DEBUG] RECV $type from $ip:$port", level => 'debug' );
+            my $type = ( $msg->{y} // '' ) eq 'q' ? "QUERY ($msg->{q})" : 'RESPONSE';
+            $self->_emit_log( 'debug', "RECV $type from $ip:$port" );
         }
         if ( ( $msg->{y} // '' ) eq 'q' ) {
             my $node = $self->_handle_query( $msg, $sender, $ip, $port );
@@ -585,7 +585,7 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
             if ( !$ssrf_bypass ) {
                 my ( $gerr, $ip ) = getnameinfo( $addr, NI_NUMERICHOST );
                 if ( !$gerr && defined $ip && !is_safe_ip($ip) ) {
-                    $self->_emit( log => "[WARN] DHT send blocked by SSRF policy: $ip", level => 'debug' );
+                    $self->_emit_log( 'warn', "DHT send blocked by SSRF policy: $ip" );
                     return;
                 }
             }
@@ -594,12 +594,12 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
         }
         ( $addr, $port ) = @$addr if ref $addr eq 'ARRAY';
         if ( !$ssrf_bypass && !is_safe_host($addr) ) {
-            $self->_emit( log => 'DHT send blocked by SSRF policy: ' . $addr, level => 'debug' );
+            $self->_emit_log( 'debug', 'DHT send blocked by SSRF policy: ' . $addr );
             return;
         }
         my ( $err, @res ) = getaddrinfo( $addr, $port, { socktype => SOCK_DGRAM } );
         if ($err) {
-            $self->_emit( log =>, 'getaddrinfo failed for ' . $addr . ( defined $port ? ":$port" : '' ) . ": $err", level => 'debug' );
+            $self->_emit_log( 'debug', 'getaddrinfo failed for ' . $addr . ( defined $port ? ":$port" : '' ) . ': ' . $err );
             return;
         }
         for my $res (@res) {
@@ -608,7 +608,7 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
             if ( !$ssrf_bypass ) {
                 my ( $gerr, $ip ) = getnameinfo( $res->{addr}, NI_NUMERICHOST );
                 if ( !$gerr && defined $ip && !is_safe_ip($ip) ) {
-                    $self->_emit( log => 'DHT send blocked by SSRF policy: ' . $ip, level => 'debug' );
+                    $self->_emit_log( 'debug', 'DHT send blocked by SSRF policy: ' . $ip );
                     next;
                 }
             }
@@ -619,7 +619,7 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
     method _send_raw ( $data, $dest ) {
         if ($debug) {
             my ( $port, $ip ) = $self->_unpack_address($dest);
-            $self->_emit( log => "SEND to $ip:$port", level => 'debug' );
+            $self->_emit_log( 'debug', "SEND to $ip:$port" );
         }
         $socket->send( $data, 0, $dest );
     }

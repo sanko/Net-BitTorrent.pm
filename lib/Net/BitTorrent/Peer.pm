@@ -78,8 +78,8 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
             'filter_failed',
             sub ( $emitter, $leftover ) {
                 return unless $weak_self;
-                return if $weak_self->encryption == ENCRYPTION_REQUIRED;
-                $weak_self->_emit( log => '    [DEBUG] Falling back to plaintext handshake...', level => 'debug' ) if $weak_self->debug;
+                return                                                                     if $weak_self->encryption == ENCRYPTION_REQUIRED;
+                $weak_self->_emit_log( 'debug', 'Falling back to plaintext handshake...' ) if $weak_self->debug;
 
                 # We can't easily change $mse from here because it's a field
                 # but we can call a method or just use it.
@@ -95,7 +95,7 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
             sub ( $emitter, @args ) {
                 return unless $weak_self;
                 if ($mse) {
-                    $weak_self->_emit( log => '    [DEBUG] Starting MSE handshake...', level => 'debug' ) if $weak_self->debug;
+                    $weak_self->_emit_log( 'debug', 'Starting MSE handshake...' ) if $weak_self->debug;
 
                     # Handshake is driven by transport filter's write_buffer in tick()
                 }
@@ -162,7 +162,7 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method receive_data ($data) {
-        $self->_emit( log => '    [DEBUG] Peer received ' . length($data) . ' bytes of data', level => 'debug' ) if $debug;
+        $self->_emit_log( 'debug', 'Peer received ' . length($data) . ' bytes of data' ) if $debug;
         $torrent->can_read( length $data );
         $protocol->receive_data($data);
     }
@@ -209,14 +209,11 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
             my $hash = substr( $hashes, $i * $node_size, $node_size );
             $file->merkle->set_node( $base_layer, $index + $i, $hash );
         }
-        $self->_emit(
-            log   => "    [DEBUG] Received and stored $num_hashes hashes for root " . unpack( 'H*', $root ) . ' at layer $base_layer',
-            level => 'debug'
-        ) if $debug;
+        $self->_emit_log( 'debug', "Received and stored $num_hashes hashes for root " . unpack( 'H*', $root ) . ' at layer $base_layer' ) if $debug;
     }
 
     method handle_hash_reject ( $root, $proof_layer, $base_layer, $index, $length ) {
-        $self->_emit( log => '    [DEBUG] Peer rejected hash request for root ' . unpack( 'H*', $root ), level => 'debug' ) if $debug;
+        $self->_emit_log( 'debug', 'Peer rejected hash request for root ' . unpack( 'H*', $root ) ) if $debug;
     }
 
     method handle_metadata_request ($piece) {
@@ -263,17 +260,17 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method handle_hp_connect ( $ip, $port ) {
         unless ( is_safe_ip($ip) ) {
-            $self->_emit( log => "    [BEP 55] HP_CONNECT blocked by SSRF policy: $ip:$port", level => 'warn' ) if $debug;
+            $self->_emit_log( 'warn', "HP_CONNECT blocked by SSRF policy: $ip:$port" ) if $debug;
             return;
         }
-        $self->_emit( log => "    [BEP 55] Instructed to connect to $ip:$port", level => 'info' ) if $debug;
+        $self->_emit_log( 'info', "Instructed to connect to $ip:$port" ) if $debug;
 
         # Trigger uTP connection
         $torrent->client->connect_to_peer( $ip, $port, $torrent->infohash_v2 || $torrent->infohash_v1 );
     }
 
     method handle_hp_error ($err) {
-        $self->_emit( log => '    [BEP 55] Received holepunch error: ' . $err, level => 'error' ) if $debug;
+        $self->_emit_log( 'error', 'Received holepunch error: ' . $err ) if $debug;
     }
 
     method handle_message ( $id, $payload ) {
@@ -441,7 +438,7 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method _handle_piece_data ( $index, $begin, $data ) {
-        $self->_emit( log => '    [DEBUG] Received ' . length($data) . " bytes for piece $index at $begin", level => 'debug' ) if $debug;
+        $self->_emit_log( 'debug', 'Received ' . length($data) . " bytes for piece $index at $begin" ) if $debug;
         $bytes_down += length($data);
         $blocks_inflight--;
         my $status = $torrent->receive_block( $self, $index, $begin, $data );
@@ -498,14 +495,14 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
         # MSE Transition Check
         if ( $mse && $mse->state eq 'PAYLOAD' && !$pwp_handshake_sent ) {
-            $self->_emit( log => '    [DEBUG] MSE handshake complete, sending protocol handshake...', level => 'debug' ) if $debug;
+            $self->_emit_log( 'debug', 'MSE handshake complete, sending protocol handshake...' ) if $debug;
             $protocol->send_handshake();
             $pwp_handshake_sent = 1;
         }
 
         # Fatal Protocol Error Check
         if ( $protocol->state eq 'CLOSED' ) {
-            $self->_emit( log => "    [PEER] Fatal protocol error from $ip:$port. Disconnecting.", level => 'error' ) if $debug;
+            $self->_emit_log( 'error', "Fatal protocol error from $ip:$port. Disconnecting." ) if $debug;
             $self->disconnected();
             return;
         }
@@ -515,7 +512,7 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
     method adjust_reputation ($delta) {
         $reputation += $delta;
         if ( $reputation <= 50 ) {
-            $self->_emit( log => "    [PEER] Blacklisting peer $ip:$port due to low reputation ($reputation)", level => 'error' ) if $debug;
+            $self->_emit_log( 'error', "Blacklisting peer $ip:$port due to low reputation ($reputation)" ) if $debug;
             $self->disconnected();
         }
     }

@@ -28,14 +28,13 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
             $host = $1;
             $port = $2;
             unless ( $self->ssrf_bypass || is_safe_ip($host) ) {
-                $self->_emit( log => "UDP tracker blocked by SSRF policy: $host:$port", level => 'fatal' );
+                $self->_emit_log( 'fatal', "UDP tracker blocked by SSRF policy: $host:$port" );
                 return;
             }
-            $socket = IO::Socket::IP->new( Proto => 'udp', Blocking => 0, ) or
-                $self->_emit( log => "Could not create UDP socket: $!", level => 'fatal' );
+            $socket = IO::Socket::IP->new( Proto => 'udp', Blocking => 0, ) or $self->_emit_log( 'fatal', "Could not create UDP socket: $!" );
         }
         else {
-            $self->_emit( log => 'Invalid UDP tracker URL: ' . $self->url, level => 'fatal' );
+            $self->_emit_log( 'fatal', 'Invalid UDP tracker URL: ' . $self->url );
         }
     }
 
@@ -62,7 +61,7 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
             my $timeout = 15 * ( 2**$entry->{retries} );
             if ( $now - $entry->{timestamp} > $timeout ) {
                 if ( $entry->{retries} >= 8 ) {
-                    $self->_emit( log => "UDP transaction $tid timed out after 8 retries", level => 'error' );
+                    $self->_emit_log( 'error', "UDP transaction $tid timed out after 8 retries" );
                     delete $pending_transactions{$tid};
                     next;
                 }
@@ -78,13 +77,14 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
         my ( $action, $tid ) = unpack( 'N N', $data );
         my $entry = delete $pending_transactions{$tid};
         if ( !$entry ) {
-            $self->_emit( log => "Received UDP packet with unknown transaction ID: $tid", level => 'debug' );
+            $self->_emit_log( 'debug', "Received UDP packet with unknown transaction ID: $tid" );
             return;
         }
         try {
             if ( $action == 3 ) {    # Error
                 my $msg = substr( $data, 8 );
-                $self->_emit( log => "UDP Tracker error: $msg", level => 'error' );
+                $msg =~ s/[^\x20-\x7E]/./g;    # Sanitize: replace non-printable with dot
+                $self->_emit_log( 'error', "UDP Tracker error: $msg" );
                 return;
             }
             if ( $entry->{type} eq 'connect' ) {
@@ -111,7 +111,7 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
             }
         }
         catch ($e) {
-            $self->_emit( log => "Error parsing UDP tracker response: $e", level => 'error' );
+            $self->_emit_log( 'error', "Error parsing UDP tracker response: $e" );
         }
     }
 

@@ -45,17 +45,17 @@ class Net::BitTorrent::Protocol::BEP03 v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
     method send_handshake () {
         if ( !defined $infohash ) {
-            $self->_emit( log => 'infohash required to send handshake', level => 'fatal' );
+            $self->_emit_log( 'fatal', 'infohash required to send handshake' );
             return;
         }
         my $ih_len = CORE::length($infohash);
         if ( $ih_len != 20 && $ih_len != 32 ) {
-            $self->_emit( log => 'Info hash must be 20 or 32 bytes', level => 'fatal' );
+            $self->_emit_log( 'fatal', 'Info hash must be 20 or 32 bytes' );
             return;
         }
-        $self->_emit( log => "    [DEBUG] Sending handshake (" . unpack( 'H*', $infohash ) . ")\n", level => 'debug' ) if $debug;
+        $self->_emit_log( 'debug', 'Sending handshake (' . unpack( 'H*', $infohash ) . ')' ) if $debug;
         my $raw = pack( 'C A19 a8', 19, 'BitTorrent protocol', $reserved ) . $infohash . $peer_id;
-        $self->_emit( log => "    [DEBUG] Handshake hex: " . unpack( 'H*', $raw ) . "\n", level => 'debug' ) if $debug;
+        $self->_emit_log( 'debug', 'Handshake hex: ' . unpack( 'H*', $raw ) ) if $debug;
         $buffer_out .= $raw;
         $handshake_sent = 1;
     }
@@ -97,17 +97,15 @@ class Net::BitTorrent::Protocol::BEP03 v2.0.0 : isa(Net::BitTorrent::Emitter) {
         my $pstrlen = ord( substr( $buffer_in, 0, 1 ) );
         if ( $pstrlen != 19 ) {
             $state = 'CLOSED';
-            $self->_emit(
-                log   => 'Invalid protocol string (expected 19, got ' . $pstrlen . ') hex: ' . unpack( 'H*', substr( $buffer_in, 0, 20 ) ),
-                level => 'fatal'
-            );
+            $self->_emit_log( 'fatal',
+                'Invalid protocol string (expected 19, got ' . $pstrlen . ') hex: ' . unpack( 'H*', substr( $buffer_in, 0, 20 ) ) );
             return;
         }
         return if length($buffer_in) < 1 + $pstrlen + 8 + 20 + 20;    # Min v1 handshake (68 bytes)
         my $pstr = substr( $buffer_in, 1, $pstrlen );
         if ( $pstr ne 'BitTorrent protocol' ) {
             $state = 'CLOSED';
-            $self->_emit( log => 'Invalid protocol string', level => 'fatal' );
+            $self->_emit_log( 'fatal', 'Invalid protocol string' );
             return;
         }
 
@@ -147,15 +145,15 @@ class Net::BitTorrent::Protocol::BEP03 v2.0.0 : isa(Net::BitTorrent::Emitter) {
 
             # If we were expecting v2 but got v1, it might fail here.
             $state = 'CLOSED';
-            $self->_emit( log => 'Info hash mismatch', level => 'fatal' );
+            $self->_emit_log( 'fatal', 'Info hash mismatch' );
             return;
         }
         substr( $buffer_in, 0, $handshake_len, '' );
         $state       = 'OPEN';
         $detected_ih = $remote_ih;
         $reserved    = $remote_res;
-        $self->_emit( log       => "    [DEBUG] Received handshake from " . unpack( 'H*', $remote_id ) . "\n", level => 'debug' ) if $debug;
-        $self->_emit( handshake => $remote_ih,                                                                 $remote_id );
+        $self->_emit_log( 'debug', "Received handshake from " . unpack( 'H*', $remote_id ) ) if $debug;
+        $self->_emit( handshake => $remote_ih, $remote_id );
     }
 
     method _process_messages () {
@@ -167,7 +165,7 @@ class Net::BitTorrent::Protocol::BEP03 v2.0.0 : isa(Net::BitTorrent::Emitter) {
             }
             if ( $msg_len > MAX_MESSAGE_SIZE ) {
                 $state = 'CLOSED';
-                $self->_emit( log => "Message too large ($msg_len bytes, max " . MAX_MESSAGE_SIZE . ")", level => 'fatal' );
+                $self->_emit_log( 'fatal', "Message too large ($msg_len bytes, max " . MAX_MESSAGE_SIZE . ')' );
                 return;
             }
             if ( length($buffer_in) < 4 + $msg_len ) {
@@ -176,14 +174,14 @@ class Net::BitTorrent::Protocol::BEP03 v2.0.0 : isa(Net::BitTorrent::Emitter) {
             my $raw_msg = substr( $buffer_in, 0, 4 + $msg_len, '' );
             my $id      = unpack( 'C', substr( $raw_msg, 4, 1 ) );
             my $payload = substr( $raw_msg, 5 );
-            $self->_emit( log => "    [DEBUG] Received message ID $id (len " . length($payload) . ")\n", level => 'debug' ) if $debug;
+            $self->_emit_log( 'debug', "Received message ID $id (len " . length($payload) . ')' ) if $debug;
             $self->_handle_message( $id, $payload );
         }
     }
     method _handle_message ( $id, $payload ) { }
 
     method send_message ( $id, $payload = '' ) {
-        $self->_emit( log => "    [DEBUG] Sending message ID $id (len " . length($payload) . ")\n", level => 'debug' ) if $debug;
+        $self->_emit_log( 'debug', "Sending message ID $id (len " . length($payload) . ')' ) if $debug;
         $buffer_out .= pack( 'N C a*', 1 + length($payload), $id, $payload );
     }
 

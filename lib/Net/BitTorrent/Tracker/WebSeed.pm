@@ -17,7 +17,7 @@ class Net::BitTorrent::Tracker::WebSeed v2.1.0 : isa(Net::BitTorrent::Emitter) {
             # ... URL construction ...
             my $target_url = $self->_build_url($seg);
             unless ( is_safe_url($target_url) ) {
-                $self->_emit( log => '    [WebSeed] URL blocked by SSRF policy: ' . $target_url, level => 'warn' );
+                $self->_emit_log( 'warn', 'URL blocked by SSRF policy: ' . $target_url );
                 return undef;
             }
             my $response = $http->get( $target_url, { headers => { Range => "bytes=$seg->{offset}-" . ( $seg->{offset} + $seg->{length} - 1 ) } } );
@@ -26,11 +26,11 @@ class Net::BitTorrent::Tracker::WebSeed v2.1.0 : isa(Net::BitTorrent::Emitter) {
             }
             elsif ( $response->{status} == 410 ) {
                 $disabled = 1;
-                $self->_emit( log => "    [WebSeed] Resource 410 Gone: $target_url. Disabling webseed.\n", level => 'warn' );
+                $self->_emit_log( 'warn', "Resource 410 Gone: $target_url. Disabling webseed." );
                 return undef;
             }
             else {
-                $self->_emit( log => "WebSeed fetch failed: $response->{status} $response->{reason} (URL: $target_url)", level => 'error' );
+                $self->_emit_log( 'error', "WebSeed fetch failed: $response->{status} $response->{reason} (URL: $target_url)" );
                 return undef;
             }
         }

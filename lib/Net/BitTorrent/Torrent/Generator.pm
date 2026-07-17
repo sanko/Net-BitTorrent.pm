@@ -21,7 +21,7 @@ class Net::BitTorrent::Torrent::Generator v2.0.0 : isa(Net::BitTorrent::Emitter)
     method add_file ($rel_path) {
         my $abs = path($base_path)->child($rel_path);
         if ( !$abs->exists ) {
-            $self->_emit( log => "File does not exist: $abs", level => 'fatal' );
+            $self->_emit_log( 'fatal', "File does not exist: $abs" );
             return;
         }
         if ( $align_files && @files && $files[-1]{size} % $piece_length != 0 ) {

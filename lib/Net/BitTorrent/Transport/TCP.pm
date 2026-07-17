@@ -53,7 +53,7 @@ class Net::BitTorrent::Transport::TCP v2.0.0 : isa(Net::BitTorrent::Emitter) {
             substr( $write_buffer, 0, $sent, '' );
         }
         elsif ( !defined $sent && $! != Errno::EWOULDBLOCK && $! != Errno::EAGAIN ) {
-            $self->_emit( log => "    [DEBUG] TCP write error: $!\n", level => 'debug' );
+            $self->_emit_log( 'debug', "TCP write error: $!" );
             $self->_emit('disconnected');
         }
     }
@@ -75,10 +75,7 @@ class Net::BitTorrent::Transport::TCP v2.0.0 : isa(Net::BitTorrent::Emitter) {
                 }
                 else {
                     $! = $error;
-                    $self->_emit(
-                        log   => "    [DEBUG] TCP connection failed to " . $socket->peerhost . ":" . $socket->peerport . ": $!\n",
-                        level => 'debug'
-                    );
+                    $self->_emit_log( 'debug', "TCP connection failed to " . $socket->peerhost . ":" . $socket->peerport . ": $!" );
                     $self->_emit('disconnected');
                     return;
                 }
@@ -103,7 +100,7 @@ class Net::BitTorrent::Transport::TCP v2.0.0 : isa(Net::BitTorrent::Emitter) {
             if ($filter) {
                 my $decrypted = $filter->receive_data($buffer);
                 if ( $filter->state eq 'PLAINTEXT_FALLBACK' ) {
-                    $self->_emit( log => "    [DEBUG] Transport filter requested plaintext fallback\n", level => 'debug' );
+                    $self->_emit_log( 'debug', 'Transport filter requested plaintext fallback' );
                     my $leftover = $filter->buffer_in;
                     $filter = undef;
                     $self->_emit( 'filter_failed', $leftover );
@@ -111,7 +108,7 @@ class Net::BitTorrent::Transport::TCP v2.0.0 : isa(Net::BitTorrent::Emitter) {
                     return;
                 }
                 elsif ( $filter->state eq 'FAILED' ) {
-                    $self->_emit( log => "    [ERROR] Transport filter handshake FAILED\n", level => 'error' );
+                    $self->_emit_log( 'error', 'Transport filter handshake FAILED' );
                     my $leftover = $filter->buffer_in;
                     $filter = undef;
                     $self->_emit( 'filter_failed', $leftover );
@@ -135,11 +132,11 @@ class Net::BitTorrent::Transport::TCP v2.0.0 : isa(Net::BitTorrent::Emitter) {
             }
         }
         elsif ( defined $len && $len == 0 ) {
-            $self->_emit( log => "    [DEBUG] TCP remote closed connection\n", level => 'debug' );
+            $self->_emit_log( 'debug', 'TCP remote closed connection' );
             $self->_emit('disconnected');
         }
         elsif ( !defined $len && $! != Errno::EWOULDBLOCK && $! != Errno::EAGAIN ) {
-            $self->_emit( log => "    [DEBUG] TCP read error: $!\n", level => 'debug' );
+            $self->_emit_log( 'debug', "TCP read error: $!" );
             $self->_emit('disconnected');
         }
     }

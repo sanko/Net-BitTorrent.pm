@@ -57,7 +57,7 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.1.0 : isa(Net::BitTorrent::
 
     method compute_secret ($remote_pub_bytes) {
         if ( length($remote_pub_bytes) != 96 ) {
-            $self->_emit( log => "Remote public key must be 96 bytes", level => 'fatal' );
+            $self->_emit_log( 'fatal', 'Remote public key must be 96 bytes' );
             return undef;
         }
         my $p          = Math::BigInt->from_hex($P_STR);
