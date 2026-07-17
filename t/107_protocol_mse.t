@@ -1,7 +1,7 @@
 use v5.40;
 use Test2::V1 -ipP;
 no warnings;
-use lib 'lib';
+use lib 'lib', '../lib';
 
 BEGIN {
     try {
@@ -59,5 +59,19 @@ isnt $encrypted, $secret_msg, 'Message is encrypted';
 # but our simplified Initiator jumped to PAYLOAD.
 my $decrypted = $receiver->decrypt_data($encrypted);
 is $decrypted, $secret_msg, 'Receiver decrypted the message correctly';
+#
+subtest 'Oversized handshake data transitions to FAILED' => sub {
+    my $mse = Net::BitTorrent::Protocol::MSE->new( infohash => 'A' x 20, is_initiator => 1, );
+    is $mse->state, 'A_WAIT_PUBKEY', 'initial state is A_WAIT_PUBKEY';
+    ok lives { $mse->receive_data( 'X' x 500 ) for 1 .. 100; 1; }, 'sending data in chunks did not die';
+    is $mse->state, 'FAILED', 'state is FAILED after exceeding buffer cap';
+};
+#
+subtest 'Valid short data does not trigger FAILED' => sub {
+    my $mse = Net::BitTorrent::Protocol::MSE->new( infohash => 'B' x 20, is_initiator => 0, );
+    is $mse->state, 'B_WAIT_PUBKEY', 'initial state is B_WAIT_PUBKEY';
+    ok lives { $mse->receive_data( 'Y' x 50 ); 1 }, 'small data did not die';
+    is $mse->state, 'B_WAIT_PUBKEY', 'state unchanged after small data';
+};
 #
 done_testing;

@@ -17,11 +17,13 @@ class Net::BitTorrent::Protocol::MSE v2.0.0 : isa(Net::BitTorrent::Emitter) {
     field $wait_len      = 0;
     field $crypto_select = 0;
     #
-    my $VC               = "\0" x 8;
-    my $CRYPTO_PLAINTEXT = 0x01;
-    my $CRYPTO_RC4       = 0x02;
+    my $VC                        = "\0" x 8;
+    my $CRYPTO_PLAINTEXT          = 0x01;
+    my $CRYPTO_RC4                = 0x02;
+    my $MAX_HANDSHAKE_BUFFER_SIZE = 32 * 1024;    # 32KB
+
     #
-    method supported () { 1; }
+    method supported () {1}
     ADJUST {
         $kx = Net::BitTorrent::Protocol::MSE::KeyExchange->new( infohash => $infohash, is_initiator => $is_initiator );
         if ($is_initiator) {
@@ -59,6 +61,10 @@ class Net::BitTorrent::Protocol::MSE v2.0.0 : isa(Net::BitTorrent::Emitter) {
             return $kx->decrypt_rc4->crypt($data);
         }
         $buffer_in .= $data;
+        if ( length($buffer_in) > $MAX_HANDSHAKE_BUFFER_SIZE ) {
+            $state = 'FAILED';
+            return undef;
+        }
         my $continue = 1;
         while ( $continue && $state ne 'PAYLOAD' && $state ne 'FAILED' && $state ne 'PLAINTEXT_FALLBACK' ) {
             $continue = 0;
@@ -244,4 +250,5 @@ class Net::BitTorrent::Protocol::MSE v2.0.0 : isa(Net::BitTorrent::Emitter) {
         $state = 'PAYLOAD';
         return 0;
     }
-} 1;
+};
+1;
