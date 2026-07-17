@@ -517,7 +517,7 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         elsif ( -f $thing ) {
             return $self->add_torrent( $thing, $base_path, %args );
         }
-        $self->_emit_log( 'fatal', "Don't know how to add '$thing'" );
+        $self->_emit_log( 'error', "Don't know how to add '$thing'" );
         return undef;
     }
 

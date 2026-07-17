@@ -232,7 +232,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         if ($path) {
             my $data = path($path)->slurp_raw;
             $metadata = bdecode($data);
-            $self->_emit_log( 'fatal', 'Missing info dictionary' ) unless ref $metadata eq 'HASH' && ref $metadata->{info} eq 'HASH';
+            $self->_emit_log( 'error', 'Missing info dictionary' ) unless ref $metadata eq 'HASH' && ref $metadata->{info} eq 'HASH';
             $self->_init_from_metadata();
         }
         elsif ( $infohash || $infohash_v1 || $infohash_v2 ) {
@@ -244,7 +244,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
                     $infohash_v2 = $infohash;
                 }
                 else {
-                    $self->_emit_log( 'fatal', 'Invalid infohash length' );
+                    $self->_emit_log( 'error', 'Invalid infohash length' );
                 }
             }
             my @tiers = map { [$_] } @$initial_trackers;
@@ -256,32 +256,32 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
             }
         }
         else {
-            $self->_emit_log( 'fatal', 'Either path or infohash required' );
+            $self->_emit_log( 'error', 'Either path or infohash required' );
         }
     }
 
     method _validate_file_tree ( $tree, $depth = 0 ) {
         if ( $depth > MAX_FILE_TREE_DEPTH ) {
-            $self->_emit_log( 'fatal', 'File tree depth limit exceeded (max ' . MAX_FILE_TREE_DEPTH . ' levels)' );
+            $self->_emit_log( 'error', 'File tree depth limit exceeded (max ' . MAX_FILE_TREE_DEPTH . ' levels)' );
             return;
         }
         if ( ref $tree ne 'HASH' ) {
-            $self->_emit_log( 'fatal', 'Invalid file tree' );
+            $self->_emit_log( 'error', 'Invalid file tree' );
             return;
         }
         for my $name ( keys %$tree ) {
             if ( $name eq '' || $name eq '.' || $name eq '..' || $name =~ /[\\\/]/ ) {
-                $self->_emit_log( 'fatal', 'Invalid path element' );
+                $self->_emit_log( 'error', 'Invalid path element' );
                 return;
             }
             my $node = $tree->{$name};
             if ( exists $node->{''} ) {
                 if ( ref $node->{''} ne 'HASH' ) {
-                    $self->_emit_log( 'fatal', 'Invalid file metadata' );
+                    $self->_emit_log( 'error', 'Invalid file metadata' );
                     return;
                 }
                 if ( ( $node->{''}{length} // -1 ) < 0 ) {
-                    $self->_emit_log( 'fatal', 'Invalid file length' );
+                    $self->_emit_log( 'error', 'Invalid file length' );
                     return;
                 }
             }
@@ -293,29 +293,29 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method _init_from_metadata () {
         if ( !$metadata || ref $metadata->{info} ne 'HASH' ) {
-            $self->_emit_log( 'fatal', 'Missing info dictionary' );
+            $self->_emit_log( 'error', 'Missing info dictionary' );
             return;
         }
         my $info = $metadata->{info};
         if ( ( $info->{'piece length'} // 0 ) <= 0 ) {
-            $self->_emit_log( 'fatal', 'Invalid piece length' );
+            $self->_emit_log( 'error', 'Invalid piece length' );
             return;
         }
         if ( !defined $info->{name} || !length $info->{name} ) {
-            $self->_emit_log( 'fatal', 'Missing name' );
+            $self->_emit_log( 'error', 'Missing name' );
             return;
         }
         if ( $info->{name} =~ /[\\\/]/ || $info->{name} eq '..' || $info->{name} =~ /\0/ ) {
-            $self->_emit_log( 'fatal', 'Invalid name: path traversal characters detected' );
+            $self->_emit_log( 'error', 'Invalid name: path traversal characters detected' );
             return;
         }
         require File::Spec;
         if ( File::Spec->file_name_is_absolute( $info->{name} ) ) {
-            $self->_emit_log( 'fatal', 'Invalid name: absolute path' );
+            $self->_emit_log( 'error', 'Invalid name: absolute path' );
             return;
         }
         if ( !$info->{pieces} && !$info->{'file tree'} ) {
-            $self->_emit_log( 'fatal', 'Torrent must have either \'pieces\' (v1) or \'file tree\' (v2)' );
+            $self->_emit_log( 'error', 'Torrent must have either \'pieces\' (v1) or \'file tree\' (v2)' );
             return;
         }
 
@@ -325,21 +325,21 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         }
         elsif ( $info->{files} ) {
             if ( ref $info->{files} ne 'ARRAY' || !@{ $info->{files} } ) {
-                $self->_emit_log( 'fatal', 'Invalid files list' );
+                $self->_emit_log( 'error', 'Invalid files list' );
                 return;
             }
             for my $f ( @{ $info->{files} } ) {
                 if ( ( $f->{length} // -1 ) < 0 ) {
-                    $self->_emit_log( 'fatal', 'Invalid file length' );
+                    $self->_emit_log( 'error', 'Invalid file length' );
                     return;
                 }
                 if ( ref $f->{path} ne 'ARRAY' || !@{ $f->{path} } ) {
-                    $self->_emit_log( 'fatal', 'Missing path' );
+                    $self->_emit_log( 'error', 'Missing path' );
                     return;
                 }
                 for my $p ( @{ $f->{path} } ) {
                     if ( $p eq '' || $p eq '.' || $p eq '..' || $p =~ /[\\\/]/ ) {
-                        $self->_emit_log( 'fatal', 'Invalid path element' );
+                        $self->_emit_log( 'error', 'Invalid path element' );
                         return;
                     }
                 }
@@ -357,7 +357,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
             }
             else {
                 if ( ( $info->{length} // -1 ) < 0 ) {
-                    $self->_emit_log( 'fatal', 'Invalid file length' );
+                    $self->_emit_log( 'error', 'Invalid file length' );
                     return;
                 }
             }
@@ -675,16 +675,16 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         # Validate name for path traversal before using it
         my $name = $metadata->{info}{name};
         if ( !defined $name || !length $name ) {
-            $self->_emit_log( 'fatal', 'Missing name in metadata' );
+            $self->_emit_log( 'error', 'Missing name in metadata' );
             return;
         }
         if ( $name =~ /[\\\/]/ || $name eq '..' || $name =~ /\0/ ) {
-            $self->_emit_log( 'fatal', 'Invalid name: path traversal characters detected' );
+            $self->_emit_log( 'error', 'Invalid name: path traversal characters detected' );
             return;
         }
         require File::Spec;
         if ( File::Spec->file_name_is_absolute($name) ) {
-            $self->_emit_log( 'fatal', 'Invalid name: absolute path' );
+            $self->_emit_log( 'error', 'Invalid name: absolute path' );
             return;
         }
 
