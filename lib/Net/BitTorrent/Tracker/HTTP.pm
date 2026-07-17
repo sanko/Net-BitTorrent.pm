@@ -4,8 +4,9 @@ no warnings 'experimental::class', 'experimental::try';
 class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base) {
     use Net::BitTorrent::Protocol::BEP03::Bencode qw[bdecode];
     use Net::BitTorrent::Protocol::BEP23;
-    use Net::BitTorrent::SSRF qw[is_safe_url resolve_and_pin];
+    use Net::BitTorrent::SSRF qw[is_safe_url is_safe_ip resolve_and_pin];
     use HTTP::Tiny;
+    use URI;
     use URI::Escape qw[uri_escape];
     use constant MAX_TRACKER_RESPONSE_SIZE => 1024 * 1024;    # 1MB
 
@@ -74,10 +75,20 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
             return undef;
         }
 
-        # Note: is_safe_url resolves DNS to validate, then HTTP::Tiny resolves again independently.
-        # Full DNS pinning would require overriding HTTP::Tiny's connection logic. The TOCTOU
-        # window is sub-millisecond and requires attacker-controlled DNS. All of this adds up to a
-        # very low practical risk factor.
+        # Resolve and pin the IP to prevent TOCTOU DNS rebinding.
+        my $uri  = URI->new($target);
+        my $host = $uri->host;
+        my $port = $uri->port;
+        if ( !$self->ssrf_bypass && $host && !is_safe_ip($host) ) {
+            my ( $pinned_ip, $pinned_port ) = resolve_and_pin( $host, $port );
+            if ( !defined $pinned_ip ) {
+                $self->_emit_log( 'warn', 'HTTP announce DNS pinning failed (unsafe resolution): ' . $host );
+                return undef;
+            }
+            $uri->host($pinned_ip);
+            $uri->port($pinned_port) if defined $pinned_port;
+            $target = $uri->as_string();
+        }
         if ( $params->{ua} && $params->{ua}->can('get') ) {
             $params->{ua}->get(
                 $target,
@@ -119,10 +130,20 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
             return undef;
         }
 
-        # Note: Scrape might not have a 'ua' in $infohashes params,
-        # usually client passes it or we should store it in $self.
-        # For now, if we don't have it, we block.
-        # Real fix: Tracker objects should have a 'ua' field.
+        # Resolve and pin the IP to prevent TOCTOU DNS rebinding.
+        my $uri  = URI->new($target);
+        my $host = $uri->host;
+        my $port = $uri->port;
+        if ( !$self->ssrf_bypass && $host && !is_safe_ip($host) ) {
+            my ( $pinned_ip, $pinned_port ) = resolve_and_pin( $host, $port );
+            if ( !defined $pinned_ip ) {
+                $self->_emit_log( 'warn', 'HTTP scrape DNS pinning failed (unsafe resolution): ' . $host );
+                return undef;
+            }
+            $uri->host($pinned_ip);
+            $uri->port($pinned_port) if defined $pinned_port;
+            $target = $uri->as_string();
+        }
         my $http     = HTTP::Tiny->new( max_size => MAX_TRACKER_RESPONSE_SIZE );
         my $response = $http->get($target);
         if ( $response->{success} ) {
