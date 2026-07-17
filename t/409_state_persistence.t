@@ -47,4 +47,25 @@ subtest 'State Persistence' => sub {
     is $file2->merkle->root, $pieces_root, 'Merkle root is correct after load (assuming it was verified before)';
 };
 #
+subtest 'client load_state ignores wrong-length node_id' => sub {
+    my $temp    = Path::Tiny->tempdir;
+    my $client  = Net::BitTorrent->new();
+    my $orig_id = $client->node_id;
+
+    # Write a state file with wrong-length node_id
+    use JSON::PP qw[encode_json];
+    my $state_file = $temp->child('bad_state.json');
+    $state_file->spew_utf8( encode_json( { node_id => 'short', torrents => {} } ) );
+    $client->load_state($state_file);
+    is $client->node_id, $orig_id, 'node_id unchanged after load_state with wrong-length node_id';
+};
+#
+subtest 'DHT import_state ignores wrong-length node_id' => sub {
+    my $dht       = Net::BitTorrent::DHT->new( port => 0, ssrf_bypass => 1, boot_nodes => [] );
+    my $orig_id   = $dht->node_id_bin;
+    my $bad_state = { id => 'tooshort' };                                                         # Only 8 bytes instead of 20
+    $dht->import_state($bad_state);
+    is $dht->node_id_bin, $orig_id, 'node_id_bin unchanged after import_state with wrong-length node_id';
+};
+#
 done_testing;

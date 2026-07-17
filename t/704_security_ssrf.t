@@ -124,4 +124,16 @@ subtest 'UDP tracker ssrf_bypass works' => sub {
     ok $tracker, 'UDP tracker created with bypass';
 };
 #
+subtest resolve_and_pin => sub {
+    subtest 'resolve_and_pin passes through safe IPs' => sub {
+        my ( $ip, $port ) = Net::BitTorrent::SSRF::resolve_and_pin( '8.8.8.8', 80 );
+        is $ip,   '8.8.8.8', 'safe IPv4 passed through';
+        is $port, 80,        'port preserved';
+    };
+    is Net::BitTorrent::SSRF::resolve_and_pin( '127.0.0.1',                                  80 ), U(), 'loopback IP returns empty list';
+    is Net::BitTorrent::SSRF::resolve_and_pin( '192.168.1.1',                                80 ), U(), 'RFC 1918 IP returns empty list';
+    is Net::BitTorrent::SSRF::resolve_and_pin( '169.254.169.254',                            80 ), U(), 'cloud metadata IP returns empty list';
+    is Net::BitTorrent::SSRF::resolve_and_pin( 'this-host-does-not-exist-12345.example.com', 80 ), U(), 'unresolvable hostname returns empty list';
+};
+#
 done_testing;

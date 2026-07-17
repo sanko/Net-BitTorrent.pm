@@ -1,5 +1,5 @@
 use v5.40;
-use feature 'class';
+use feature qw[class try];
 use Test2::V1 -ipP;
 use lib 'lib', '../lib';
 no warnings;
@@ -73,6 +73,27 @@ subtest MSE => sub {
         my $ih   = 'B' x 20;
         my %seen = map { Net::BitTorrent::Protocol::MSE::KeyExchange->new( infohash => $ih, is_initiator => 1 )->public_key => 1 } 1 .. 5;
         is scalar keys %seen, 5, '5 KeyExchange instances produce 5 distinct public keys';
+    };
+    #
+    subtest 'degenerate DH public key rejected (range check)' => sub {
+        my $ih = 'C' x 20;
+        my $kx = Net::BitTorrent::Protocol::MSE::KeyExchange->new( infohash => $ih, is_initiator => 1 );
+
+        # Y=1 is below the valid range [2, P-2]
+        my $bad_pub = pack( 'H*', '0' x 191 . '01' );    # 96 bytes, value = 1
+        my $died    = 0;
+        try { $kx->compute_secret($bad_pub) }
+        catch ($e) { $died = 1 };
+        ok $died, 'compute_secret dies on degenerate key Y=1 (below range)';
+    };
+    #
+    subtest 'valid DH public key accepted' => sub {
+        my $ih       = 'D' x 20;
+        my $alice    = Net::BitTorrent::Protocol::MSE::KeyExchange->new( infohash => $ih, is_initiator => 1 );
+        my $bob      = Net::BitTorrent::Protocol::MSE::KeyExchange->new( infohash => $ih, is_initiator => 0 );
+        my $secret_a = $alice->compute_secret( $bob->public_key );
+        my $secret_b = $bob->compute_secret( $alice->public_key );
+        is $secret_a, $secret_b, 'valid DH keys produce matching shared secret';
     };
 };
 #
