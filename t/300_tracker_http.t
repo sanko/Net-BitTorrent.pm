@@ -1,6 +1,7 @@
 use v5.42;
 use Test2::V1 -ipP;
 no warnings;
+use lib 'lib', '../lib';
 use Net::BitTorrent::Tracker::HTTP;
 subtest 'URL Building' => sub {
     my $tracker = Net::BitTorrent::Tracker::HTTP->new( url => 'http://example.com/announce' );
@@ -19,6 +20,21 @@ subtest 'Response Parsing' => sub {
     is $res->{interval},          1800,        'Interval parsed';
     is scalar @{ $res->{peers} }, 1,           'One peer found';
     is $res->{peers}[0]{ip},      '127.0.0.1', 'Peer IP correct';
+};
+#
+subtest 'parse_response returns failure on non-dictionary bencode' => sub {
+    my $tracker = Net::BitTorrent::Tracker::HTTP->new( url => 'http://example.com/announce' );
+    my $list    = 'l4:teste';                                                                    # valid bencode but an array, not a dict
+    my $res     = $tracker->parse_response($list);
+    is ref $res, 'HASH', 'parse_response returns a hashref for non-dictionary bencode';
+    ok defined $res->{failure_reason}, 'Failure reason is set';
+};
+#
+subtest 'parse_response returns failure on garbage input' => sub {
+    my $tracker = Net::BitTorrent::Tracker::HTTP->new( url => 'http://example.com/announce' );
+    my $res     = $tracker->parse_response('this is not bencoded data at all');
+    is ref $res, 'HASH', 'parse_response returns a hashref for garbage input';
+    ok defined $res->{failure_reason}, 'Failure reason is set for garbage input';
 };
 #
 done_testing;
