@@ -281,6 +281,10 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
             $self->_emit_log( 'warn', "HP_CONNECT blocked by SSRF policy: $ip:$port" ) if $debug;
             return;
         }
+        unless ( defined $port && $port >= 1 && $port <= 65535 ) {
+            $self->_emit_log( 'warn', "HP_CONNECT rejected: invalid port $port" ) if $debug;
+            return;
+        }
         $self->_emit_log( 'info', "Instructed to connect to $ip:$port" ) if $debug;
 
         # Trigger uTP connection
