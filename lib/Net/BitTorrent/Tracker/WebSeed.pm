@@ -13,16 +13,28 @@ class Net::BitTorrent::Tracker::WebSeed v2.1.0 : isa(Net::BitTorrent::Emitter) {
         my $http      = HTTP::Tiny->new( max_redirect => 5 );
         my $full_data = '';
         for my $seg (@$segments) {
-
-            # ... URL construction ...
             my $target_url = $self->_build_url($seg);
             unless ( is_safe_url($target_url) ) {
                 $self->_emit_log( 'warn', 'URL blocked by SSRF policy: ' . $target_url );
                 return undef;
             }
-            my $response = $http->get( $target_url, { headers => { Range => "bytes=$seg->{offset}-" . ( $seg->{offset} + $seg->{length} - 1 ) } } );
+            my $response;
+            for ( 1 .. 5 ) {
+                $response = $http->get( $target_url, { headers => { Range => "bytes=$seg->{offset}-" . ( $seg->{offset} + $seg->{length} - 1 ) } } );
+                last unless $response->{status} =~ /^3/;
+                my $loc = $response->{headers}{location} // '';
+                unless ( is_safe_url($loc) ) {
+                    $self->_emit_log( 'warn', 'Redirect blocked by SSRF policy: ' . $loc );
+                    return undef;
+                }
+                $target_url = $loc;
+            }
             if ( $response->{success} ) {
-                $full_data .= $response->{content};
+                $full_data .= $response->{content} // '';
+                if ( length($full_data) > MAX_WEEDSEED_RESPONSE ) {
+                    $self->_emit_log( 'warn', 'WebSeed response exceeded max size, aborting' );
+                    return undef;
+                }
             }
             elsif ( $response->{status} == 410 ) {
                 $disabled = 1;
