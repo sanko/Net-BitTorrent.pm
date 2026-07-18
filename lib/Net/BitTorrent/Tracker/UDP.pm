@@ -226,8 +226,10 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
     method build_scrape_packet ($infohashes) {
         $self->_new_transaction_id();
 
-        # Truncate v2 hashes to 20 bytes for scrape as well
-        my $ih_data = join( '', map { length($_) == 32 ? sha1($_) : $_ } @$infohashes );
+        my @capped = @$infohashes[ 0 .. ( @$infohashes > 70 ? 69 : $#$infohashes ) ];
+
+        # Validate and truncate each hash to 20 bytes
+        my $ih_data = join( '', map { length($_) == 32 ? sha1($_) : substr( $_, 0, 20 ) } @capped );
         my $tmpl    = HAS_64BIT ? 'Q> N N a*' : 'a8 N N a*';
         return pack( $tmpl, $connection_id, 2, $transaction_id, $ih_data );
     }
