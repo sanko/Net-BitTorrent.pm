@@ -5,12 +5,14 @@ use Net::BitTorrent::Emitter;
 class Net::BitTorrent::Tracker::WebSeed v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use HTTP::Tiny;
     use Net::BitTorrent::SSRF qw[is_safe_url];
-    field $url : param : reader;    # Base URL
+    field $url : param : reader;                                  # Base URL
     field $disabled : reader = !is_safe_url($url);
+    use constant MAX_WEEDSEED_RESPONSE    => 16 * 1024 * 1024;    # 16 MB max per piece response
+    use constant MAX_WEEDSEED_SINGLE_RESP => 16 * 1024 * 1024;    # 16 MB max per single HTTP response
 
     method fetch_piece ($segments) {
         return undef if $disabled;
-        my $http      = HTTP::Tiny->new( max_redirect => 5 );
+        my $http      = HTTP::Tiny->new( max_redirect => 0, max_size => MAX_WEEDSEED_SINGLE_RESP );
         my $full_data = '';
         for my $seg (@$segments) {
             my $target_url = $self->_build_url($seg);
