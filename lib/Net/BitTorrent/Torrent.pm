@@ -274,7 +274,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
             return;
         }
         for my $name ( keys %$tree ) {
-            if ( $name eq '' || $name eq '.' || $name eq '..' || $name =~ /[\\\/]/ ) {
+            if ( $name eq '' || $name eq '.' || $name eq '..' || $name =~ /[\\\/]/ || $name =~ /\0/ ) {
                 $self->_emit_log( 'error', 'Invalid path element' );
                 return;
             }
