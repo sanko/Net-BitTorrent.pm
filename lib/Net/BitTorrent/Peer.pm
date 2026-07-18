@@ -629,6 +629,9 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method adjust_reputation ($delta) {
         $reputation += $delta;
+
+        $reputation = 0   if $reputation < 0;
+        $reputation = 100 if $reputation > 100;
         if ( $reputation <= 50 ) {
             $self->_emit_log( 'error', "Blacklisting peer $ip:$port due to low reputation ($reputation)" ) if $debug;
             $self->disconnected();
