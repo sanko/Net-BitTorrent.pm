@@ -201,7 +201,11 @@ class Net::BitTorrent::Protocol::MSE v2.1.0 : isa(Net::BitTorrent::Emitter) {
     method _b_wait_vc () {
         return 0 if length($buffer_in) < 8;
         my $vc_check = $kx->decrypt_rc4->crypt( substr( $buffer_in, 0, 8, '' ) );
-        if ( $vc_check ne $VC ) {
+        my $ok       = 0;
+        for my $i ( 0 .. 7 ) {
+            $ok |= ord( substr( $vc_check, $i, 1 ) ) ^ ord( substr( $VC, $i, 1 ) );
+        }
+        if ( $ok != 0 ) {
             $state = 'FAILED';
             return 0;
         }
