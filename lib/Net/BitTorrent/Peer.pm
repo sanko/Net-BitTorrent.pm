@@ -497,6 +497,7 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
                 if ( !$peer_choking || $self->is_allowed_fast( $req->{index} ) ) {
                     $protocol->send_message( 6, pack( 'N N N', $req->{index}, $req->{begin}, $req->{length} ) );
                     $blocks_inflight++;
+                    $_requested_blocks{"$req->{index},$req->{begin}"} = 1;
                 }
                 else {
                     # We picked a piece but we are choked and it's not fast-allowed.
