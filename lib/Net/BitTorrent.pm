@@ -7,6 +7,7 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use Net::BitTorrent::Torrent;
     use Net::BitTorrent::DHT;
     use Net::uTP::Manager;    # Standalone spin-off
+    use Net::BitTorrent::Protocol::MSE;
     use Digest::SHA    qw[sha1];
     use Crypt::URandom qw[urandom];
     use version;
@@ -30,17 +31,23 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     field $encryption : param : reader = ENCRYPTION_REQUIRED;
 
     # Feature Toggles (Default to enabled)
-    field $bep05        : param = 1;    # DHT
-    field $bep06        : param = 1;    # Fast Extension
-    field $bep09        : param = 1;    # Metadata Exchange
-    field $bep10        : param = 1;    # Extension Protocol
-    field $bep11        : param = 1;    # PEX
-    field $bep52        : param = 1;    # v2
-    field $bep55        : param = 1;    # Holepunching
+    field $bep05        : param = 1;                     # DHT
+    field $bep06        : param = 1;                     # Fast Extension
+    field $bep09        : param = 1;                     # Metadata Exchange
+    field $bep10        : param = 1;                     # Extension Protocol
+    field $bep11        : param = 1;                     # PEX
+    field $bep52        : param = 1;                     # v2
+    field $bep55        : param = 1;                     # Holepunching
     field $limit_up     : reader;
     field $limit_down   : reader;
     field $upnp_enabled : param = 0;
     field $max_peers    : param : reader : writer = 500;
+    field %_ip_connections;                              # ip => count of active connections
+    field %_mse_probes;                                  # ip => [ timestamps ] for MSE probe rate limiting
+    use constant MAX_PER_IP_CONNECTIONS       => 50;
+    use constant MAX_MSE_PROBES_PER_IP        => 5;      # Max MSE handshake probes per IP in 60s
+    use constant MAX_CONNECT_ATTEMPTS_PER_MIN => 30;     # Max outgoing connection attempts per IP per minute
+    use constant MAX_UDP_PACKETS_PER_TICK     => 100;    # Max UDP packets processed per tick (flood protection)
 
     method _count_active_peers () {
         my $count = 0;
@@ -241,12 +248,14 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         my $first_byte = ord( substr( $data, 0, 1 ) );
         if ( $first_byte == 0x13 ) {
             if ( $encryption == ENCRYPTION_REQUIRED ) {
-                $self->_emit_log( 'debug', "Rejecting plaintext connection because encryption is required" ) if $debug;
+                $self->_emit_log( 'debug', 'Rejecting plaintext connection because encryption is required' ) if $debug;
+                my $rip = $transport->socket->peerhost // '';
+                $_ip_connections{$rip}-- if $_ip_connections{$rip} && $_ip_connections{$rip} > 0;
                 $transport->socket->close();
                 delete $pending_peers{$transport};
                 return;
             }
-            $self->_emit_log( 'debug', "Autodetected PWP handshake" ) if $debug;
+            $self->_emit_log( 'debug', 'Autodetected PWP handshake' ) if $debug;
             use Net::BitTorrent::Protocol::HandshakeOnly;
             my $proto = Net::BitTorrent::Protocol::HandshakeOnly->new(
                 infohash        => undef,
@@ -359,12 +368,18 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         my $torrent = $torrents{$ih};
         if ( !$torrent ) {
             $self->_emit_log( 'debug', "Handshake for unknown torrent " . unpack( 'H*', $ih ) . " from $ip:$port" ) if $debug;
-            $transport->socket->close()                                                                             if $transport->socket;
+            if ( $transport->socket ) {
+                $_ip_connections{$ip}-- if $_ip_connections{$ip} && $_ip_connections{$ip} > 0;
+                $transport->socket->close();
+            }
             return;
         }
         if ( keys %{ $torrent->peer_objects_hash } >= $torrent->max_peers ) {
             $self->_emit_log( 'debug', "Per-torrent peer limit reached for " . unpack( 'H*', $ih ) . " from $ip:$port" ) if $debug;
-            $transport->socket->close()                                                                                  if $transport->socket;
+            if ( $transport->socket ) {
+                $_ip_connections{$ip}-- if $_ip_connections{$ip} && $_ip_connections{$ip} > 0;
+                $transport->socket->close();
+            }
             return;
         }
         use Net::BitTorrent::Protocol::PeerHandler;
@@ -373,7 +388,7 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
             peer_id       => $self->node_id,
             features      => $torrent->features,
             debug         => $debug,
-            metadata_size => $torrent->metadata ? length( Net::BitTorrent::Protocol::BEP03::Bencode::bencode( $torrent->metadata->{info} ) ) : 0,
+            metadata_size => $torrent->metadata ? length( Net::BitTorrent::Protocol::BEP03::Bencode::bencode( $torrent->metadata->{info} ) ) : 0
         );
         my $peer;
         if ( $entry->{peer} ) {
@@ -478,9 +493,11 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method connect_to_peer ( $ip, $port, $ih ) {
         return if $self->_at_global_peer_limit();
+        return if $self->_at_per_ip_limit($ip);
         use IO::Socket::IP;
         my $socket = IO::Socket::IP->new( PeerHost => $ip, PeerPort => $port, Type => SOCK_STREAM, Blocking => 0, );
         return unless $socket;
+        $_ip_connections{$ip}++;
         $self->_emit_log( 'debug', "Connecting to $ip:$port for " . unpack( 'H*', $ih ) ) if $debug;
         use Net::BitTorrent::Transport::TCP;
         my $transport = Net::BitTorrent::Transport::TCP->new( socket => $socket, connecting => 1 );
@@ -663,6 +680,12 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
                         $socket->close();
                         next;
                     }
+                    my $peer_ip = $socket->peerhost // '';
+                    if ( $self->_at_per_ip_limit($peer_ip) ) {
+                        $socket->close();
+                        next;
+                    }
+                    $_ip_connections{$peer_ip}++;
                     $socket->blocking(0);
                     $self->_emit_log( 'debug', "Accepted TCP connection from " . $socket->peerhost . ":" . $socket->peerport ) if $debug;
                     use Net::BitTorrent::Transport::TCP;
@@ -713,7 +736,11 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
                     catch ($e) { }
                     $self->_emit_log( 'debug', "Timing out pending connection from $host" );
                 }
-                $transport->socket->close() if $transport->socket;
+                if ( $transport->socket ) {
+                    my $rip = $transport->socket->peerhost // '';
+                    $_ip_connections{$rip}-- if $_ip_connections{$rip} && $_ip_connections{$rip} > 0;
+                    $transport->socket->close();
+                }
                 delete $pending_peers{$t_key};
             }
         }
@@ -723,8 +750,9 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
         # Read from UDP socket (DHT/uTP)
         if ( $dht && $dht->socket ) {
-            my $sel = IO::Select->new( $dht->socket );
-            while ( $sel->can_read(0) ) {
+            my $sel       = IO::Select->new( $dht->socket );
+            my $udp_count = 0;
+            while ( $udp_count < MAX_UDP_PACKETS_PER_TICK && $sel->can_read(0) ) {
                 my $remote_addr = $dht->socket->recv( my $data, 65535 );
                 if ($remote_addr) {
                     my @res = $self->handle_udp_packet( $data, $remote_addr );
@@ -733,6 +761,7 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
                         push @packet_peers, @{ $res[1] } if ref $res[1] eq 'ARRAY';
                         push @packet_data,  $res[2]      if $res[2];
                     }
+                    $udp_count++;
                 }
             }
         }
