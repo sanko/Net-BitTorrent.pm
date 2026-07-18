@@ -880,6 +880,10 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
             next if $seen{ builtin::refaddr($t) }++;
             $data{torrents}{ unpack( 'H*', $ih ) } = $t->dump_state();
         }
+
+        # Add integrity checksum to detect tampering
+        my $payload = encode_json( \%data );
+        $data{_checksum} = unpack( 'H*', sha1($payload) );
         path($path)->spew_utf8( encode_json( \%data ) );
     }
 
@@ -895,6 +899,16 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
             return;
         }
         return unless ref $data eq 'HASH';
+
+        # Verify integrity checksum
+        if ( defined $data->{_checksum} ) {
+            my $stored   = delete $data->{_checksum};
+            my $expected = unpack( 'H*', sha1( encode_json($data) ) );
+            if ( $expected ne $stored ) {
+                $self->_emit_log( 'warn', 'State file integrity check failed, keeping current state' );
+                return;
+            }
+        }
         if ( defined $data->{node_id} && length( $data->{node_id} ) == 20 ) {
             $node_id = $data->{node_id};
         }
