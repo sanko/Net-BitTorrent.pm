@@ -285,6 +285,20 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
             $self->_emit_log( 'warn', "HP_CONNECT rejected: invalid port $port" ) if $debug;
             return;
         }
+
+        state $hp_connect_count = 0;
+        state $hp_connect_reset = time();
+        my $now = time();
+        if ( $now - $hp_connect_reset > 60 ) {
+            $hp_connect_count = 0;
+            $hp_connect_reset = $now;
+        }
+        $hp_connect_count++;
+        if ( $hp_connect_count > 10 ) {
+            $self->_emit_log( 'warn', "HP_CONNECT rate limit exceeded, ignoring" ) if $debug;
+            $self->adjust_reputation(-20);
+            return;
+        }
         $self->_emit_log( 'info', "Instructed to connect to $ip:$port" ) if $debug;
 
         # Trigger uTP connection
