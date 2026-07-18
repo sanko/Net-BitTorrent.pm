@@ -734,21 +734,18 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
         # Initialize bitfield
         my $num_pieces = 0;
-        if ( exists $metadata->{info}{pieces} ) {
-            $num_pieces = length( $metadata->{info}{pieces} ) / 20;
-        }
+        $num_pieces = length( $metadata->{info}{pieces} ) / 20 if exists $metadata->{info}{pieces};
         $num_pieces ||= $storage->piece_count;
         $bitfield = Acme::Bitfield->new( size => $num_pieces );
 
         # Initialize picker
-        $picker = Net::BitTorrent::Torrent::PiecePicker->new( bitfield => $bitfield, );
-        $state  = STATE_RUNNING;
+        $picker     = Net::BitTorrent::Torrent::PiecePicker->new( bitfield => $bitfield, );
+        $bytes_left = $self->_calculate_total_size();
+        $state      = STATE_RUNNING;
         $self->_emit('started');
 
         # Re-initialize peer bitfields now that we have the size
-        for my $peer ( values %peer_objects ) {
-            $self->init_peer_bitfield($peer);
-        }
+        $self->init_peer_bitfield($_) for values %peer_objects;
 
         # Announce to trackers now that we have full infohash info
         $self->announce();
@@ -760,9 +757,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
         # If we've already received this block, or the piece is already being verified, skip.
         # We use blocks_received as an indicator that the piece is complete/queued.
-        if ( exists $blocks_received{$index} && $self->is_piece_complete($index) ) {
-            return 0;
-        }
+        return 0 if exists $blocks_received{$index} && $self->is_piece_complete($index);
 
         # v2 Block-level verification (if we have pieces root)
         my ( $root, $rel_piece ) = $storage->map_v2_piece($index);
@@ -788,10 +783,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         }
         return 0;
     }
-
-    method _clear_piece_data ($index) {
-        delete $block_cache{$index};
-    }
+    method _clear_piece_data ($index) { delete $block_cache{$index} }
 
     method _verify_queued_piece ( $index, $piece_data ) {
         my $sources  = delete $block_sources{$index} // {};
