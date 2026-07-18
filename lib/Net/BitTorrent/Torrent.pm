@@ -821,6 +821,12 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method _store_block ( $peer, $index, $begin, $data ) {
         return if $blocks_received{$index}{$begin};
+        if ( keys %block_cache >= MAX_BLOCK_CACHE ) {
+            my @oldest  = sort { $a <=> $b } keys %block_cache;
+            my $evicted = shift @oldest;
+            delete $block_cache{$evicted};
+            delete $blocks_received{$evicted};
+        }
         $block_cache{$index} //= {};
         $block_cache{$index}{$begin}     = $data;
         $blocks_received{$index}{$begin} = 1;
