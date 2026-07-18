@@ -232,7 +232,6 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         $peer_id //= $client->node_id;
         $limit_up   = Algorithm::RateLimiter::TokenBucket->new( limit => 0 );
         $limit_down = Algorithm::RateLimiter::TokenBucket->new( limit => 0 );
-
         if ($path) {
             my $data = path($path)->slurp_raw;
             $metadata = bdecode($data);
@@ -644,9 +643,13 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
             }
             $metadata_size = $total_size;
         }
+        my $num_pieces = int( ( $metadata_size + 16383 ) / 16384 );
+        if ( $piece < 0 || $piece >= $num_pieces ) {
+            $self->_emit_log( 'warning', "Received out-of-range metadata piece index $piece (max " . ( $num_pieces - 1 ) . ')' );
+            return;
+        }
         $self->_emit_log( 'debug', "Received metadata piece $piece (len " . length($data) . ') from ' . ( $peer ? $peer->ip : 'unknown' ) ) if $debug;
         $metadata_pieces{$piece} = $data;
-        my $num_pieces = int( ( $metadata_size + 16383 ) / 16384 );
         $self->_emit_log( 'debug', 'Metadata progress: ' . scalar( keys %metadata_pieces ) . "/$num_pieces pieces" ) if $debug;
         if ( scalar keys %metadata_pieces == $num_pieces ) {
             my $full_info = join( '', map { $metadata_pieces{$_} } sort { $a <=> $b } keys %metadata_pieces );
