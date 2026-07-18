@@ -452,9 +452,22 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
         }
         if ( !$am_interested ) {
 
-            # In a real client, we check if the peer has any piece we lack
-            $am_interested = 1;
-            $protocol->send_message(2);    # INTERESTED
+            my $bitfield = $torrent->bitfield;
+            my $p_bfs    = $torrent->peer_bitfields;
+            my $p_bf     = $p_bfs->{$self};
+            my $has_new  = 0;
+            if ($p_bf) {
+                for ( my $i = 0; $i < $bitfield->size; $i++ ) {
+                    if ( !$bitfield->get($i) && $p_bf->get($i) ) {
+                        $has_new = 1;
+                        last;
+                    }
+                }
+            }
+            if ($has_new) {
+                $am_interested = 1;
+                $protocol->send_message(2);    # INTERESTED
+            }
         }
     }
 
