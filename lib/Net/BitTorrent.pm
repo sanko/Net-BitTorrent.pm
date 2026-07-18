@@ -494,6 +494,12 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     method connect_to_peer ( $ip, $port, $ih ) {
         return if $self->_at_global_peer_limit();
         return if $self->_at_per_ip_limit($ip);
+
+        # SSRF validation for outgoing connections
+        unless ( is_safe_ip($ip) ) {
+            $self->_emit_log( 'debug', 'connect_to_peer blocked by SSRF policy: ' . $ip ) if $debug;
+            return;
+        }
         use IO::Socket::IP;
         my $socket = IO::Socket::IP->new( PeerHost => $ip, PeerPort => $port, Type => SOCK_STREAM, Blocking => 0, );
         return unless $socket;
