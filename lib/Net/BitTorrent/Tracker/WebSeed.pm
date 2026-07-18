@@ -55,6 +55,11 @@ class Net::BitTorrent::Tracker::WebSeed v2.1.0 : isa(Net::BitTorrent::Emitter) {
         my $target_url = $url;
         if ( $target_url =~ m{/$} ) {
             my $rel = $seg->{rel_path} // $seg->{file}->path->basename;
+            $rel =~ s{\\}{/}g;    # Normalize backslashes
+            $rel =~ s{/+}{/}g;    # Collapse multiple slashes
+            $rel =~ s{^/}{};      # Remove leading slash
+            my @parts = grep { $_ ne '' && $_ ne '.' && $_ ne '..' } split /\//, $rel;
+            $rel = join( '/', @parts );
             $target_url .= $rel;
         }
         return $target_url;
