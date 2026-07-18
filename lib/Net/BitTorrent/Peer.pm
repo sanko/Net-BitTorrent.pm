@@ -235,7 +235,19 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method handle_pex ( $added, $dropped, $added6, $dropped6 ) {
+        for my $list ( $added, $dropped, $added6, $dropped6 ) {
+            next unless defined $list && ref $list eq 'ARRAY';
+
+            # Limit PEX entries to prevent resource exhaustion
+            splice( @$list, 100 ) if @$list > 100;
+        }
+        $added    //= [];
+        $dropped  //= [];
+        $added6   //= [];
+        $dropped6 //= [];
         for my $p ( @$added, @$added6 ) {
+            next unless ref $p eq 'HASH' && defined $p->{ip} && defined $p->{port};
+            next if $p->{port} < 1 || $p->{port} > 65535;
             $torrent->add_peer($p);
         }
     }
