@@ -324,6 +324,24 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         $transport->set_filter($mse);
         $self->_emit_log( 'debug', "Incoming MSE handshake started" ) if $debug;
 
+        # If MSE fails (bad crypto, no infohash match), close the pending connection immediately
+        $transport->on(
+            'filter_failed',
+            sub ( $emitter, $leftover ) {
+                return unless $weak_self;
+                $weak_self->_emit_log( 'debug', 'Incoming MSE handshake failed, closing connection' ) if $weak_self->debug;
+                my $entry = $weak_self->pending_peers_hash->{$transport};
+                if ($entry) {
+                    if ( $transport->socket ) {
+                        my $rip = $transport->socket->peerhost // '';
+                        $weak_self->{_ip_connections}{$rip}-- if $weak_self->{_ip_connections}{$rip};
+                    }
+                    $transport->socket->close() if $transport->socket;
+                    delete $weak_self->pending_peers_hash->{$transport};
+                }
+            }
+        );
+
         # Feed the data we already have
         $mse->receive_data($data);
         my $entry = $pending_peers{$transport};
