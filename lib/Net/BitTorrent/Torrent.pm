@@ -18,6 +18,10 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     # Security limits
     use constant MAX_METADATA_SIZE   => 10 * 1024 * 1024;    # 10 MB which would be... massive
     use constant MAX_FILE_TREE_DEPTH => 128;
+    use constant MAX_BLOCK_CACHE     => 2048;                # Max cached blocks per torrent
+    use constant MAX_PEERS           => 10_000;              # Max discovered peers per torrent
+    use constant MAX_ATTEMPTED       => 5000;                # Max attempted connection entries
+
     #
     field $path             : param = undef;
     field $base_path        : param;
