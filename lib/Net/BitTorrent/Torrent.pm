@@ -1060,7 +1060,6 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         }
         return undef;
     }
-
     field $_cached_total_size = undef;
 
     method _calculate_total_size () {
@@ -1096,13 +1095,14 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method announce ( $event = undef, $cb = undef ) {
+        return unless defined $tracker_manager;
         my @ihs;
         push @ihs, $infohash_v2 if $infohash_v2;
         push @ihs, $infohash_v1 if $infohash_v1;
         my $params = {
             infohash   => \@ihs,
             peer_id    => $peer_id,
-            port       => 6881,
+            port       => ( $client && $client->can('listen_port') ? $client->listen_port : 6881 ),
             uploaded   => $bytes_uploaded,
             downloaded => $bytes_downloaded,
             left       => $bytes_left,
