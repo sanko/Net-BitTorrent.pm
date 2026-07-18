@@ -95,7 +95,12 @@ class Net::BitTorrent::Protocol::MSE::KeyExchange v2.1.0 : isa(Net::BitTorrent::
         my $req3_hash   = sha1( 'req3' . $s );
         my $target_req2 = $xor_block^.$req3_hash;
         my $check       = sha1( 'req2' . $candidate_ih );
-        return $check eq $target_req2;
+        #
+        my $ok = 0;
+        for my $i ( 0 .. 19 ) {
+            $ok |= ord( substr( $check, $i, 1 ) ) ^ ord( substr( $target_req2, $i, 1 ) );
+        }
+        return $ok == 0;
     }
 
     method init_rc4 ($ih) {
