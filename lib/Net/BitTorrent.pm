@@ -13,6 +13,9 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use version;
     use Time::HiRes            qw[time];
     use Net::BitTorrent::Types qw[:encryption];
+    use Algorithm::RateLimiter::TokenBucket;
+    use Net::Multicast::PeerDiscovery;
+    use Net::BitTorrent::SSRF qw[is_safe_ip];
     #
     field %torrents;          # infohash => Torrent object
     field %pending_peers;     # transport => Peer object
@@ -54,9 +57,12 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         $count += keys %{ $_->peer_objects_hash } for values %torrents;
         return $count;
     }
-
-    method _at_global_peer_limit () {
-        return ( ( scalar keys %pending_peers ) + $self->_count_active_peers() ) >= $max_peers;
+    method _at_global_peer_limit () { ( ( scalar keys %pending_peers ) + $self->_count_active_peers() ) >= $max_peers }
+    method _at_per_ip_limit ($ip)   { ( $_ip_connections{$ip} // 0 ) >= MAX_PER_IP_CONNECTIONS }
+    #
+    method on_peer_disconnected ($ip) {
+        $ip // return;
+        $_ip_connections{$ip}-- if exists $_ip_connections{$ip} && $_ip_connections{$ip} > 0;
     }
 
     # Verification Throttling
@@ -66,7 +72,7 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     my $MAX_HASHING_QUEUE_SIZE = 128;                          # Max pieces waiting for verification
 
     method features () {
-        { bep05 => $bep05, bep06 => $bep06, bep09 => $bep09, bep10 => $bep10, bep11 => $bep11, bep52 => $bep52, bep55 => $bep55, };
+        { bep05 => $bep05, bep06 => $bep06, bep09 => $bep09, bep10 => $bep10, bep11 => $bep11, bep52 => $bep52, bep55 => $bep55 };
     }
     ADJUST {
         $node_id //= _generate_peer_id();
@@ -82,7 +88,7 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
         # TCP Listener
         use IO::Socket::IP;
-        $tcp_listener = IO::Socket::IP->new( LocalPort => $port, Listen => 5, ReuseAddr => 1, Blocking => 0, );
+        $tcp_listener = IO::Socket::IP->new( LocalPort => $port, Listen => 128, ReuseAddr => 1, Blocking => 0 );
         if ($tcp_listener) {
             $self->_emit_log( 'debug', 'TCP listener started on port ' . $port ) if $debug;
         }
@@ -93,6 +99,7 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
             new_connection => sub ( $utp_conn, $ip, $port ) {
                 return unless $weak_self;
                 return if $weak_self->_at_global_peer_limit();
+                return if $weak_self->_at_per_ip_limit($ip);
 
                 #~ warn "    [uTP] Incoming connection from $ip:$port\n";
                 use Net::BitTorrent::Protocol::HandshakeOnly;
@@ -115,12 +122,10 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
                 $pending_peers{$utp_conn} = $peer;
             }
         );
-        use Algorithm::RateLimiter::TokenBucket;
         $limit_up   = Algorithm::RateLimiter::TokenBucket->new( limit => 0 );
         $limit_down = Algorithm::RateLimiter::TokenBucket->new( limit => 0 );
 
         # Initialize LPD (BEP 14)
-        use Net::Multicast::PeerDiscovery;
         $lpd = Net::Multicast::PeerDiscovery->new();
         $lpd->on(
             peer_found => sub ($p_info) {
@@ -178,8 +183,8 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method shutdown () {
         if ($port_mapper) {
-            $port_mapper->unmap_port( 6881, 'TCP' );
-            $port_mapper->unmap_port( 6881, 'UDP' );
+            $port_mapper->unmap_port( $port, 'TCP' );
+            $port_mapper->unmap_port( $port, 'UDP' );
         }
         for my $t ( values %torrents ) {
             $t->stop if $t;
@@ -285,7 +290,6 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method _handle_incoming_mse ( $transport, $data ) {
-        require Net::BitTorrent::Protocol::MSE;
         my $rip = $transport->socket->peerhost // '' if $transport->socket;
         if ($rip) {    # Rate limit MSE handshake probes per IP
             my $now = time;
@@ -405,7 +409,7 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
                 port       => $port,
                 debug      => $debug,
                 mse        => $entry->{mse},
-                encryption => $encryption,
+                encryption => $encryption
             );
         }
         $p_handler->set_peer($peer);
