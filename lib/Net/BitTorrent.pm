@@ -268,18 +268,27 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
             $entry->{peer}->on_data($data);
         }
         else {
-            $self->_emit_log( 'debug', "Autodetected potential MSE handshake" ) if $debug;
+            $self->_emit_log( 'debug', 'Autodetected potential MSE handshake' ) if $debug;
 
-            # MSE handling will be complex because we don't know the infohash yet
-            # We need an MSE object that can try ALL our hosted infohashes?
-            # No, MSE spec says Req2 is XORed with the infohash.
-            # We must wait until we have Req2, then XOR it with each IH we have until one matches.
+            # We need to wait until we have req #2, then XOR it with each infohash we have until one matches
             $self->_handle_incoming_mse( $transport, $data );
         }
     }
 
     method _handle_incoming_mse ( $transport, $data ) {
-        use Net::BitTorrent::Protocol::MSE;
+        require Net::BitTorrent::Protocol::MSE;
+        my $rip = $transport->socket->peerhost // '' if $transport->socket;
+        if ($rip) {    # Rate limit MSE handshake probes per IP
+            my $now = time;
+            $_mse_probes{$rip} //= [];
+            @{ $_mse_probes{$rip} } = grep { $_ > $now - 60 } @{ $_mse_probes{$rip} };
+            if ( scalar @{ $_mse_probes{$rip} } >= MAX_MSE_PROBES_PER_IP ) {
+                $self->_emit_log( 'debug', "MSE probe rate limit exceeded for $rip" ) if $debug;
+                $transport->close();
+                return;
+            }
+            push @{ $_mse_probes{$rip} }, $now;
+        }
         my $weak_self = $self;
         builtin::weaken($weak_self);
         my $mse = Net::BitTorrent::Protocol::MSE->new(
