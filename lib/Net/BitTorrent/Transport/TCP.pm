@@ -6,10 +6,12 @@ class Net::BitTorrent::Transport::TCP v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use IO::Select;
     use Errno;
     field $socket : param : reader;
-    field $write_buffer = '';
+    field $write_buffer     = '';
+    field $read_buffer_size = 0;                    # Track inbound buffer growth
     field $connecting : param  = 1;
     field $filter     : reader = undef;
     my $MAX_WRITE_BUFFER_SIZE = 4 * 1024 * 1024;    # 4 MB
+    my $MAX_READ_BUFFER_SIZE  = 4 * 1024 * 1024;    # 4 MB post-handshake inbound limit
     ADJUST {
         if ( $socket && $socket->opened ) {
             $socket->blocking(0);
@@ -36,7 +38,9 @@ class Net::BitTorrent::Transport::TCP v2.1.0 : isa(Net::BitTorrent::Emitter) {
         $write_buffer .= $data;
         if ( length($write_buffer) > $MAX_WRITE_BUFFER_SIZE ) {
             $self->_emit_log( 'error', 'Write buffer exceeded maximum size, disconnecting slow peer' );
-            substr( $write_buffer, 0, length($write_buffer) - $MAX_WRITE_BUFFER_SIZE, '' );
+
+            # M13: Clear entire buffer to prevent stale data leakage before socket close
+            $write_buffer = '';
             $self->_emit('disconnected');
             return 0;
         }
@@ -45,9 +49,13 @@ class Net::BitTorrent::Transport::TCP v2.1.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method send_raw ($data) {
-
-        # warn "    [DEBUG] TCP::send_raw: " . length($data) . " bytes\n";
         $write_buffer .= $data;
+        if ( length($write_buffer) > $MAX_WRITE_BUFFER_SIZE ) {
+            $self->_emit_log( 'error', 'send_raw: Write buffer exceeded maximum size, disconnecting' );
+            $write_buffer = '';
+            $self->_emit('disconnected');
+            return 0;
+        }
         $self->_flush_write_buffer();
         return length $data;
     }
@@ -59,8 +67,12 @@ class Net::BitTorrent::Transport::TCP v2.1.0 : isa(Net::BitTorrent::Emitter) {
         if ( defined $sent && $sent > 0 ) {
             substr( $write_buffer, 0, $sent, '' );
         }
+        elsif ( defined $sent && $sent == 0 ) {
+
+            # syswrite returned 0 but it's not an error. It does signal no progress was made; retry on next tick
+        }
         elsif ( !defined $sent && $! != Errno::EWOULDBLOCK && $! != Errno::EAGAIN ) {
-            $self->_emit_log( 'debug', "TCP write error: $!" );
+            $self->_emit_log( 'debug', 'TCP write error: ' . $! );
             $self->_emit('disconnected');
         }
     }
@@ -82,7 +94,7 @@ class Net::BitTorrent::Transport::TCP v2.1.0 : isa(Net::BitTorrent::Emitter) {
                 }
                 else {
                     $! = $error;
-                    $self->_emit_log( 'debug', "TCP connection failed to " . $socket->peerhost . ":" . $socket->peerport . ": $!" );
+                    $self->_emit_log( 'debug', 'TCP connection failed to ' . $socket->peerhost . ':' . $socket->peerport . ": $!" );
                     $self->_emit('disconnected');
                     return;
                 }
@@ -102,6 +114,13 @@ class Net::BitTorrent::Transport::TCP v2.1.0 : isa(Net::BitTorrent::Emitter) {
         $self->_flush_write_buffer();
         my $len = $socket->sysread( my $buffer, 65535 );
         if ( defined $len && $len > 0 ) {
+            $read_buffer_size += $len;
+            if ( $read_buffer_size > $MAX_READ_BUFFER_SIZE ) {
+                $self->_emit_log( 'error', 'Inbound buffer exceeded maximum size, disconnecting' );
+                $read_buffer_size = 0;
+                $self->_emit('disconnected');
+                return;
+            }
 
             # warn "    [DEBUG] TCP::tick received $len bytes\n";
             if ($filter) {
@@ -137,6 +156,7 @@ class Net::BitTorrent::Transport::TCP v2.1.0 : isa(Net::BitTorrent::Emitter) {
             else {
                 $self->receive_data($buffer);
             }
+            $read_buffer_size = 0 if defined $len;    # Reset after successful processing
         }
         elsif ( defined $len && $len == 0 ) {
             $self->_emit_log( 'debug', 'TCP remote closed connection' );
@@ -154,6 +174,7 @@ class Net::BitTorrent::Transport::TCP v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method close () {
         if ( $socket && $socket->opened ) {
+            eval { $socket->shutdown(2) };    # SHUT_RDWR
             $socket->close();
         }
     }
@@ -161,4 +182,5 @@ class Net::BitTorrent::Transport::TCP v2.1.0 : isa(Net::BitTorrent::Emitter) {
     method state () {
         return $socket && $socket->opened ? 'CONNECTED' : 'CLOSED';
     }
-} 1;
+};
+1;
