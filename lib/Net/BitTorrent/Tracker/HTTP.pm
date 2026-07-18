@@ -111,6 +111,10 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
                 $target,
                 sub ( $res, @ ) {
                     if ( $res->{success} ) {
+                        if ( length( $res->{content} // '' ) > MAX_TRACKER_RESPONSE_SIZE ) {
+                            $self->_emit_log( 'warn', 'Async tracker response exceeded max size' );
+                            return;
+                        }
                         try {
                             if ($cb) {
                                 $cb->( $self->parse_response( $res->{content} ) );
