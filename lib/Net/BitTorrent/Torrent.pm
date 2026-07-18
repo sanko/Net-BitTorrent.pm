@@ -1127,6 +1127,9 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         $self->_emit_log( 'debug', "Torrent::add_peer: $ip:$port" ) if $debug;
         return unless $ip && $port;
         my $key = "$ip:$port";
+
+        # Cap discovered peers to prevent memory exhaustion
+        return if keys %peers >= MAX_PEERS && !$peers{$key};
         unless ( $peers{$key} ) {
             my $flags = 0;
             try {
