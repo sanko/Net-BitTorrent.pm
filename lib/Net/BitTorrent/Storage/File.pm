@@ -78,8 +78,11 @@ class Net::BitTorrent::Storage::File v2.1.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method read ( $offset, $length ) {
-        return '' if $length <= 0;
-        return undef unless $file_path->exists;
+        return ''                 if $length <= 0;
+        return ''                 if $offset < 0;
+        $length = $size - $offset if $offset + $length > $size;
+        return ''                 if $length <= 0;
+        return undef unless $file_path->is_file;
         my $fh = $file_path->openr_raw;
         seek $fh, $offset, 0;
         read( $fh, my $chunk, $length );
@@ -88,6 +91,9 @@ class Net::BitTorrent::Storage::File v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method write ( $offset, $data ) {
         $self->_ensure_exists();
+        return if $offset < 0 || $offset > $size;
+        my $max_write = $size - $offset;
+        $data = substr( $data, 0, $max_write ) if length($data) > $max_write;
         $self->_emit_log( 'debug', 'Writing ' . length($data) . " bytes to $file_path at offset $offset" );
         my $fh = $file_path->openrw_raw;
         seek $fh, $offset, 0;
