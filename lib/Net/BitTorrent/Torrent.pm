@@ -656,9 +656,20 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
             # Verify hash
             my $calculated_ih = sha1($full_info);
-            if ( $calculated_ih ne $infohash_v1 ) {
+            my $verified      = 0;
+            if ( $infohash_v1 && $calculated_ih eq $infohash_v1 ) {
+                $verified = 1;
+            }
+            elsif ($infohash_v2) {
+                if ( sha256($full_info) eq $infohash_v2 ) {
+                    $verified = 1;
+                }
+            }
+            if ( !$verified ) {
                 $self->_emit_log( 'error', 'Metadata verification FAILED! Hash mismatch.' );
-                %metadata_pieces = ();
+                %metadata_pieces  = ();
+                %metadata_pending = ();
+                $metadata_size    = 0;
                 return;
             }
 
