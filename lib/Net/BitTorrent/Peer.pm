@@ -176,11 +176,12 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
         if ($torrent) {
             $allowed = $torrent->can_write( length $raw );
         }
-        if ( $allowed < length $raw ) {
-
-            # Simplified: if we can't send all, we send none or partial.
-            # TRULY correct rate limiting for loop-agnostic core requires
-            # the loop itself to check can_read/can_write BEFORE calling these.
+        if ( $allowed <= 0 ) {
+            return 0;    # Rate limit: send nothing
+        }
+        elsif ( $allowed < length $raw ) {
+            my $chunk = substr( $raw, 0, $allowed, '' );
+            return $transport->send_data($chunk);
         }
         return $transport->send_data($raw);
     }
