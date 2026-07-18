@@ -72,12 +72,25 @@ class Net::BitTorrent::Protocol::BEP10 v2.0.0 : isa(Net::BitTorrent::Protocol::B
             return;
         }
         $remote_extensions = $data->{m} || {};
+        if ( keys %$remote_extensions > 50 ) {
+            $self->_emit_log( 'warn', "Peer claimed too many extensions: " . scalar( keys %$remote_extensions ) );
+            my @keys = keys %$remote_extensions;
+            $remote_extensions = { map { $keys[$_] => $remote_extensions->{ $keys[$_] } } 0 .. 49 };
+        }
         if ( $self->debug ) {
             $self->_emit_log( 'debug', "Remote extensions: " . join( ", ", map {"$_=$remote_extensions->{$_}"} keys %$remote_extensions ) );
         }
-        $remote_version             = $data->{v}             if exists $data->{v};
-        $remote_ip                  = $data->{yourip}        if exists $data->{yourip};
-        $metadata_size              = $data->{metadata_size} if exists $data->{metadata_size};
+        $remote_version = $data->{v}      if exists $data->{v};
+        $remote_ip      = $data->{yourip} if exists $data->{yourip};
+        if ( exists $data->{metadata_size} ) {
+            my $ms = $data->{metadata_size};
+            if ( ref $ms || !defined $ms || $ms !~ /^\d+$/ || $ms > 10 * 1024 * 1024 ) {
+                $self->_emit_log( 'warn', "Peer claimed unreasonable metadata_size: $ms" );
+            }
+            else {
+                $metadata_size = $ms;
+            }
+        }
         $remote_extensions_received = 1;
         $self->_emit( ext_handshake => $data );
     }

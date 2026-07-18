@@ -19,7 +19,6 @@ class Net::BitTorrent::Torrent::Generator v2.0.0 : isa(Net::BitTorrent::Emitter)
     method add_node        ( $h, $p ) { push @nodes,    [ $h, $p ] }
 
     method add_file ($rel_path) {
-
         my $bp  = path($base_path)->absolute;
         my $abs = $bp->child($rel_path)->absolute;
 
