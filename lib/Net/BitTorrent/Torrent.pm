@@ -14,6 +14,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use IO::Select;
     use IO::Socket::IP;
     use Net::BitTorrent::Types qw[:state :pick];
+    use Algorithm::RateLimiter::TokenBucket;
 
     # Security limits
     use constant MAX_METADATA_SIZE   => 10 * 1024 * 1024;    # 10 MB which would be... massive
@@ -229,7 +230,6 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         builtin::weaken($client) if defined $client;
         $features = { %{ $client->features // {} } };
         $peer_id //= $client->node_id;
-        use Algorithm::RateLimiter::TokenBucket;
         $limit_up   = Algorithm::RateLimiter::TokenBucket->new( limit => 0 );
         $limit_down = Algorithm::RateLimiter::TokenBucket->new( limit => 0 );
 
@@ -357,7 +357,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
                 # Actually, BEP 03 says length is required for single-file.
                 # But some tests use minimal dictionaries.
                 # Let's be lenient for v1 minimal tests if pieces is present.
-                # (Optional: we could default to 0)
+                # (Optionally, we could default to 0)
             }
             else {
                 if ( ( $info->{length} // -1 ) < 0 ) {

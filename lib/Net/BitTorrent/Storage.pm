@@ -338,7 +338,9 @@ class Net::BitTorrent::Storage v2.0.1 : isa(Net::BitTorrent::Emitter) {
 
     method verify_piece_v1 ( $index, $data ) {
         return undef unless $pieces_v1;
-        my $expected = substr( $pieces_v1, $index * 20, 20 );
+        my $offset = $index * 20;
+        return undef if $offset + 20 > length($pieces_v1);
+        my $expected = substr( $pieces_v1, $offset, 20 );
         return sha1($data) eq $expected;
     }
 
