@@ -126,7 +126,12 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
         my $http     = HTTP::Tiny->new( max_size => MAX_TRACKER_RESPONSE_SIZE );
         my $response = $http->get($target);
         if ( $response->{success} ) {
-            my $parsed = $self->parse_response( $response->{content} );
+            my $parsed;
+            try { $parsed = $self->parse_response( $response->{content} ) }
+            catch ($e) {
+                $self->_emit_log( 'error', "Error parsing tracker announce response: $e" );
+                return { failure_reason => "Error parsing tracker response: $e" };
+            }
             $cb->($parsed) if $cb;
             return $parsed;
         }
@@ -163,7 +168,11 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
             my $parsed;
             try { $parsed = bdecode( $response->{content} ) }
             catch ($e) {
-                $self->_emit_log( 'error', "Malformed HTTP scrape response: $e" );
+                $self->_emit_log( 'error', 'Malformed HTTP scrape response: ' . $e );
+                return undef;
+            }
+            if ( ref $parsed ne 'HASH' ) {
+                $self->_emit_log( 'warn', 'HTTP scrape response is not a dictionary' );
                 return undef;
             }
             $cb->($parsed) if $parsed;
