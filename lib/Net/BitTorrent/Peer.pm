@@ -30,6 +30,7 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
     field @allowed_fast_set;                                      # Pieces we are allowed to request even if choked
     field @suggested_pieces;
     field $pwp_handshake_sent = 0;
+    my %_requested_blocks;                                        # Track pending requests "index,begin" => 1
     method protocol ()     {$protocol}
     method is_encrypted () { defined $mse             && $mse->state eq 'PAYLOAD' }
     method is_seeder ()    { defined $bitfield_status && $bitfield_status eq 'all' }
@@ -438,8 +439,8 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method _handle_reject ( $index, $begin, $len ) {
-        $blocks_inflight--;
-
+        my $key = "$index,$begin";         
+        $blocks_inflight-- if $blocks_inflight > 0if delete $_requested_blocks{$key};        
         # Ideally tell torrent to un-pending this block
         # For now, we just proceed to request next.
         $self->_request_next_block();
@@ -529,7 +530,14 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
     method _handle_piece_data ( $index, $begin, $data ) {
         $self->_emit_log( 'debug', 'Received ' . length($data) . " bytes for piece $index at $begin" ) if $debug;
         $bytes_down += length($data);
-        $blocks_inflight--;
+        my $key = "$index,$begin";
+        if ( delete $_requested_blocks{$key} ) {
+            $blocks_inflight-- if $blocks_inflight > 0;
+        }
+        else {
+            $self->_emit_log( 'warning', "Received unsolicited PIECE for $key" ) if $debug;
+            $self->adjust_reputation(-10);
+        }
         my $status = $torrent->receive_block( $self, $index, $begin, $data );
         if ( $status == 1 ) {
 
@@ -570,6 +578,7 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method request ( $index, $begin, $len ) {
         $blocks_inflight++;
+        $_requested_blocks{"$index,$begin"} = 1;
         $protocol->send_message( 6, pack( 'N N N', $index, $begin, $len ) );
     }
 
