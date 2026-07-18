@@ -98,6 +98,10 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
                 $self->_emit_log( 'warn', 'HTTP announce DNS pinning failed (unsafe resolution): ' . $host );
                 return undef;
             }
+            unless ( is_safe_ip($pinned_ip) ) {
+                $self->_emit_log( 'warn', 'HTTP announce pinned IP failed re-validation: ' . $pinned_ip );
+                return undef;
+            }
             $uri->host($pinned_ip);
             $uri->port($pinned_port) if defined $pinned_port;
             $target = $uri->as_string();
@@ -156,6 +160,10 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
             my ( $pinned_ip, $pinned_port ) = resolve_and_pin( $host, $port );
             if ( !defined $pinned_ip ) {
                 $self->_emit_log( 'warn', 'HTTP scrape DNS pinning failed (unsafe resolution): ' . $host );
+                return undef;
+            }
+            unless ( is_safe_ip($pinned_ip) ) {
+                $self->_emit_log( 'warn', 'HTTP scrape pinned IP failed re-validation: ' . $pinned_ip );
                 return undef;
             }
             $uri->host($pinned_ip);
