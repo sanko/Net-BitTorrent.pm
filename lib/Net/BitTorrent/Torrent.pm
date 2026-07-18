@@ -916,6 +916,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     method peer_disconnected ($peer) {
         my $ip_port = $peer->ip . ':' . $peer->port;
         $self->_emit_log( 'debug', "Peer disconnected: $ip_port" ) if $debug;
+        $client->on_peer_disconnected( $peer->ip )                 if $client;
         delete $metadata_pending{$peer}                            if defined $peer;
         $pex_dropped{$ip_port} = { ip => $peer->ip, port => $peer->port };
         delete $pex_added{$ip_port};
