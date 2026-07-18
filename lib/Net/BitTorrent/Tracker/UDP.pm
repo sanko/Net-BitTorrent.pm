@@ -207,6 +207,7 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
     }
 
     method parse_announce_response ($data) {
+        return { interval => 0, leechers => 0, seeders => 0, peers => [] } if length($data) < 20;
         my ( $action, $tid, $interval, $leechers, $seeders ) = unpack( 'N N N N N', $data );
         my $peers_raw = substr( $data, 20 );
 
@@ -235,12 +236,17 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
     }
 
     method parse_scrape_response ( $data, $num_hashes ) {
+        return { files => [] } if length($data) < 8;
         my ( $action, $tid ) = unpack( 'N N', $data );
         my $results = { files => [] };
+
+        my $max_hashes = int( ( length($data) - 8 ) / 12 );
+        $num_hashes = $max_hashes if $num_hashes > $max_hashes;
         for ( my $i = 0; $i < $num_hashes; $i++ ) {
             my ( $seeders, $completed, $leechers ) = unpack( 'N N N', substr( $data, 8 + ( $i * 12 ), 12 ) );
             push @{ $results->{files} }, { seeders => $seeders, completed => $completed, leechers => $leechers };
         }
         return $results;
     }
-} 1;
+};
+1;
