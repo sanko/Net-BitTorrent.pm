@@ -1190,6 +1190,11 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
                 delete $attempted_connections{$key};
             }
         }
+        if ( keys %attempted_connections > MAX_ATTEMPTED ) {
+            my $to_delete = scalar( keys %attempted_connections ) - MAX_ATTEMPTED;
+            my @oldest    = ( sort { $attempted_connections{$a} <=> $attempted_connections{$b} } keys %attempted_connections )[ 0 .. $to_delete - 1 ];
+            delete @attempted_connections{@oldest};
+        }
     }
 
     method register_peer_object ($peer_obj) {
@@ -1210,12 +1215,8 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         my @boot_nodes = ( [ 'router.bittorrent.com', 6881 ], [ 'router.utorrent.com', 6881 ], [ 'dht.transmissionbt.com', 6881 ], );
         for my $ih (@ihs) {
             $self->_emit_log( 'debug', 'Starting DHT peer search for ' . unpack( 'H*', $ih ) ) if $debug;
-
-            # 1. Query local routing table
-            $dht->find_peers($ih);
-
-            # 2. Force query to bootstrap nodes
-            for my $node (@boot_nodes) {
+            $dht->find_peers($ih);          # Query local routing table
+            for my $node (@boot_nodes) {    # Force query to bootstrap nodes
 
                 # Resolve hostname if needed (get_peers expects IP)
                 # But dht->get_peers might handle hostnames if IO::Socket::IP does?
@@ -1323,7 +1324,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
             bitfield   => $bitfield->data,
             storage    => $storage->dump_state(),
             downloaded => $bytes_downloaded,
-            uploaded   => $bytes_uploaded,
+            uploaded   => $bytes_uploaded
         };
     }
 
