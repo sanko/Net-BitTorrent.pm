@@ -201,7 +201,12 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
     method handle_hashes ( $root, $proof_layer, $base_layer, $index, $length, $hashes ) {
         my $file = $torrent->storage->get_file_by_root($root);
         return unless $file && $file->merkle;
-        my $node_size  = 32;
+        my $node_size = 32;
+        if ( length($hashes) % $node_size != 0 ) {
+            $self->_emit_log( 'warning', 'Invalid hashes length: ' . length($hashes) . ' not a multiple of ' . $node_size );
+            $self->adjust_reputation(-5);
+            return;
+        }
         my $num_hashes = length($hashes) / $node_size;
 
         # BEP 52: index and length refer to the range of nodes at base_layer.
@@ -210,7 +215,7 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
             my $hash = substr( $hashes, $i * $node_size, $node_size );
             $file->merkle->set_node( $base_layer, $index + $i, $hash );
         }
-        $self->_emit_log( 'debug', "Received and stored $num_hashes hashes for root " . unpack( 'H*', $root ) . ' at layer $base_layer' ) if $debug;
+        $self->_emit_log( 'debug', "Received and stored $num_hashes hashes for root " . unpack( 'H*', $root ) . " at layer $base_layer" ) if $debug;
     }
 
     method handle_hash_reject ( $root, $proof_layer, $base_layer, $index, $length ) {
