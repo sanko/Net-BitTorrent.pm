@@ -13,7 +13,8 @@ class Net::BitTorrent::Storage::File v2.1.0 : isa(Net::BitTorrent::Emitter) {
     field $merkle      : reader;
     use constant MAX_FILE_SIZE => 100 * 1024 * 1024 * 1024;    # 100GB
     ADJUST {
-        $file_path = Path::Tiny::path($file_path);
+        $file_path = Path::Tiny::path($file_path)->absolute;
+        $file_path = $file_path->realpath if $file_path->exists;
         if ($pieces_root) {
             $merkle = Digest::Merkle::SHA256->new( file_size => $size );
         }
