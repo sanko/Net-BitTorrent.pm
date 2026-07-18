@@ -21,11 +21,12 @@ package Net::BitTorrent::SSRF v2.1.0 {
         $packed = inet_pton( AF_INET6, $ip );
         if ($packed) {
             my @w = unpack( 'n8', $packed );
-            return 0 if $packed eq ( "\0" x 15 ) . "\1";               # ::1
-            return 0 if $packed eq "\0" x 16;                          # ::
-            return 0 if ( $w[0] & 0xFFC0 ) == 0xFE80;                  # fe80::/10 link-local
-            return 0 if ( $w[0] & 0xFE00 ) == 0xFC00;                  # fc00::/7 ULA
-            return 0 if ( $w[0] & 0xFF00 ) == 0xFF00;                  # ff00::/8 multicast
+            return 0 if $packed eq ( "\0" x 15 ) . "\1";                                            # ::1
+            return 0 if $packed eq "\0" x 16;                                                       # ::
+            return 0 if ( $w[0] & 0xFFC0 ) == 0xFE80;                                               # fe80::/10 link-local
+            return 0 if ( $w[0] & 0xFE00 ) == 0xFC00;                                               # fc00::/7 ULA
+            return 0 if ( $w[0] & 0xFF00 ) == 0xFF00;                                               # ff00::/8 multicast
+            return 0 if $w[0] == 0 && $w[1] == 0 && $w[2] == 0 && $w[3] == 0 && $w[5] == 0xFFFF;    # ::ffff:0:0/96 IPv4-mapped
             return 1;
         }
         return 0;
