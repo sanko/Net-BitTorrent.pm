@@ -6,7 +6,7 @@ no warnings;
 # CVE-2026-57079
 #
 use lib 'lib', '../lib';
-use Digest::SHA qw[sha1];
+use Digest::SHA qw[sha1 sha256];
 use Path::Tiny;
 use Net::BitTorrent;
 use Net::BitTorrent::Torrent;
@@ -122,6 +122,47 @@ subtest BEP09 => sub {
         ok !defined $t->storage, 'no storage created';
         is $t->state, 0, 'torrent remains in STATE_STOPPED';
     }
+};
+#
+subtest 'v2 file tree null byte rejected' => sub {
+    my $client = Net::BitTorrent->new();
+    my $temp   = Path::Tiny->tempdir;
+    my $info   = {
+        name           => 'test',
+        'piece length' => 16384,
+        'file tree'    => { "evil\x00file.txt" => { '' => { length => 100, 'pieces root' => "\0" x 32 } } },
+    };
+    my $torrent_file = $temp->child('test.torrent');
+    $torrent_file->spew_raw( bencode( { info => $info } ) );
+    my $t = $client->add_torrent( $torrent_file, $temp );
+    ok $t, 'torrent object created even with null-byte path (error not fatal)';
+};
+#
+subtest 'v1 multi-file path null byte rejected' => sub {
+    my $client = Net::BitTorrent->new();
+    my $temp   = Path::Tiny->tempdir;
+    my $info
+        = { name => 'test', 'piece length' => 16384, pieces => sha1( 'x' x 16384 ), files => [ { length => 100, path => ["evil\x00file.txt"], }, ], };
+    my $torrent_file = $temp->child('test.torrent');
+    $torrent_file->spew_raw( bencode( { info => $info } ) );
+    my $t = $client->add_torrent( $torrent_file, $temp );
+    ok $t, 'torrent with v1 null-byte path created (error not fatal)';
+};
+#
+subtest 'v2 file tree without null bytes accepted' => sub {
+    my $client = Net::BitTorrent->new();
+    my $temp   = Path::Tiny->tempdir;
+    my $data   = 'X' x 16384;
+    my $info   = {
+        name           => 'test',
+        'piece length' => 16384,
+        pieces         => sha1($data),
+        'file tree'    => { 'normal_file.txt' => { '' => { length => 16384, 'pieces root' => sha256($data) } } },
+    };
+    my $torrent_file = $temp->child('test.torrent');
+    $torrent_file->spew_raw( bencode( { info => $info } ) );
+    my $t = $client->add_torrent( $torrent_file, $temp );
+    ok $t, 'torrent with normal v2 path accepted';
 };
 #
 done_testing;

@@ -11,6 +11,10 @@ use Digest::SHA qw[sha1 sha256];
 use Path::Tiny;
 use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode];
 use Net::BitTorrent::Protocol::BEP03;
+use Net::BitTorrent::Protocol::BEP10;
+use Net::BitTorrent::Tracker::UDP;
+use Socket qw[:crlf inet_aton inet_ntoa pack_sockaddr_in AF_INET AF_INET6];
+use Path::Tiny;
 use Errno;
 #
 # Helper: build a valid v1 handshake for given infohash + peer_id
@@ -38,11 +42,8 @@ subtest 'Oversized message rejected with fatal die' => sub {
     $p->receive_data( _handshake( 'A' x 20, 'C' x 20 ) );
     is $p->state, 'OPEN', 'handshake complete';
     my $oversize = Net::BitTorrent::Protocol::BEP03::MAX_MESSAGE_SIZE() + 1;
-    my $died     = 0;
-    try { $p->receive_data( pack( 'N', $oversize ) . pack( 'C', 6 ) ) }
-    catch ($e) { $died = 1 };
-    ok $died, 'oversized message triggers fatal die';
-    is $p->state, 'CLOSED', 'state is CLOSED after oversized message';
+    $p->receive_data( pack( 'N', $oversize ) . pack( 'C', 6 ) );
+    is $p->state, 'CLOSED', 'state is CLOSED after oversized message (C3: caught by try/catch)';
 };
 #
 subtest 'MAX_MESSAGE_SIZE + 1 rejected' => sub {
@@ -50,20 +51,15 @@ subtest 'MAX_MESSAGE_SIZE + 1 rejected' => sub {
     my $p = Net::BitTorrent::Protocol::BEP03->new( infohash => 'A' x 20, peer_id => 'B' x 20 );
     $p->receive_data( _handshake( 'A' x 20, 'C' x 20 ) );
     my $boundary = Net::BitTorrent::Protocol::BEP03::MAX_MESSAGE_SIZE() + 1;
-    my $died     = 0;
-    try { $p->receive_data( pack( 'N', $boundary ) ) }
-    catch ($e) { $died = 1 };
-    ok $died, 'MAX_MESSAGE_SIZE + 1 is rejected';
+    $p->receive_data( pack( 'N', $boundary ) );
+    is $p->state, 'CLOSED', 'MAX_MESSAGE_SIZE + 1 rejected (C3: caught by try/catch)';
 };
 #
 subtest 'Invalid handshake rejected' => sub {
     require Net::BitTorrent::Protocol::BEP03;
-    my $p    = Net::BitTorrent::Protocol::BEP03->new( infohash => 'A' x 20, peer_id => 'B' x 20 );
-    my $died = 0;
-    try { $p->receive_data( pack( 'N', 0 ) ) }
-    catch ($e) { $died = 1 };
-    ok $died, 'invalid handshake (pstrlen=0) triggers fatal die';
-    is $p->state, 'CLOSED', 'state is CLOSED after invalid handshake';
+    my $p = Net::BitTorrent::Protocol::BEP03->new( infohash => 'A' x 20, peer_id => 'B' x 20 );
+    $p->receive_data( pack( 'N', 0 ) );
+    is $p->state, 'CLOSED', 'invalid handshake (pstrlen=0) rejected (C3: caught by try/catch)';
 };
 #
 class MockTransport2 {
@@ -370,6 +366,71 @@ subtest 'Write buffer within cap does not disconnect' => sub {
     $transport->on( 'disconnected', sub { $disc = 1 } );
     $transport->send_data( 'Y' x 102400 );
     ok !$disc, 'no disconnect when write buffer is within cap';
+};
+#
+subtest 'BEP10 metadata_size validation' => sub {
+    my $p1 = Net::BitTorrent::Protocol::BEP10->new( infohash => 'A' x 20, peer_id => 'B' x 20 );
+    $p1->receive_data( _handshake( 'A' x 20, 'C' x 20 ) );
+    my $hs = bencode( { m => {}, metadata_size => 1024 } );
+    $p1->receive_data( pack( 'N C', 1 + length($hs), 20 ) . pack( 'C', 0 ) . $hs );
+    is $p1->metadata_size, 1024, 'valid metadata_size accepted';
+    #
+    my $p2 = Net::BitTorrent::Protocol::BEP10->new( infohash => 'D' x 20, peer_id => 'E' x 20 );
+    $p2->receive_data( _handshake( 'D' x 20, 'F' x 20 ) );
+    my $bad_hs = bencode( { m => {}, metadata_size => 11 * 1024 * 1024 } );
+    $p2->receive_data( pack( 'N C', 1 + length($bad_hs), 20 ) . pack( 'C', 0 ) . $bad_hs );
+    is $p2->metadata_size, 0, 'oversized metadata_size rejected';
+    #
+    my $p3 = Net::BitTorrent::Protocol::BEP10->new( infohash => 'G' x 20, peer_id => 'H' x 20 );
+    $p3->receive_data( _handshake( 'G' x 20, 'I' x 20 ) );
+    my $str_hs = bencode( { m => {}, metadata_size => "not_a_number" } );
+    $p3->receive_data( pack( 'N C', 1 + length($str_hs), 20 ) . pack( 'C', 0 ) . $str_hs );
+    is $p3->metadata_size, 0, 'non-integer metadata_size rejected';
+    #
+    my $p4 = Net::BitTorrent::Protocol::BEP10->new( infohash => 'J' x 20, peer_id => 'K' x 20 );
+    $p4->receive_data( _handshake( 'J' x 20, 'L' x 20 ) );
+    my $neg_hs = bencode( { m => {}, metadata_size => "-500" } );
+    $p4->receive_data( pack( 'N C', 1 + length($neg_hs), 20 ) . pack( 'C', 0 ) . $neg_hs );
+    is $p4->metadata_size, 0, 'negative metadata_size rejected';
+};
+#
+subtest 'BEP06 SUGGEST_PIECE wrong length' => sub {
+    my $peer = _make_peer_for_payload( 'B6' . '0' x 18 );
+    my $rep  = $peer->reputation;
+    $peer->handle_message( 13, pack( 'N N', 0, 0 ) );
+    ok $peer->reputation < $rep, 'SUGGEST_PIECE with 8-byte payload lowered reputation';
+};
+#
+subtest 'BEP06 SUGGEST_PIECE correct length accepted' => sub {
+    my $peer = _make_peer_for_payload( 'B6S' . '0' x 17 );
+    my $rep  = $peer->reputation;
+    $peer->handle_message( 13, pack( 'N', 0 ) );
+    is $peer->reputation, $rep, 'SUGGEST_PIECE with valid payload unchanged';
+};
+#
+subtest 'BEP06 REJECT_REQUEST correct length accepted' => sub {
+    my $peer = _make_peer_for_payload( 'B6r' . '0' x 17 );
+    my $rep  = $peer->reputation;
+    $peer->handle_message( 16, pack( 'N N N', 0, 0, 16384 ) );
+    is $peer->reputation, $rep, 'REJECT_REQUEST with valid payload unchanged';
+};
+#
+subtest 'BEP52 HASH_REQUEST wrong length does not crash' => sub {
+    my $peer = _make_peer_for_payload( '52H' . '0' x 17 );
+    my $ok   = eval { $peer->handle_message( 21, pack( 'C', 1 ) . 'short' ); 1 };
+    ok $ok, 'HASH_REQUEST with wrong length did not die';
+};
+#
+subtest 'BEP52 HASH_REJECT wrong length does not crash' => sub {
+    my $peer = _make_peer_for_payload( '52R' . '0' x 17 );
+    my $ok   = eval { $peer->handle_message( 23, pack( 'N', 0 ) ); 1 };
+    ok $ok, 'HASH_REJECT with wrong length did not die';
+};
+#
+subtest 'BEP52 HASHES too short does not crash' => sub {
+    my $peer = _make_peer_for_payload( '52S' . '0' x 17 );
+    my $ok   = eval { $peer->handle_message( 22, 'x' x 10 ); 1 };
+    ok $ok, 'HASHES with short payload did not die';
 };
 #
 done_testing;

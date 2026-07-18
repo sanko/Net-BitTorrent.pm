@@ -37,4 +37,15 @@ subtest 'parse_response returns failure on garbage input' => sub {
     ok defined $res->{failure_reason}, 'Failure reason is set for garbage input';
 };
 #
+#
+subtest 'parse_response returns failure on malformed compact peers' => sub {
+    my $tracker = Net::BitTorrent::Tracker::HTTP->new( url => 'http://example.com/announce' );
+    use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode];
+    my $bencoded = bencode( { peers => 'x' x 7 } );       # length 7 is not a multiple of 6
+    my $res      = $tracker->parse_response($bencoded);
+    ok $res,                           'returns a result even with malformed peers';
+    ok defined $res->{failure_reason}, 'returns failure_reason on malformed compact peers';
+    like $res->{failure_reason}, qr/malformed/i, 'failure reason mentions malformed data';
+};
+#
 done_testing;

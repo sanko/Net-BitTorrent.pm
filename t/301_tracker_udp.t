@@ -34,4 +34,12 @@ subtest 'parse_announce_response caps peer list at 500' => sub {
     is $response->{seeders},  10,   'seeders still parsed correctly';
 };
 #
+subtest 'parse_scrape_response bounds by actual data' => sub {
+    my $udp    = Net::BitTorrent::Tracker::UDP->new( url => 'udp://127.0.0.1:6881' );
+    my $data   = pack( 'N N', 2, 12345 ) . pack( 'N N N', 10, 50, 8 );
+    my $result = $udp->parse_scrape_response( $data, 5 );
+    is scalar @{ $result->{files} }, 1,  'scrape limited to actual data (1 entry not 5)';
+    is $result->{files}[0]{seeders}, 10, 'seeders parsed correctly';
+};
+#
 done_testing;

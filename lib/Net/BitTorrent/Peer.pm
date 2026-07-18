@@ -439,7 +439,7 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method _handle_reject ( $index, $begin, $len ) {
         my $key = "$index,$begin";
-        $blocks_inflight-- if $blocks_inflight > 0 if delete $_requested_blocks{$key};
+        $blocks_inflight-- if delete $_requested_blocks{$key} && $blocks_inflight > 0;
 
         # Ideally tell torrent to un-pending this block
         # For now, we just proceed to request next.

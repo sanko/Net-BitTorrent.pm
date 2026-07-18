@@ -8,6 +8,7 @@ use Digest::SHA qw[sha1];
 use Path::Tiny;
 use Net::BitTorrent;
 use Net::BitTorrent::Torrent;
+use Net::BitTorrent::Storage::File;
 use Net::BitTorrent::Protocol::BEP03::Bencode qw[bencode bdecode];
 #
 subtest bdecode => sub {
@@ -179,6 +180,30 @@ subtest 'Invalid file length does not die' => sub {
     $torrent_file->spew_raw( bencode( { info => $info } ) );
     my $ok = eval { $c->add_torrent( $torrent_file, $temp ); 1 };
     ok $ok, 'add_torrent with negative file length did not die';
+};
+#
+subtest 'Block cache cap constant defined' => sub {
+    ok Net::BitTorrent::Torrent->can('MAX_BLOCK_CACHE'),    'MAX_BLOCK_CACHE constant exists';
+    ok Net::BitTorrent::Torrent::MAX_BLOCK_CACHE() >= 1024, 'MAX_BLOCK_CACHE is reasonable (>= 1024)';
+};
+#
+subtest 'Torrent _store_block eviction cap defined' => sub {
+    ok Net::BitTorrent::Torrent::MAX_BLOCK_CACHE() >= 1024,    'MAX_BLOCK_CACHE is >= 1024';
+    ok Net::BitTorrent::Torrent::MAX_BLOCK_CACHE() <= 100_000, 'MAX_BLOCK_CACHE is <= 100K';
+};
+#
+subtest 'File size validation constant defined' => sub {
+    ok Net::BitTorrent::Storage::File->can('MAX_FILE_SIZE'),                        'MAX_FILE_SIZE constant exists';
+    ok Net::BitTorrent::Storage::File::MAX_FILE_SIZE() > 0,                         'MAX_FILE_SIZE is positive';
+    ok Net::BitTorrent::Storage::File::MAX_FILE_SIZE() <= 100 * 1024 * 1024 * 1024, 'MAX_FILE_SIZE <= 100GB';
+};
+#
+subtest 'File rejects oversized allocation' => sub {
+    my $temp = Path::Tiny->tempdir;
+    my $file = Net::BitTorrent::Storage::File->new( path => $temp->child('big.bin'), size => Net::BitTorrent::Storage::File::MAX_FILE_SIZE() + 1, );
+    ok $file, 'File object created for oversized file';
+    $file->_ensure_exists();
+    ok !$file->path->exists, 'oversized file not created on disk';
 };
 #
 done_testing;

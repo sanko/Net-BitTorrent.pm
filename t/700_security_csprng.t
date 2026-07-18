@@ -4,6 +4,8 @@ use Test2::V1 -ipP;
 use lib 'lib', '../lib';
 no warnings;
 use Net::BitTorrent;
+use Net::BitTorrent::DHT;
+use Socket qw[inet_aton];
 #
 # Verify CVE-2026-57082 fix didn't break anything
 #
@@ -95,6 +97,17 @@ subtest MSE => sub {
         my $secret_b = $bob->compute_secret( $alice->public_key );
         is $secret_a, $secret_b, 'valid DH keys produce matching shared secret';
     };
+    #
+    subtest 'verify_skey constant-time comparison' => sub {
+        my $ih  = 'E' x 20;
+        my $kx1 = Net::BitTorrent::Protocol::MSE::KeyExchange->new( infohash => $ih, is_initiator => 1 );
+        my $kx2 = Net::BitTorrent::Protocol::MSE::KeyExchange->new( infohash => $ih, is_initiator => 0 );
+        $kx1->compute_secret( $kx2->public_key );
+        $kx2->compute_secret( $kx1->public_key );
+        my ( undef, $xor_mask ) = $kx1->get_sync_data;
+        ok $kx2->verify_skey( $xor_mask,  $ih ),      'verify_skey accepts valid infohash';
+        ok !$kx2->verify_skey( $xor_mask, 'F' x 20 ), 'verify_skey rejects wrong infohash';
+    };
 };
 #
 subtest 'UDP tracker' => sub {
@@ -105,6 +118,30 @@ subtest 'UDP tracker' => sub {
         diag 'Actual uniqueness: ' . scalar keys %seen;
         ok !( grep { $_ < 0 || $_ > 0x7FFFFFFF } keys %seen ), 'all transaction IDs are 31bit non-negative';
     }
+};
+#
+subtest 'DHT token secret uniqueness (32-byte secrets)' => sub {
+    my $dht1   = Net::BitTorrent::DHT->new( port => 0 );
+    my $dht2   = Net::BitTorrent::DHT->new( port => 0 );
+    my $token1 = $dht1->_generate_token('192.168.1.1');
+    my $token2 = $dht2->_generate_token('192.168.1.1');
+    ok length($token1) == 20, 'token is SHA1 (20 bytes)';
+    ok $token1 ne $token2,    'different DHT instances produce different tokens (unique secrets)';
+};
+#
+subtest 'DHT _rotate_tokens works' => sub {
+    my $dht    = Net::BitTorrent::DHT->new( port => 0 );
+    my $token1 = $dht->_generate_token('10.0.0.1');
+    ok length($token1) == 20,                      'first token is valid SHA1';
+    ok $dht->_verify_token( '10.0.0.1', $token1 ), 'token verifies before rotation';
+};
+#
+subtest 'DHT token verification works' => sub {
+    my $dht   = Net::BitTorrent::DHT->new( port => 0 );
+    my $ip    = '192.168.100.1';
+    my $token = $dht->_generate_token($ip);
+    ok $dht->_verify_token( $ip,  $token ),      'token verifies with current secret';
+    ok !$dht->_verify_token( $ip, 'bad_token' ), 'bad token rejected';
 };
 #
 done_testing;

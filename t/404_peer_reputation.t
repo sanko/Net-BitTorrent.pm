@@ -45,7 +45,7 @@ subtest 'Peer Reputation Tracking' => sub {
     $t->receive_block( $peer, 0, 0, $data );
     $client->tick(0.1);    # Process hashing queue
     ok $t->bitfield->get(0), 'Piece verified';
-    is $peer->reputation, 101, 'Reputation increased after valid piece';
+    is $peer->reputation, 100, 'Reputation capped at 100 after valid piece';
 
     # Test failure and blacklisting
     my $bad_data      = 'B' x 16384;

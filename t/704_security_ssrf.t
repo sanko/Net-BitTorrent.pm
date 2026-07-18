@@ -2,6 +2,8 @@ use v5.40;
 use Test2::V1 -ipP;
 use lib 'lib', '../lib';
 use Net::BitTorrent::SSRF qw[is_safe_ip is_safe_host is_safe_url resolve_and_pin];
+use Net::BitTorrent::Tracker::UDP;
+use Net::BitTorrent::Tracker::WebSeed;
 #
 subtest 'Blocks loopback IPv4' => sub {
     is is_safe_ip('127.0.0.1'),       F(), '127.0.0.1 blocked';
@@ -112,10 +114,8 @@ subtest 'HTTP tracker ssrf_bypass works' => sub {
 #
 subtest 'UDP tracker SSRF protection' => sub {
     require Net::BitTorrent::Tracker::UDP;
-    my $died = 0;
-    try { Net::BitTorrent::Tracker::UDP->new( url => 'udp://127.0.0.1:6881' ) }
-    catch ($e) { $died = 1 };
-    ok $died, 'UDP tracker to loopback blocked (fatal emit)';
+    my $tracker = Net::BitTorrent::Tracker::UDP->new( url => 'udp://127.0.0.1:6881' );
+    ok $tracker, 'UDP tracker created without dying (error instead of fatal)';
 };
 #
 subtest 'UDP tracker ssrf_bypass works' => sub {
@@ -162,6 +162,33 @@ subtest 'is_safe_ip unchanged after DNS pinning changes' => sub {
     is is_safe_ip('127.0.0.1'),   F(), 'loopback still unsafe';
     is is_safe_ip('10.0.0.1'),    F(), 'private still unsafe';
     is is_safe_ip('192.168.1.1'), F(), 'private still unsafe';
+};
+#
+subtest 'UDP tracker resolves and caches IP' => sub {
+    my $tracker = Net::BitTorrent::Tracker::UDP->new( url => 'udp://tracker.example.com:8080' );
+    ok $tracker, 'UDP tracker created for public hostname';
+    my $tracker2 = Net::BitTorrent::Tracker::UDP->new( url => 'udp://127.0.0.1:8080' );
+    ok $tracker2, 'UDP tracker for loopback created (no crash, SSRF blocked)';
+};
+#
+subtest 'UDP tracker ssrf_bypass still works' => sub {
+    my $tracker = Net::BitTorrent::Tracker::UDP->new( url => 'udp://10.0.0.1:6881', ssrf_bypass => 1 );
+    ok $tracker, 'UDP tracker with ssrf_bypass to private IP created';
+};
+#
+subtest 'WebSeed disabled for unsafe URLs' => sub {
+    my $ws = Net::BitTorrent::Tracker::WebSeed->new( url => 'http://127.0.0.1/evil' );
+    ok $ws->disabled, 'WebSeed disabled for loopback URL';
+    my $result = $ws->fetch_piece( [ { rel_path => 'test', offset => 0, length => 10 } ] );
+    is $result, U(), 'fetch_piece returns undef when disabled';
+};
+#
+subtest 'IPv4-mapped IPv6 addresses blocked' => sub {
+    is is_safe_ip('::ffff:127.0.0.1'),   F(), 'IPv4-mapped loopback blocked';
+    is is_safe_ip('::ffff:10.0.0.1'),    F(), 'IPv4-mapped private 10.x blocked';
+    is is_safe_ip('::ffff:192.168.1.1'), F(), 'IPv4-mapped private 192.168.x blocked';
+    is is_safe_ip('::ffff:172.16.0.1'),  F(), 'IPv4-mapped private 172.16.x blocked';
+    is is_safe_ip('::ffff:8.8.8.8'),     F(), 'IPv4-mapped public also blocked';
 };
 #
 done_testing;
