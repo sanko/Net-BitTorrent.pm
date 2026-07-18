@@ -3,7 +3,7 @@ use feature 'class';
 no warnings 'experimental::class';
 #
 use Net::BitTorrent::Emitter;
-class Net::BitTorrent::Protocol::BEP03 v2.0.0 : isa(Net::BitTorrent::Emitter) {
+class Net::BitTorrent::Protocol::BEP03 v2.1.0 : isa(Net::BitTorrent::Emitter) {
     #
     field $infohash : param = undef;
     field $peer_id  : param : reader;
@@ -71,7 +71,11 @@ class Net::BitTorrent::Protocol::BEP03 v2.0.0 : isa(Net::BitTorrent::Emitter) {
         $buffer_in .= $data;
         return if $processing;
         $processing = 1;
-        $self->_process_buffer();
+        try { $self->_process_buffer(); }
+        catch ($e) {
+            $self->_emit_log( 'error', "Protocol processing error: $e" );
+            $state = 'CLOSED';
+        }
         $processing = 0;
     }
 
@@ -184,20 +188,15 @@ class Net::BitTorrent::Protocol::BEP03 v2.0.0 : isa(Net::BitTorrent::Emitter) {
         $self->_emit_log( 'debug', "Sending message ID $id (len " . length($payload) . ')' ) if $debug;
         $buffer_out .= pack( 'N C a*', 1 + length($payload), $id, $payload );
     }
-
-    method send_keepalive () {
-        $buffer_out .= pack( 'N', 0 );
-    }
+    method send_keepalive ()      { $buffer_out .= pack( 'N', 0 ) }
     method send_choke ()          { $self->send_message(CHOKE) }
     method send_unchoke ()        { $self->send_message(UNCHOKE) }
     method send_interested ()     { $self->send_message(INTERESTED) }
     method send_not_interested () { $self->send_message(NOT_INTERESTED) }
-
-    method send_have ($index) {
-        $self->send_message( HAVE, pack( 'N', $index ) );
-    }
+    method send_have ($index)     { $self->send_message( HAVE, pack( 'N', $index ) ) }
 
     method send_bitfield ($data) {
         $self->send_message( BITFIELD, $data );
     }
-} 1;
+};
+1;
