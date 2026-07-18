@@ -286,7 +286,6 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
             $self->_emit_log( 'warn', "HP_CONNECT rejected: invalid port $port" ) if $debug;
             return;
         }
-
         state $hp_connect_count = 0;
         state $hp_connect_reset = time();
         my $now = time();
@@ -543,7 +542,14 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method _handle_piece_data ( $index, $begin, $data ) {
         $self->_emit_log( 'debug', 'Received ' . length($data) . " bytes for piece $index at $begin" ) if $debug;
+
+        if ( length($data) == 0 || length($data) > 131072 ) {
+            $self->_emit_log( 'debug', "Invalid PIECE data length: " . length($data) ) if $debug;
+            $self->adjust_reputation(-5);
+            return;
+        }
         $bytes_down += length($data);
+
         my $key = "$index,$begin";
         if ( delete $_requested_blocks{$key} ) {
             $blocks_inflight-- if $blocks_inflight > 0;
