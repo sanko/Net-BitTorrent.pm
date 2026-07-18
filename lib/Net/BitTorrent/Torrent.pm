@@ -1042,7 +1042,10 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         return undef;
     }
 
+    field $_cached_total_size = undef;
+
     method _calculate_total_size () {
+        return $_cached_total_size if defined $_cached_total_size;
         my $total = 0;
         my $info  = $metadata->{info};
         if ( $info->{'file tree'} ) {
@@ -1056,6 +1059,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
                 }
             }
         }
+        $_cached_total_size = $total;
         return $total;
     }
 
