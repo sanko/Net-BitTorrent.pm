@@ -3,17 +3,19 @@ use feature 'class', 'try';
 no warnings 'experimental::class', 'experimental::try';
 class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base) {
     use Net::BitTorrent::Protocol::BEP23;
-    use Net::BitTorrent::SSRF qw[is_safe_ip];
+    use Net::BitTorrent::SSRF qw[is_safe_ip resolve_and_pin];
     use IO::Socket::IP;
     use Crypt::URandom qw[urandom];
+    use Digest::SHA    qw[sha1];
     use Config;
-    use constant HAS_64BIT => $Config{ivsize} >= 8;
+    use constant HAS_64BIT                => $Config{ivsize} >= 8;
     use constant MAX_PENDING_TRANSACTIONS => 100;
     field $connection_id      = HAS_64BIT ? 0 : pack( 'NN', 0, 0 );
     field $connection_id_time = 0;
     field $transaction_id;
     field $host;
     field $port;
+    field $resolved_ip;             # Cached resolved IP for SSRF-safe retransmissions
     field $socket;
     field %pending_transactions;    # tid => { type => ..., cb => ..., payload => ..., retries => ..., timestamp => ... }
 
@@ -28,14 +30,22 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
         if ( $self->url =~ m{^udp://([^:/]+):(\d+)} ) {
             $host = $1;
             $port = $2;
-            unless ( $self->ssrf_bypass || is_safe_ip($host) ) {
-                $self->_emit_log( 'fatal', "UDP tracker blocked by SSRF policy: $host:$port" );
-                return;
+            unless ( $self->ssrf_bypass ) {
+                my ( $ip, $rp ) = resolve_and_pin( $host, $port );
+                unless ( defined $ip ) {
+                    $self->_emit_log( 'error', "UDP tracker blocked by SSRF policy: $host:$port" );
+                    return;
+                }
+                $resolved_ip = $ip;
+                $port        = $rp if defined $rp;
             }
-            $socket = IO::Socket::IP->new( Proto => 'udp', Blocking => 0, ) or $self->_emit_log( 'fatal', "Could not create UDP socket: $!" );
+            else {
+                $resolved_ip = $host;
+            }
+            $socket = IO::Socket::IP->new( Proto => 'udp', Blocking => 0 ) or $self->_emit_log( 'error', "Could not create UDP socket: $!" );
         }
         else {
-            $self->_emit_log( 'fatal', 'Invalid UDP tracker URL: ' . $self->url );
+            $self->_emit_log( 'error', 'Invalid UDP tracker URL: ' . $self->url );
         }
     }
 
@@ -87,14 +97,14 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
         my ( $action, $tid ) = unpack( 'N N', $data );
         my $entry = delete $pending_transactions{$tid};
         if ( !$entry ) {
-            $self->_emit_log( 'debug', "Received UDP packet with unknown transaction ID: $tid" );
+            $self->_emit_log( 'debug', 'Received UDP packet with unknown transaction ID: ' . $tid );
             return;
         }
         try {
             if ( $action == 3 ) {    # Error
                 my $msg = substr( $data, 8 );
                 $msg =~ s/[^\x20-\x7E]/./g;    # Sanitize: replace non-printable with dot
-                $self->_emit_log( 'error', "UDP Tracker error: $msg" );
+                $self->_emit_log( 'error', 'UDP Tracker error: ' . $msg );
                 return;
             }
             if ( $entry->{type} eq 'connect' ) {
@@ -121,14 +131,17 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
             }
         }
         catch ($e) {
-            $self->_emit_log( 'error', "Error parsing UDP tracker response: $e" );
+            $self->_emit_log( 'error', 'Error parsing UDP tracker response: ' . $e );
         }
     }
 
     method _send_packet ($payload) {
         return unless $socket;
-        my $dest = sockaddr_in( $port, inet_aton($host) );
-        $socket->send( $payload, 0, $dest );
+        my $target_ip = $resolved_ip // $host;
+        my $dest      = sockaddr_in( $port, inet_aton($target_ip) );
+        my $sent      = $socket->send( $payload, 0, $dest );
+        $self->_emit_log( 'warn', "UDP send failed: $!" ) unless defined $sent;
+        return $sent;
     }
 
     method build_connect_packet () {
@@ -168,7 +181,6 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
     }
 
     method perform_scrape ( $infohashes, $cb = undef ) {
-
         if ( scalar keys %pending_transactions >= MAX_PENDING_TRANSACTIONS ) {
             $self->_emit_log( 'warn', 'UDP tracker pending transaction limit reached' );
             return;
@@ -236,7 +248,6 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
 
     method build_scrape_packet ($infohashes) {
         $self->_new_transaction_id();
-
         my @capped = @$infohashes[ 0 .. ( @$infohashes > 70 ? 69 : $#$infohashes ) ];
 
         # Validate and truncate each hash to 20 bytes
@@ -248,8 +259,7 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
     method parse_scrape_response ( $data, $num_hashes ) {
         return { files => [] } if length($data) < 8;
         my ( $action, $tid ) = unpack( 'N N', $data );
-        my $results = { files => [] };
-
+        my $results    = { files => [] };
         my $max_hashes = int( ( length($data) - 8 ) / 12 );
         $num_hashes = $max_hashes if $num_hashes > $max_hashes;
         for ( my $i = 0; $i < $num_hashes; $i++ ) {
