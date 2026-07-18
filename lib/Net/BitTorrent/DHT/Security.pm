@@ -33,12 +33,14 @@ class Net::BitTorrent::DHT::Security v2.1.0 {
         my $ip_masked = '';
         if ( $ip !~ /:/ ) {
             $ip_bin = inet_aton($ip);
+            return undef unless defined $ip_bin && length($ip_bin) == 4;
             my @bytes = unpack( 'C*', $ip_bin );
             $bytes[$_] &= $v4_mask[$_] for 0 .. 3;
             $ip_masked = pack( 'C*', @bytes );
         }
         else {
             $ip_bin = inet_pton( AF_INET6, $ip );
+            return undef unless defined $ip_bin && length($ip_bin) == 16;
             my @bytes = unpack( 'C*', $ip_bin );
             $bytes[$_] &= $v6_mask[$_] for 0 .. 7;
             $ip_masked = pack 'C*', @bytes[ 0 .. 7 ];
