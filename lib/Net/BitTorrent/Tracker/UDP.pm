@@ -51,6 +51,15 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
 
         # Check for incoming data
         while ( $socket->recv( my $buf, 4096 ) ) {
+            my $sender_addr = $socket->peeraddr();
+            if ( defined $sender_addr && defined $resolved_ip ) {
+                my $sender_ip   = unpack( 'N', $sender_addr );
+                my $expected_ip = unpack( 'N', inet_aton($resolved_ip) );
+                if ( defined $expected_ip && $sender_ip ne $expected_ip ) {
+                    $self->_emit_log( 'debug', 'UDP tracker response from unexpected sender, ignoring' );
+                    next;
+                }
+            }
             $self->receive_data($buf);
         }
 
