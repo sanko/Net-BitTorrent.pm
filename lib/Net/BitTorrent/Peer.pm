@@ -438,8 +438,9 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method _handle_reject ( $index, $begin, $len ) {
-        my $key = "$index,$begin";         
-        $blocks_inflight-- if $blocks_inflight > 0if delete $_requested_blocks{$key};        
+        my $key = "$index,$begin";
+        $blocks_inflight-- if $blocks_inflight > 0 if delete $_requested_blocks{$key};
+
         # Ideally tell torrent to un-pending this block
         # For now, we just proceed to request next.
         $self->_request_next_block();
@@ -450,7 +451,6 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
             $self->_check_superseed();
         }
         if ( !$am_interested ) {
-
             my $bitfield = $torrent->bitfield;
             my $p_bfs    = $torrent->peer_bitfields;
             my $p_bf     = $p_bfs->{$self};
@@ -542,14 +542,12 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method _handle_piece_data ( $index, $begin, $data ) {
         $self->_emit_log( 'debug', 'Received ' . length($data) . " bytes for piece $index at $begin" ) if $debug;
-
         if ( length($data) == 0 || length($data) > 131072 ) {
             $self->_emit_log( 'debug', "Invalid PIECE data length: " . length($data) ) if $debug;
             $self->adjust_reputation(-5);
             return;
         }
         $bytes_down += length($data);
-
         my $key = "$index,$begin";
         if ( delete $_requested_blocks{$key} ) {
             $blocks_inflight-- if $blocks_inflight > 0;
@@ -629,7 +627,6 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method adjust_reputation ($delta) {
         $reputation += $delta;
-
         $reputation = 0   if $reputation < 0;
         $reputation = 100 if $reputation > 100;
         if ( $reputation <= 50 ) {
