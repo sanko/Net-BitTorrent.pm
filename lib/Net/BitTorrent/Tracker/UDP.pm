@@ -8,6 +8,7 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
     use Crypt::URandom qw[urandom];
     use Config;
     use constant HAS_64BIT => $Config{ivsize} >= 8;
+    use constant MAX_PENDING_TRANSACTIONS => 100;
     field $connection_id      = HAS_64BIT ? 0 : pack( 'NN', 0, 0 );
     field $connection_id_time = 0;
     field $transaction_id;
@@ -140,6 +141,10 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
     }
 
     method perform_announce ( $params, $cb = undef ) {
+        if ( scalar keys %pending_transactions >= MAX_PENDING_TRANSACTIONS ) {
+            $self->_emit_log( 'warn', 'UDP tracker pending transaction limit reached' );
+            return;
+        }
         if ( !$self->_is_connected() ) {
             my ( $tid, $pkt ) = $self->build_connect_packet();
             $pending_transactions{$tid} = {
@@ -163,6 +168,11 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
     }
 
     method perform_scrape ( $infohashes, $cb = undef ) {
+
+        if ( scalar keys %pending_transactions >= MAX_PENDING_TRANSACTIONS ) {
+            $self->_emit_log( 'warn', 'UDP tracker pending transaction limit reached' );
+            return;
+        }
         if ( !$self->_is_connected() ) {
             my ( $tid, $pkt ) = $self->build_connect_packet();
             $pending_transactions{$tid} = {
@@ -170,7 +180,7 @@ class Net::BitTorrent::Tracker::UDP v2.1.0 : isa(Net::BitTorrent::Tracker::Base)
                 payload    => $pkt,
                 retries    => 0,
                 timestamp  => time(),
-                on_connect => sub { $self->perform_scrape( $infohashes, $cb ) },
+                on_connect => sub { $self->perform_scrape( $infohashes, $cb ) }
             };
             $self->_send_packet($pkt);
             return;
