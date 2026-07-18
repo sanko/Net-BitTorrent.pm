@@ -338,7 +338,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
                     return;
                 }
                 for my $p ( @{ $f->{path} } ) {
-                    if ( $p eq '' || $p eq '.' || $p eq '..' || $p =~ /[\\\/]/ ) {
+                    if ( $p eq '' || $p eq '.' || $p eq '..' || $p =~ /[\\\/]/ || $p =~ /\0/ ) {
                         $self->_emit_log( 'error', 'Invalid path element' );
                         return;
                     }
