@@ -9,6 +9,7 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
     use URI;
     use URI::Escape qw[uri_escape];
     use constant MAX_TRACKER_RESPONSE_SIZE => 1024 * 1024;    # 1MB
+    use constant MAX_TRACKER_PEERS         => 1000;           # Max peers from compact response
 
     method build_announce_url ($params) {
         my $full_url = $self->url;
@@ -47,8 +48,8 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
         my $dict;
         try { $dict = bdecode($data) }
         catch ($e) {
-            $self->_emit_log( 'error', "Malformed tracker response: $e" );
-            return { failure_reason => "Malformed tracker response: $e" };
+            $self->_emit_log( 'error', 'Malformed tracker response: ' . $e );
+            return { failure_reason => 'Malformed tracker response: ' . $e };
         }
         if ( !defined $dict || ref $dict ne 'HASH' ) {
             return { failure_reason => 'Tracker response is not a valid dictionary' };
@@ -58,12 +59,24 @@ class Net::BitTorrent::Tracker::HTTP v2.1.0 : isa(Net::BitTorrent::Tracker::Base
             return $dict;
         }
         if ( defined $dict->{peers} && !ref $dict->{peers} ) {
-            $dict->{peers} = Net::BitTorrent::Protocol::BEP23::unpack_peers_ipv4( $dict->{peers} );
+            try { $dict->{peers} = Net::BitTorrent::Protocol::BEP23::unpack_peers_ipv4( $dict->{peers} ) }
+            catch ($e) {
+                $self->_emit_log( 'error', 'Malformed compact IPv4 peer list: ' . $e );
+                return { failure_reason => 'Malformed compact peer list: ' . $e };
+            }
         }
         if ( defined $dict->{peers6} && !ref $dict->{peers6} ) {
-            my $p6 = Net::BitTorrent::Protocol::BEP23::unpack_peers_ipv6( $dict->{peers6} );
-            $dict->{peers} = [ @{ $dict->{peers} // [] }, @$p6 ];
+            try {
+                my $p6 = Net::BitTorrent::Protocol::BEP23::unpack_peers_ipv6( $dict->{peers6} );
+                $dict->{peers} = [ @{ $dict->{peers} // [] }, @$p6 ];
+            }
+            catch ($e) {
+                $self->_emit_log( 'error', 'Malformed compact IPv6 peer list: ' . $e );
+                return { failure_reason => 'Malformed compact peer6 list: ' . $e };
+            }
         }
+        $dict->{peers} = [ @{ $dict->{peers} }[ 0 .. MAX_TRACKER_PEERS - 1 ] ]
+            if ref $dict->{peers} eq 'ARRAY' && @{ $dict->{peers} } > MAX_TRACKER_PEERS;
         $dict->{peers} //= [];    # Ensure it is an array ref
         return $dict;
     }
