@@ -8,7 +8,7 @@
 | macOS | Apple Silicon | ✅ |
 | Windows | Intel | ✅ |
 | Windows | ARM | ✅ |
-| DragonFly BSD | Intel | ❌ |
+| DragonFly BSD | Intel | ✅ |
 | FreeBSD | Intel | ✅ |
 | FreeBSD | ARM | ✅ |
 | Haiku | Intel | ✅ |
