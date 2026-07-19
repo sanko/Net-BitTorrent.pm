@@ -1,162 +1,501 @@
 ---
 jobs:
-  etc:
-    name: 'FreeBSD/v${{matrix.perl}}'
+  dragonflybsd:
+    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'dragonflybsd') }}"
+    name: DragonFly BSD
     needs:
       - setup
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - architecture: x86-64
-            host: ubuntu-latest
-            name: freebsd
-            pkg: pkg install -y
-            version: 14.1
-          - architecture: arm64
-            host: ubuntu-latest
-            name: freebsd
-            pkg: pkg install -y
-            version: 14.1
-        perl:
-          - "5.40"
-      max-parallel: 5
     uses: ./.github/workflows/cross.yml
     with:
-      arch: '${{ matrix.os.architecture }}'
-      host: '${{ matrix.os.host }}'
-      os: '${{ matrix.os.name }}'
-      perl: '${{ matrix.perl }}'
-      pkg: '${{ matrix.os.pkg }}'
-      version: '${{ matrix.os.version }}'
-      setup: '${{ matrix.os.setup }}'
-  linux:
-    name: 'Linux/v${{matrix.perl}}'
+      arch: x86-64
+      gcc_pkg: sudo pkg install -y gcc
+      host: ubuntu-latest
+      os: dragonflybsd
+      perl: 5.42
+      pkg: sudo pkg install -y perl5-5.42 || (sudo sed -i '' 's|/quarterly|/latest|' /usr/local/etc/pkg/repos/Avalon.conf && sudo pkg update -f && sudo pkg install -y perl5-5.42) || (curl -sL https://www.cpan.org/src/5.0/perl-5.42.2.tar.gz | tar xz -C /tmp && cd /tmp/perl-5.42.2 && ./Configure -des -Dprefix=/usr/local -Dusedevel && make -j$(getconf NPROCESSORS_ONLN) && sudo make install && sudo ln -sf /usr/local/bin/perl5.42.2 /usr/local/bin/perl)
+      setup: export LC_ALL=C LANG=C LC_CTYPE=C LC_NUMERIC=C LC_COLLATE=C LC_TIME=C LC_MESSAGES=C LC_MONETARY=C; sudo pkg install -y gdb p5-Test-Harness || true
+      test_files: '${{ needs.setup.outputs.test_files }}'
+      version: 6.4.2
+  freebsd-arm64:
+    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'freebsd-arm64') }}"
+    name: FreeBSD
     needs:
       - setup
-    strategy:
-      fail-fast: false
-      matrix:
-        flags:
-          - ''
-          - -Dusethreads
-          - -Duselongdouble
-          - -Dusequadmath
-        os:
-          - ubuntu-24.04
-        perl: '${{ fromJSON(needs.setup.outputs.matrix).perl }}'
-      max-parallel: 25
-    uses: ./.github/workflows/unix.yml
+    uses: ./.github/workflows/cross.yml
     with:
-      flags: '${{ matrix.flags }}'
-      os: '${{ matrix.os }}'
-      perl: '${{ matrix.perl }}'
-  macos:
-    name: "[${{ matrix.os == 'macos-15-intel' && 'Intel' || 'M1' }}] macOS/v${{matrix.perl}}"
+      arch: arm64
+      gcc_pkg: sudo pkg install -y gcc
+      host: ubuntu-latest
+      os: freebsd
+      perl: 5.42
+      pkg: sudo pkg install -y perl5
+      test_files: '${{ needs.setup.outputs.test_files }}'
+      version: 15.1
+  freebsd-x64:
+    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'freebsd-x64') }}"
+    name: FreeBSD
     needs:
       - setup
-    strategy:
-      fail-fast: false
-      matrix:
-        exclude:
-          - flags: -Dusequadmath
-          - flags: -Dusethreads
-        flags: '${{ fromJSON(needs.setup.outputs.matrix).flags }}'
-        os:
-          - macos-15-intel
-          - macos-15
-        perl: '${{ fromJSON(needs.setup.outputs.matrix).perl }}'
-      max-parallel: 25
+    uses: ./.github/workflows/cross.yml
+    with:
+      arch: x86-64
+      gcc_pkg: sudo pkg install -y gcc
+      host: ubuntu-latest
+      os: freebsd
+      perl: 5.42
+      pkg: sudo pkg install -y perl5
+      test_files: '${{ needs.setup.outputs.test_files }}'
+      version: 15.1
+  haiku:
+    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'haiku') }}"
+    name: Haiku
+    needs:
+      - setup
+    uses: ./.github/workflows/cross.yml
+    with:
+      arch: x86-64
+      gcc_pkg: sudo pkgman install gcc || sudo pkgman install gcc_x86
+      host: ubuntu-latest
+      os: haiku
+      perl: 5.42
+      perl_subversion: 2
+      pkg: sudo pkgman install "perl>=5.42.2" -y || echo "perl 5.42 not available"
+      test_files: '${{ needs.setup.outputs.test_files }}'
+      version: r1beta5
+  linux-arm64:
+    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'linux-arm64') }}"
+    name: Linux
+    needs:
+      - setup
     uses: ./.github/workflows/unix.yml
     with:
-      flags: '${{ matrix.flags }}'
-      os: '${{ matrix.os }}'
-      perl: '${{ matrix.perl }}'
-  results:
-    name: Results
+      flags: '${{ fromJSON(needs.setup.outputs.matrix).flags[0] }}'
+      os: ubuntu-24.04-arm
+      perl: '${{ fromJSON(needs.setup.outputs.matrix).perl[0] }}'
+      test_files: '${{ needs.setup.outputs.test_files }}'
+      title: ARM
+  linux-x64:
+    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'linux-x64') }}"
+    name: Linux
     needs:
-      - macos
-      - win32
-      - linux
-    runs-on: ubuntu-22.04
+      - setup
+    uses: ./.github/workflows/unix.yml
+    with:
+      flags: '${{ fromJSON(needs.setup.outputs.matrix).flags[0] }}'
+      os: ubuntu-24.04
+      perl: '${{ fromJSON(needs.setup.outputs.matrix).perl[0] }}'
+      test_files: '${{ needs.setup.outputs.test_files }}'
+      title: Intel
+  macos-arm:
+    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'macos-arm') }}"
+    name: macOS
+    needs:
+      - setup
+    uses: ./.github/workflows/unix.yml
+    with:
+      flags: '${{ fromJSON(needs.setup.outputs.matrix).flags[0] }}'
+      os: macos-15
+      perl: '${{ fromJSON(needs.setup.outputs.matrix).perl[0] }}'
+      test_files: '${{ needs.setup.outputs.test_files }}'
+      title: Apple Silicon
+  macos-intel:
+    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'macos-intel') }}"
+    name: macOS
+    needs:
+      - setup
+    uses: ./.github/workflows/unix.yml
+    with:
+      flags: '${{ fromJSON(needs.setup.outputs.matrix).flags[0] }}'
+      os: macos-15-intel
+      perl: '${{ fromJSON(needs.setup.outputs.matrix).perl[0] }}'
+      test_files: '${{ needs.setup.outputs.test_files }}'
+      title: Intel
+  midnightbsd:
+    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'midnightbsd') }}"
+    name: MidnightBSD
+    needs:
+      - setup
+    uses: ./.github/workflows/cross.yml
+    with:
+      arch: x86-64
+      gcc_pkg: sudo mport install gcc || true
+      host: ubuntu-latest
+      os: midnightbsd
+      perl: 5.42
+      pkg: sudo mport install perl5.42-5.42.2 || true; sudo ln -sf /usr/local/bin/perl5.42.2 /usr/local/bin/perl
+      test_files: '${{ needs.setup.outputs.test_files }}'
+      version: 4.0.4
+  netbsd-arm64:
+    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'netbsd-arm64') }}"
+    name: NetBSD
+    needs:
+      - setup
+    uses: ./.github/workflows/cross.yml
+    with:
+      arch: arm64
+      gcc_pkg: which gcc 2>/dev/null || sudo pkgin -y install gcc || true
+      host: ubuntu-latest
+      os: netbsd
+      perl: 5.42
+      pkg: sudo pkgin -y install perl || true
+      test_files: '${{ needs.setup.outputs.test_files }}'
+      version: 10.1
+  netbsd-x64:
+    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'netbsd-x64') }}"
+    name: NetBSD
+    needs:
+      - setup
+    uses: ./.github/workflows/cross.yml
+    with:
+      arch: x86-64
+      gcc_pkg: which gcc 2>/dev/null || sudo pkgin -y install gcc || true
+      host: ubuntu-latest
+      os: netbsd
+      perl: 5.42
+      pkg: sudo pkgin -y install perl || true
+      setup: sudo pkgin -y install gdb || true
+      test_files: '${{ needs.setup.outputs.test_files }}'
+      version: 10.1
+  omnios:
+    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'omnios') }}"
+    name: OmniOS
+    needs:
+      - setup
+    uses: ./.github/workflows/cross.yml
+    with:
+      arch: x86-64
+      gcc_pkg: sudo pkg install developer/gcc --accept || sudo pkg install developer/gcc11 --accept || sudo pkg install gcc --accept || sudo pkg install developer/gcc49 --accept || true
+      host: ubuntu-latest
+      os: omnios
+      perl: 5.42
+      pkg: 'sudo pkg install perl || [ $? -eq 4 ]'
+      test_files: '${{ needs.setup.outputs.test_files }}'
+      version: r151058
+  openbsd-arm64:
+    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'openbsd-arm64') }}"
+    name: OpenBSD
+    needs:
+      - setup
+    uses: ./.github/workflows/cross.yml
+    with:
+      arch: arm64
+      gcc_pkg: which gcc 2>/dev/null || true
+      host: ubuntu-latest
+      os: openbsd
+      perl: 5.40
+      perl_subversion: 1
+      pkg: echo "using system perl"
+      test_files: '${{ needs.setup.outputs.test_files }}'
+      version: 7.9
+  openbsd-x64:
+    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'openbsd-x64') }}"
+    name: OpenBSD
+    needs:
+      - setup
+    uses: ./.github/workflows/cross.yml
+    with:
+      arch: x86-64
+      gcc_pkg: which gcc 2>/dev/null || true
+      host: ubuntu-latest
+      os: openbsd
+      perl: 5.40
+      perl_subversion: 1
+      pkg: echo "using system perl"
+      test_files: '${{ needs.setup.outputs.test_files }}'
+      version: 7.9
+  publish-status:
+    if: ( success() || failure() ) && github.ref == 'refs/heads/main'
+    name: Publish Status Page
+    needs:
+      - results
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
     steps:
-      - name: Download test results
-        uses: actions/download-artifact@v4
+      - name: Download status files
+        uses: actions/download-artifact@v8.0.1
         with:
-          path: artifacts
-      - name: Report test results
+          name: status-files
+          path: ./status
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          commit_message: Update build status matrix
+          destination_dir: status
+          github_token: '${{ secrets.GITHUB_TOKEN }}'
+          keep_files: true
+          publish_branch: gh-pages
+          publish_dir: ./status
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          user_name: 'github-actions[bot]'
+  results:
+    if: always()
+    name: Summary
+    needs:
+      - linux-x64
+      - linux-arm64
+      - riscv64
+      - macos-intel
+      - macos-arm
+      - win32-x64
+      - win32-arm64
+      - dragonflybsd
+      - freebsd-x64
+      - freebsd-arm64
+      - haiku
+      - midnightbsd
+      - netbsd-x64
+      - netbsd-arm64
+      - omnios
+      - openbsd-x64
+      - openbsd-arm64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all test output artifacts
+        uses: actions/download-artifact@v8.0.1
+        with:
+          path: results
+      - name: Generate summary from test results
         run: |
-          # Function to process a directory
-          process_dir() {
-            local dir="$1"
-            # Loop through each element in the directory
-            for file in "$dir"/*; do
-              # Check if it's a directory
-              if [ -d "$file" ]; then
-                # Recursively call process_dir for subdirectories (except .)
-                if [ "$file" != "." ]; then
-                  process_dir "$file"
+          mkdir -p status
+          SUMMARY_MD="status/status.md"
+          STATUS_JSON="status/status.json"
+          echo "## Build and Test Summary" > $SUMMARY_MD
+          echo "| OS | Architecture | Result |" >> $SUMMARY_MD
+          echo "|:---|:---|:---|" >> $SUMMARY_MD
+          echo "{" > $STATUS_JSON
+          first=true
+
+          # All expected (OS, Arch) pairs in display order
+          EXPECTED=(
+            "Linux:Intel"
+            "Linux:ARM"
+            "Linux:RISC-V"
+            "macOS:Intel"
+            "macOS:Apple Silicon"
+            "Windows:Intel"
+            "Windows:ARM"
+            "DragonFly BSD:Intel"
+            "FreeBSD:Intel"
+            "FreeBSD:ARM"
+            "Haiku:Intel"
+            "MidnightBSD:Intel"
+            "NetBSD:Intel"
+            "NetBSD:ARM"
+            "OmniOS:Intel"
+            "OpenBSD:Intel"
+            "OpenBSD:ARM"
+          )
+
+          # Map artifact dir name → OS:Arch key
+          map_name() {
+            case "$1" in
+              *"ubuntu-24.04-arm"*)   echo "Linux:ARM" ;;
+              *"ubuntu-24.04-riscv"*) echo "Linux:RISC-V" ;;
+              *"ubuntu-24.04"*)       echo "Linux:Intel" ;;
+              *"macos-15-intel"*)    echo "macOS:Intel" ;;
+              *"macos-15"*)          echo "macOS:Apple Silicon" ;;
+              *"windows-11-arm"*)    echo "Windows:ARM" ;;
+              *"windows-2022"*)      echo "Windows:Intel" ;;
+              *"dragonflybsd"*)      echo "DragonFly BSD:Intel" ;;
+              *"freebsd"*"arm64"*)   echo "FreeBSD:ARM" ;;
+              *"freebsd"*)           echo "FreeBSD:Intel" ;;
+              *"haiku"*)             echo "Haiku:Intel" ;;
+              *"midnightbsd"*)       echo "MidnightBSD:Intel" ;;
+              *"netbsd"*"arm64"*)    echo "NetBSD:ARM" ;;
+              *"netbsd"*)            echo "NetBSD:Intel" ;;
+              *"omnios"*)            echo "OmniOS:Intel" ;;
+              *"openbsd"*"arm64"*)   echo "OpenBSD:ARM" ;;
+              *"openbsd"*)           echo "OpenBSD:Intel" ;;
+            esac
+          }
+
+          declare -A SEEN
+          for entry in "${EXPECTED[@]}"; do
+            SEEN["$entry"]=0
+          done
+
+          if [ -d "results" ]; then
+            for dir in results/*/; do
+              name=$(basename "$dir")
+              key=$(map_name "$name")
+              [ -z "$key" ] && continue
+              file=$(find "$dir" -name "*.txt" | head -1)
+              if [ -n "$file" ]; then
+                if grep -q "^Error!" "$file"; then
+                  SEEN["$key"]="failure"
+                else
+                  SEEN["$key"]="success"
                 fi
-              # If it's a regular file, print its content
-              elif [ -f "$file" ]; then
-                echo "================> $file <================"
-                cat "$file"
-                echo ""  # Add an empty line between files
               fi
             done
-          }
-          # Get the directory path from the first argument (or current directory)
-          dir=${1:-.}
-          # Process the specified directory
-          process_dir "artifacts"
+          fi
+
+          for entry in "${EXPECTED[@]}"; do
+            IFS=':' read -r os arch <<< "$entry"
+            status="${SEEN[$entry]}"
+            case "$status" in
+              "success") icon="✅" ;;
+              "failure") icon="❌" ;;
+              *)         icon="❌"; status="failure" ;;
+            esac
+            echo "| $os | $arch | $icon |" >> $SUMMARY_MD
+            [ "$first" = false ] && echo "," >> $STATUS_JSON
+            echo "\"${os// /_}:$arch\": \"$status\"" >> $STATUS_JSON
+            first=false
+          done
+
+          echo "}" >> $STATUS_JSON
+          cat $SUMMARY_MD >> $GITHUB_STEP_SUMMARY
+      - name: Upload status files for publishing
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: status-files
+          path: status/
+  riscv64:
+    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'riscv64') }}"
+    name: Linux
+    needs:
+      - setup
+    uses: ./.github/workflows/unix.yml
+    with:
+      flags: '${{ fromJSON(needs.setup.outputs.matrix).flags[0] }}'
+      os: ubuntu-24.04-riscv
+      perl: '${{ fromJSON(needs.setup.outputs.matrix).perl[0] }}'
+      test_files: '${{ needs.setup.outputs.test_files }}'
+      title: RISC-V
   setup:
     name: Generate Testing Matrix
     outputs:
       matrix: '${{ steps.matrix.outputs.matrix }}'
+      runner: '${{ steps.parse_tags.outputs.runner }}'
+      test_files: '${{ steps.parse_tags.outputs.test_files }}'
     runs-on: ubuntu-22.04
     steps:
+      - env:
+          COMMIT_MSG: "${{ github.event.head_commit.message || github.event.pull_request.body || '' }}"
+          DISPATCH_ARCH: '${{ github.event.inputs.arch }}'
+          DISPATCH_OS: '${{ github.event.inputs.os }}'
+          DISPATCH_TEST: '${{ github.event.inputs.test_files }}'
+        id: parse_tags
+        name: Parse commit message tags for os/arch/test filtering
+        run: |
+          expand_runner() {
+            local os_input="$1"
+            local arch_input="$2"
+            [ "$os_input" = "all" ] && [ "$arch_input" = "all" ] && { echo "all"; return; }
+            local -a selected_oses
+            if [ "$os_input" = "all" ]; then
+              selected_oses=(linux macos windows freebsd openbsd netbsd dragonflybsd haiku midnightbsd omnios)
+            else
+              IFS=',' read -ra selected_oses <<< "$os_input"
+            fi
+            local -a selected_archs
+            if [ "$arch_input" = "all" ]; then
+              selected_archs=(x64 arm risc)
+            else
+              IFS=',' read -ra selected_archs <<< "$arch_input"
+            fi
+            local result=""
+            local need_risc=false
+            for os in "${selected_oses[@]}"; do
+              os="${os#"${os%%[! ]*}"}"; os="${os%"${os##*[! ]}"}"
+              [ -z "$os" ] && continue
+              for arch in "${selected_archs[@]}"; do
+                arch="${arch#"${arch%%[! ]*}"}"; arch="${arch%"${arch##*[! ]}"}"
+                [ -z "$arch" ] && continue
+                case "$arch" in
+                  x64)
+                    case "$os" in
+                      linux)       result="$result linux-x64" ;;
+                      macos)       result="$result macos-intel" ;;
+                      windows)     result="$result win32-x64" ;;
+                      freebsd)     result="$result freebsd-x64" ;;
+                      openbsd)     result="$result openbsd-x64" ;;
+                      netbsd)      result="$result netbsd-x64" ;;
+                      dragonflybsd|dragonfly) result="$result dragonflybsd" ;;
+                      haiku)       result="$result haiku" ;;
+                      midnightbsd) result="$result midnightbsd" ;;
+                      omnios)      result="$result omnios" ;;
+                    esac ;;
+                  arm)
+                    case "$os" in
+                      linux)   result="$result linux-arm64" ;;
+                      macos)   result="$result macos-arm" ;;
+                      windows) result="$result win32-arm64" ;;
+                      freebsd) result="$result freebsd-arm64" ;;
+                      openbsd) result="$result openbsd-arm64" ;;
+                      netbsd)  result="$result netbsd-arm64" ;;
+                    esac ;;
+                  risc) [ "$os" = "linux" ] && need_risc=true ;;
+                esac
+              done
+            done
+            $need_risc && result="$result riscv64"
+            echo "${result:1}"
+          }
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "runner=$(expand_runner "${DISPATCH_OS:-all}" "${DISPATCH_ARCH:-all}")" >> "$GITHUB_OUTPUT"
+            echo "test_files=${DISPATCH_TEST:-}" >> "$GITHUB_OUTPUT"
+          else
+            RAW_OS=$(echo "$COMMIT_MSG" | grep -oP '\[os:\K[^\]]+' || echo "all")
+            RAW_ARCH=$(echo "$COMMIT_MSG" | grep -oP '\[arch:\K[^\]]+' || echo "all")
+            TEST=$(echo "$COMMIT_MSG" | grep -oP '\[test:\K[^\]]+' || echo "")
+            echo "runner=$(expand_runner "$RAW_OS" "$RAW_ARCH")" >> "$GITHUB_OUTPUT"
+            echo "test_files=$TEST" >> "$GITHUB_OUTPUT"
+          fi
       - env:
           DATA: |
             {
               "perl":  ["5.42.0"],
-              "flags": ["", "-Dusethreads", "-Duselongdouble", "-Dusequadmath"]
+              "flags": [""]
             }
         id: matrix
         run: "jq -rn 'env.DATA | fromjson | @json \"matrix=\\(.)\"' > $GITHUB_OUTPUT\n"
-  win32:
-    name: 'Windows/v${{matrix.perl}}'
+  win32-arm64:
+    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'win32-arm64') }}"
+    name: Windows
     needs:
       - setup
-    strategy:
-      fail-fast: false
-      matrix:
-        exclude:
-          - flags: -Duselongdouble
-          - flags: -Dusequadmath
-        flags:
-          - -Dusethreads
-          - ''
-        os:
-          - windows-2022
-        perl: '${{ fromJSON(needs.setup.outputs.matrix).perl }}'
-      max-parallel: 25
-    uses: ./.github/workflows/win32.yml
+    uses: ./.github/workflows/windows.yml
     with:
-      flags: '${{ matrix.flags }}'
-      os: '${{ matrix.os }}'
-      perl: '${{ matrix.perl }}'
-
+      flags: -Dusethreads
+      os: windows-11-arm
+      perl: '${{ fromJSON(needs.setup.outputs.matrix).perl[0] }}'
+      test_files: '${{ needs.setup.outputs.test_files }}'
+      title: ARM
+  win32-x64:
+    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'win32-x64') }}"
+    name: Windows
+    needs:
+      - setup
+    uses: ./.github/workflows/windows.yml
+    with:
+      flags: -Dusethreads
+      os: windows-2022
+      perl: '${{ fromJSON(needs.setup.outputs.matrix).perl[0] }}'
+      test_files: '${{ needs.setup.outputs.test_files }}'
+      title: Intel
 name: CI Matrix
-
 on:
   pull_request: ~
   push: ~
   schedule:
     - cron: 42 5 * * 0
-  workflow_dispatch: ~
-
+  workflow_dispatch:
+    inputs:
+      arch:
+        default: all
+        description: 'Architecture(s) to test (comma-separated, e.g. "x64,arm" or "risc"). See [arch:...] commit tag docs.'
+        type: string
+      os:
+        default: all
+        description: 'OS(es) to test (comma-separated, e.g. "linux" or "linux,macos"). See [os:...] commit tag docs.'
+        type: string
+      test_files:
+        default: ''
+        description: Test file pattern (e.g. t/3000_jenny/3500_isolate/*.t)
+        type: string
 permissions:
-  contents: read
-  # actions: read is required to list artifacts via the API
   actions: read
-
+  contents: read
