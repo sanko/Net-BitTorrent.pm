@@ -47,7 +47,7 @@ subtest DHT => sub {
         is scalar keys %seen, 10, '10 calls produce 10 distinct node IDs for same IP';
     };
     #
-    subtest 'DHT::Security — node IDs pass validation' => sub {
+    subtest 'node IDs pass validation' => sub {
         my $sec = Net::BitTorrent::DHT::Security->new();
         for my $ip ( '192.168.1.1', '10.0.0.1', '172.16.0.1' ) {
             my $id = $sec->generate_node_id($ip);

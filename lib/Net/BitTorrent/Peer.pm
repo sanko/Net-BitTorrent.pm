@@ -30,7 +30,12 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
     field @allowed_fast_set;                                      # Pieces we are allowed to request even if choked
     field @suggested_pieces;
     field $pwp_handshake_sent = 0;
-    my %_requested_blocks;                                        # Track pending requests "index,begin" => 1
+    field $requested_blocks : reader = {};                        # Track pending requests "index,begin" => 1
+    field $last_activity    : reader = 0;                         # Timestamp of last data received
+    field $connected_at     : reader = 0;                         # Timestamp of connection
+    field $_disconnected = 0;                                     # Guard: prevent repeated disconnect
+    use constant REQUEST_TIMEOUT => 30;                           # Seconds without response before disconnect
+    use constant IDLE_TIMEOUT    => 120;                          # Seconds without any data before disconnect
     method protocol ()     {$protocol}
     method is_encrypted () { defined $mse             && $mse->state eq 'PAYLOAD' }
     method is_seeder ()    { defined $bitfield_status && $bitfield_status eq 'all' }
@@ -42,6 +47,8 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
         return $f;
     }
     ADJUST {
+        $connected_at  = time();
+        $last_activity = $connected_at;
         $self->set_parent_emitter($torrent);
         builtin::weaken($torrent) if defined $torrent;
         if ( $protocol->can('set_peer') ) {
@@ -138,6 +145,9 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
                         $protocol->send_allowed_fast($idx);
                     }
                 }
+                if ( $torrent && $torrent->client ) {
+                    $torrent->client->_emit( 'peer_connected', $weak_self );
+                }
             }
         );
     }
@@ -163,6 +173,7 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method receive_data ($data) {
+        $last_activity = time();
         $self->_emit_log( 'debug', 'Peer received ' . length($data) . ' bytes of data' ) if $debug;
         $torrent->can_read( length $data );
         $protocol->receive_data($data);
@@ -439,10 +450,8 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method _handle_reject ( $index, $begin, $len ) {
         my $key = "$index,$begin";
-        $blocks_inflight-- if delete $_requested_blocks{$key} && $blocks_inflight > 0;
-
-        # Ideally tell torrent to un-pending this block
-        # For now, we just proceed to request next.
+        $blocks_inflight-- if delete $self->requested_blocks->{$key} && $blocks_inflight > 0;
+        delete $torrent->blocks_pending->{$index}{$begin};
         $self->_request_next_block();
     }
 
@@ -496,7 +505,7 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
                 if ( !$peer_choking || $self->is_allowed_fast( $req->{index} ) ) {
                     $protocol->send_message( 6, pack( 'N N N', $req->{index}, $req->{begin}, $req->{length} ) );
                     $blocks_inflight++;
-                    $_requested_blocks{"$req->{index},$req->{begin}"} = 1;
+                    $self->requested_blocks->{"$req->{index},$req->{begin}"} = 1;
                 }
                 else {
                     # We picked a piece but we are choked and it's not fast-allowed.
@@ -549,7 +558,7 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
         }
         $bytes_down += length($data);
         my $key = "$index,$begin";
-        if ( delete $_requested_blocks{$key} ) {
+        if ( delete $self->requested_blocks->{$key} ) {
             $blocks_inflight-- if $blocks_inflight > 0;
         }
         else {
@@ -569,6 +578,8 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method disconnected () {
+        return if $_disconnected;
+        $_disconnected = 1;
         $torrent->peer_disconnected($self) if $torrent;
         $transport->close()                if $transport;
         $self->_emit('disconnected');
@@ -596,11 +607,32 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method request ( $index, $begin, $len ) {
         $blocks_inflight++;
-        $_requested_blocks{"$index,$begin"} = 1;
+        $self->requested_blocks->{"$index,$begin"} = 1;
         $protocol->send_message( 6, pack( 'N N N', $index, $begin, $len ) );
     }
 
+    method cancel_request ( $index, $begin ) {
+        my $key = "$index,$begin";
+        if ( delete $self->requested_blocks->{$key} ) {
+            $blocks_inflight-- if $blocks_inflight > 0;
+        }
+    }
+
     method tick () {
+        return if $_disconnected;
+
+        # Zombie peer detection: disconnect if no activity for too long
+        my $idle = time() - $last_activity;
+        if ( $blocks_inflight > 0 && $idle > REQUEST_TIMEOUT ) {
+            $self->_emit_log( 'warn', "Request timeout: $ip:$port silent for ${idle}s with $blocks_inflight inflight" ) if $debug;
+            $self->disconnected();
+            return;
+        }
+        if ( $idle > IDLE_TIMEOUT && $protocol->state eq 'OPEN' ) {
+            $self->_emit_log( 'debug', "Idle timeout: $ip:$port silent for ${idle}s" ) if $debug;
+            $self->disconnected();
+            return;
+        }
 
         # Simple moving average / decay
         $rate_down  = ( $rate_down * 0.8 ) + ( $bytes_down * 0.2 );
@@ -626,10 +658,11 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method adjust_reputation ($delta) {
+        return if $_disconnected;
         $reputation += $delta;
         $reputation = 0   if $reputation < 0;
         $reputation = 100 if $reputation > 100;
-        if ( $reputation <= 50 ) {
+        if ( $reputation <= 20 ) {
             $self->_emit_log( 'error', "Blacklisting peer $ip:$port due to low reputation ($reputation)" ) if $debug;
             $self->disconnected();
         }

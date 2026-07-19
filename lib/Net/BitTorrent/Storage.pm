@@ -18,10 +18,10 @@ class Net::BitTorrent::Storage v2.0.1 : isa(Net::BitTorrent::Emitter) {
     field %piece_layers;           # pieces_root => piece layer data
 
     # Async Disk Cache (LRU)
-    field %cache;                                     # file_id => { offset => data }
-    field %cache_dirty;                               # file_id => { offset => 1 }
-    field @lru_list;                                  # [[file_id, offset], ...]
-    field $max_cache_size     = 1024 * 1024 * 128;    # 128MiB default cache limit
+    field %cache;                                    # file_id => { offset => data }
+    field %cache_dirty;                              # file_id => { offset => 1 }
+    field @lru_list;                                 # [[file_id, offset], ...]
+    field $max_cache_size     = 1024 * 1024 * 16;    # 16MiB cache limit
     field $current_cache_size = 0;
     ADJUST {
         $base_path = Path::Tiny::path($base_path);

@@ -30,14 +30,14 @@ package Net::BitTorrent::Protocol::BEP03::Bencode v2.1.0 {
             $int = () if $int =~ m[^-0] || $int =~ m[^0\d+];
             return $k ? ( $int, $string ) : $int;
         }
-        elsif ( $string =~ s[^l][]s ) {                    # list — no greedy capture
+        elsif ( $string =~ s[^l][]s ) {                    # list without greedy capture
             while ( $string and $string !~ s[^e][]s ) {
                 ( my ($piece), $string ) = bdecode( $string, 1, $depth + 1 );
                 push @$return, $piece;
             }
             return $k ? ( \@$return, $string ) : \@$return;
         }
-        elsif ( $string =~ s[^d][]s ) {                    # dictionary — no greedy capture
+        elsif ( $string =~ s[^d][]s ) {                    # dictionary without greedy capture
             my $pkey;
             while ( $string and $string !~ s[^e][]s ) {
                 my ( $key, $value );

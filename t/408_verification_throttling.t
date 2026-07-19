@@ -50,27 +50,27 @@ subtest 'Hashing queue drains before accepting when full' => sub {
     my $torrent_file2 = $temp2->child('test.torrent');
     $torrent_file2->spew_raw( bencode( { info => $info2 } ) );
     my $t2 = $client2->add_torrent( $torrent_file2, $temp2 );
-    $client2->queue_verification( $t2, $_, $data2 ) for 0 .. 127;
-    is $client2->hashing_queue_size(), 128, 'hashing queue at max capacity (128)';
+    $client2->queue_verification( $t2, $_, $data2 ) for 0 .. 31;
+    is $client2->hashing_queue_size(), 32, 'hashing queue at max capacity (32)';
 
-    # With no hashing allowance, drain cannot process anything, so 129th is dropped
-    $client2->queue_verification( $t2, 128, $data2 );
-    is $client2->hashing_queue_size(), 128, '129th piece dropped when queue cannot drain';
+    # With no hashing allowance, drain cannot process anything, so 33rd is dropped
+    $client2->queue_verification( $t2, 32, $data2 );
+    is $client2->hashing_queue_size(), 32, '33rd piece dropped when queue cannot drain';
 
     # With enough allowance, drain makes room for the next piece
     my $client3 = Net::BitTorrent->new();
     my $t3      = $client3->add_torrent( $temp2->child('test.torrent'), $temp2 );
-    $client3->queue_verification( $t3, $_, $data2 ) for 0 .. 127;
-    is $client3->hashing_queue_size(), 128, 'second client queue at max capacity';
+    $client3->queue_verification( $t3, $_, $data2 ) for 0 .. 31;
+    is $client3->hashing_queue_size(), 32, 'second client queue at max capacity';
 
     # Give enough allowance to drain one piece (16384 bytes)
     $client3->set_hashing_rate_limit( 16384 * 1000 );
     $client3->_process_hashing_queue(1.0);
-    ok $client3->hashing_queue_size() < 128, 'queue drained after processing with allowance';
+    ok $client3->hashing_queue_size() < 32, 'queue drained after processing with allowance';
 
-    # Now the 129th should be accepted
-    $client3->queue_verification( $t3, 128, $data2 );
-    ok $client3->hashing_queue_size() <= 128, '129th piece accepted after drain';
+    # Now the 33rd should be accepted
+    $client3->queue_verification( $t3, 32, $data2 );
+    ok $client3->hashing_queue_size() <= 32, '33rd piece accepted after drain';
 };
 #
 subtest 'Hashing queue allows processing to reduce size' => sub {

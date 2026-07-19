@@ -200,6 +200,8 @@ subtest 'REQUEST beyond piece boundary silently rejected' => sub {
     ok $ok, 'REQUEST extending beyond piece boundary did not die';
 };
 #
+my @_keep_alive;    # Prevent GC of clients created by _make_peer_for_payload
+#
 sub _make_peer_for_payload ($ih) {
     my $temp   = Path::Tiny->tempdir;
     my $client = Net::BitTorrent->new();
@@ -221,102 +223,103 @@ sub _make_peer_for_payload ($ih) {
     my $peer = Net::BitTorrent::Peer->new( protocol => $ph, torrent => $torrent, transport => $tr, ip => '9.9.9.9', port => 9999, encryption => 0 );
     $ph->set_peer($peer);
     $torrent->register_peer_object($peer);
-    return $peer;
+    push @_keep_alive, $client;
+    return ( $peer, $client );
 }
 #
 subtest 'CHOKE with non-zero payload rejected' => sub {
-    my $peer = _make_peer_for_payload( 'C' x 20 );
-    my $rep  = $peer->reputation;
+    my ($peer) = _make_peer_for_payload( 'C' x 20 );
+    my $rep = $peer->reputation;
     $peer->handle_message( 0, pack( 'C', 0 ) );
     ok $peer->reputation < $rep, 'reputation lowered for CHOKE with wrong payload length';
 };
 #
 subtest 'UNCHOKE with non-zero payload rejected' => sub {
-    my $peer = _make_peer_for_payload( 'U' x 20 );
-    my $rep  = $peer->reputation;
+    my ($peer) = _make_peer_for_payload( 'U' x 20 );
+    my $rep = $peer->reputation;
     $peer->handle_message( 1, pack( 'N', 0 ) );
     ok $peer->reputation < $rep, 'reputation lowered for UNCHOKE with wrong payload length';
 };
 #
 subtest 'INTERESTED with non-zero payload rejected' => sub {
-    my $peer = _make_peer_for_payload( 'I' x 20 );
-    my $rep  = $peer->reputation;
+    my ($peer) = _make_peer_for_payload( 'I' x 20 );
+    my $rep = $peer->reputation;
     $peer->handle_message( 2, "\x00" );
     ok $peer->reputation < $rep, 'reputation lowered for INTERESTED with wrong payload length';
 };
 #
 subtest 'HAVE with wrong length rejected' => sub {
-    my $peer = _make_peer_for_payload( 'H' x 20 );
-    my $rep  = $peer->reputation;
+    my ($peer) = _make_peer_for_payload( 'H' x 20 );
+    my $rep = $peer->reputation;
     $peer->handle_message( 4, pack( 'N', 0 ) . "\x00" );
     ok $peer->reputation < $rep, 'reputation lowered for HAVE with 5-byte payload';
 };
 #
 subtest 'HAVE with correct length accepted' => sub {
-    my $peer = _make_peer_for_payload( 'J' x 20 );
-    my $rep  = $peer->reputation;
+    my ($peer) = _make_peer_for_payload( 'J' x 20 );
+    my $rep = $peer->reputation;
     $peer->handle_message( 4, pack( 'N', 0 ) );
     is $peer->reputation, $rep, 'reputation unchanged for valid HAVE';
 };
 #
 subtest 'REQUEST with wrong length rejected' => sub {
-    my $peer = _make_peer_for_payload( 'R' x 20 );
-    my $rep  = $peer->reputation;
+    my ($peer) = _make_peer_for_payload( 'R' x 20 );
+    my $rep = $peer->reputation;
     $peer->handle_message( 6, pack( 'N N', 0, 0 ) );
     ok $peer->reputation < $rep, 'reputation lowered for REQUEST with 8-byte payload';
 };
 #
 subtest 'REQUEST with correct length accepted (even if out-of-range)' => sub {
-    my $peer = _make_peer_for_payload( 'S' x 20 );
-    my $ok   = eval { $peer->handle_message( 6, pack( 'N N N', 999, 0, 16384 ) ); 1 };
+    my ($peer) = _make_peer_for_payload( 'S' x 20 );
+    my $ok = eval { $peer->handle_message( 6, pack( 'N N N', 999, 0, 16384 ) ); 1 };
     ok $ok, 'REQUEST with valid length did not die';
 };
 #
 subtest 'PIECE with too-short payload rejected' => sub {
-    my $peer = _make_peer_for_payload( 'D' x 20 );
-    my $rep  = $peer->reputation;
+    my ($peer) = _make_peer_for_payload( 'D' x 20 );
+    my $rep = $peer->reputation;
     $peer->handle_message( 7, pack( 'N', 0 ) );
     ok $peer->reputation < $rep, 'reputation lowered for PIECE with 4-byte payload';
 };
 #
 subtest 'REJECT with wrong length rejected' => sub {
-    my $peer = _make_peer_for_payload( 'X' x 20 );
-    my $rep  = $peer->reputation;
+    my ($peer) = _make_peer_for_payload( 'X' x 20 );
+    my $rep = $peer->reputation;
     $peer->handle_message( 16, pack( 'N', 0 ) );
     ok $peer->reputation < $rep, 'reputation lowered for REJECT with 4-byte payload';
 };
 #
 subtest 'SUGGEST_PIECE with wrong length rejected' => sub {
-    my $peer = _make_peer_for_payload( 'G' x 20 );
-    my $rep  = $peer->reputation;
+    my ($peer) = _make_peer_for_payload( 'G' x 20 );
+    my $rep = $peer->reputation;
     $peer->handle_message( 13, '' );
     ok $peer->reputation < $rep, 'reputation lowered for SUGGEST_PIECE with 0-byte payload';
 };
 #
 subtest 'ALLOWED_FAST with wrong length rejected' => sub {
-    my $peer = _make_peer_for_payload( 'F' x 20 );
-    my $rep  = $peer->reputation;
+    my ($peer) = _make_peer_for_payload( 'F' x 20 );
+    my $rep = $peer->reputation;
     $peer->handle_message( 17, pack( 'N N', 0, 0 ) );
     ok $peer->reputation < $rep, 'reputation lowered for ALLOWED_FAST with 8-byte payload';
 };
 #
 subtest 'HAVE_ALL with non-zero payload rejected' => sub {
-    my $peer = _make_peer_for_payload( 'A' x 20 );
-    my $rep  = $peer->reputation;
+    my ($peer) = _make_peer_for_payload( 'A' x 20 );
+    my $rep = $peer->reputation;
     $peer->handle_message( 14, "\x00" );
     ok $peer->reputation < $rep, 'reputation lowered for HAVE_ALL with 1-byte payload';
 };
 #
 subtest 'HAVE_NONE with non-zero payload rejected' => sub {
-    my $peer = _make_peer_for_payload( 'N' x 20 );
-    my $rep  = $peer->reputation;
+    my ($peer) = _make_peer_for_payload( 'N' x 20 );
+    my $rep = $peer->reputation;
     $peer->handle_message( 15, pack( 'N', 0 ) );
     ok $peer->reputation < $rep, 'reputation lowered for HAVE_NONE with 4-byte payload';
 };
 #
 subtest 'Unknown message type passes through (no crash)' => sub {
-    my $peer = _make_peer_for_payload( 'Z' x 20 );
-    my $ok   = eval { $peer->handle_message( 99, "some data" ); 1 };
+    my ($peer) = _make_peer_for_payload( 'Z' x 20 );
+    my $ok = eval { $peer->handle_message( 99, "some data" ); 1 };
     ok $ok, 'unknown message type did not die';
 };
 #
@@ -395,41 +398,41 @@ subtest 'BEP10 metadata_size validation' => sub {
 };
 #
 subtest 'BEP06 SUGGEST_PIECE wrong length' => sub {
-    my $peer = _make_peer_for_payload( 'B6' . '0' x 18 );
-    my $rep  = $peer->reputation;
+    my ($peer) = _make_peer_for_payload( 'B6' . '0' x 18 );
+    my $rep = $peer->reputation;
     $peer->handle_message( 13, pack( 'N N', 0, 0 ) );
     ok $peer->reputation < $rep, 'SUGGEST_PIECE with 8-byte payload lowered reputation';
 };
 #
 subtest 'BEP06 SUGGEST_PIECE correct length accepted' => sub {
-    my $peer = _make_peer_for_payload( 'B6S' . '0' x 17 );
-    my $rep  = $peer->reputation;
+    my ($peer) = _make_peer_for_payload( 'B6S' . '0' x 17 );
+    my $rep = $peer->reputation;
     $peer->handle_message( 13, pack( 'N', 0 ) );
     is $peer->reputation, $rep, 'SUGGEST_PIECE with valid payload unchanged';
 };
 #
 subtest 'BEP06 REJECT_REQUEST correct length accepted' => sub {
-    my $peer = _make_peer_for_payload( 'B6r' . '0' x 17 );
-    my $rep  = $peer->reputation;
+    my ($peer) = _make_peer_for_payload( 'B6r' . '0' x 17 );
+    my $rep = $peer->reputation;
     $peer->handle_message( 16, pack( 'N N N', 0, 0, 16384 ) );
     is $peer->reputation, $rep, 'REJECT_REQUEST with valid payload unchanged';
 };
 #
 subtest 'BEP52 HASH_REQUEST wrong length does not crash' => sub {
-    my $peer = _make_peer_for_payload( '52H' . '0' x 17 );
-    my $ok   = eval { $peer->handle_message( 21, pack( 'C', 1 ) . 'short' ); 1 };
+    my ($peer) = _make_peer_for_payload( '52H' . '0' x 17 );
+    my $ok = eval { $peer->handle_message( 21, pack( 'C', 1 ) . 'short' ); 1 };
     ok $ok, 'HASH_REQUEST with wrong length did not die';
 };
 #
 subtest 'BEP52 HASH_REJECT wrong length does not crash' => sub {
-    my $peer = _make_peer_for_payload( '52R' . '0' x 17 );
-    my $ok   = eval { $peer->handle_message( 23, pack( 'N', 0 ) ); 1 };
+    my ($peer) = _make_peer_for_payload( '52R' . '0' x 17 );
+    my $ok = eval { $peer->handle_message( 23, pack( 'N', 0 ) ); 1 };
     ok $ok, 'HASH_REJECT with wrong length did not die';
 };
 #
 subtest 'BEP52 HASHES too short does not crash' => sub {
-    my $peer = _make_peer_for_payload( '52S' . '0' x 17 );
-    my $ok   = eval { $peer->handle_message( 22, 'x' x 10 ); 1 };
+    my ($peer) = _make_peer_for_payload( '52S' . '0' x 17 );
+    my $ok = eval { $peer->handle_message( 22, 'x' x 10 ); 1 };
     ok $ok, 'HASHES with short payload did not die';
 };
 #

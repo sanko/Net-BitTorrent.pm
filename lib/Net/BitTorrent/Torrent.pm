@@ -17,11 +17,12 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use Algorithm::RateLimiter::TokenBucket;
 
     # Security limits
-    use constant MAX_METADATA_SIZE   => 10 * 1024 * 1024;    # 10 MB which would be... massive
-    use constant MAX_FILE_TREE_DEPTH => 128;
-    use constant MAX_BLOCK_CACHE     => 2048;                # Max cached blocks per torrent
-    use constant MAX_PEERS           => 10_000;              # Max discovered peers per torrent
-    use constant MAX_ATTEMPTED       => 5000;                # Max attempted connection entries
+    use constant MAX_METADATA_SIZE     => 10 * 1024 * 1024;    # 10 MB which would be... massive
+    use constant MAX_FILE_TREE_DEPTH   => 128;
+    use constant MAX_BLOCK_CACHE       => 32;                  # Max cached incomplete pieces per torrent (~8MB worst case)
+    use constant MAX_PEERS             => 10_000;              # Max discovered peers per torrent
+    use constant MAX_ATTEMPTED         => 5000;                # Max attempted connection entries
+    use constant ENDGAME_STALL_TIMEOUT => 60;                  # Seconds without piece verification before endgame fallback
 
     #
     field $path             : param = undef;
@@ -45,15 +46,16 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     method peer_objects_hash () { \%peer_objects }
     field %peer_bitfields;     # Peer object => Bitfield object
     method peer_bitfields () { \%peer_bitfields }
-    field %blocks_pending;     # piece_index => { offset => 1 }
+    field %blocks_pending;     # piece_index => { offset => Peer }
     method blocks_pending () { \%blocks_pending }
     field %blocks_received;    # piece_index => { offset => 1 }
     method blocks_received () { \%blocks_received }
     field %block_sources;      # piece_index => { offset => Peer }
     field $is_private : reader;
     field $dht_nodes;
-    field %test_data;           # For simulation
-    field %block_cache;         # piece_index => { offset => data }
+    field $last_piece_verified_at = 0;    # Timestamp of last successful piece verification (for endgame stall detection)
+    field %test_data;                     # For simulation
+    field %block_cache;                   # piece_index => { offset => data }
     field $bytes_downloaded = 0;
     field $bytes_uploaded   = 0;
     field $bytes_left       = 0;
@@ -61,7 +63,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     field $picking_strategy = PICK_RAREST_FIRST;
     field $is_partial_seed : reader : writer(set_partial_seed) = 0;
     field $is_superseed    : reader : writer(set_superseed)    = 0;
-    field %superseed_offers;    # Peer object => piece_index
+    field %superseed_offers;              # Peer object => piece_index
     field $debug : param = 0;
     field $max_peers : param : reader : writer = 100;
     #
@@ -139,7 +141,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     method is_finished () {
         return 0 unless $self->is_metadata_complete;
         return 0 if $state == STATE_METADATA;
-        return $bytes_left == 0;
+        return $self->is_seed;
     }
 
     method is_seed () {
@@ -161,10 +163,9 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method progress () {
         return 0 unless $self->is_metadata_complete;
-        return 0 if $state == STATE_METADATA;
-        my $total = $self->_calculate_total_size();
-        return 100 if $total == 0;
-        return ( ( $total - $bytes_left ) / $total ) * 100;
+        return 0                                                if $state == STATE_METADATA;
+        return ( ( $bitfield->count / $bitfield->size ) * 100 ) if $bitfield && $bitfield->size > 0;
+        return 0;
     }
 
     method start () {
@@ -460,7 +461,11 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
         # Attempt to connect to discovered peers if we need more
         $self->_attempt_connections() if keys %peer_objects < 50;
-        for my $peer ( values %peer_objects ) {
+
+        # Snapshot peer list to avoid hash mutation during iteration
+        # (tick may trigger disconnect which modifies %peer_objects)
+        my @peers_snapshot = values %peer_objects;
+        for my $peer (@peers_snapshot) {
             $peer->tick();
             if ( $state == STATE_METADATA ) {
                 $self->_request_metadata($peer);
@@ -618,7 +623,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
             unless ( defined $index ) {
                 last;
             }
-            $blocks_pending{$index}{$begin} = 1;
+            $blocks_pending{$index}{$begin} = $peer;
             $block_sources{$index}{$begin}  = $peer;
             $peer->request( $index, $begin, $len );
             $self->_emit_log( 'debug', "Requested block at $begin of piece $index from " . $peer->ip ) if $debug;
@@ -810,9 +815,11 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
             $bitfield->set($index);
             $bytes_downloaded += length($piece_data);
             $bytes_left       -= length($piece_data);
+            $last_piece_verified_at = time;
             $self->_emit_log( 'debug', "Piece $index VERIFIED successfully via throttled queue" ) if $debug;
             $self->_clear_piece_cache($index);
             $self->_emit( 'piece_verified', $index );
+
             for my $peer ( values %$sources ) {
                 $peer->adjust_reputation(1) if defined $peer;
             }
@@ -829,13 +836,24 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         }
     }
 
+    method _cancel_duplicate_requests ( $sender, $index, $begin ) {
+        return unless $picker && $picker->end_game;
+        for my $peer ( values %peer_objects ) {
+            next if $peer == $sender;
+            $peer->cancel_request( $index, $begin );
+        }
+    }
+
     method _store_block ( $peer, $index, $begin, $data ) {
+        delete $blocks_pending{$index}{$begin};
         return if $blocks_received{$index}{$begin};
+        $self->_cancel_duplicate_requests( $peer, $index, $begin );
         if ( keys %block_cache >= MAX_BLOCK_CACHE ) {
             my @oldest  = sort { $a <=> $b } keys %block_cache;
             my $evicted = shift @oldest;
             delete $block_cache{$evicted};
             delete $blocks_received{$evicted};
+            delete $block_sources{$evicted};
         }
         $block_cache{$index} //= {};
         $block_cache{$index}{$begin}     = $data;
@@ -876,6 +894,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
 
     method _clear_piece_cache ($index) {
         $self->_clear_piece_data($index);
+        delete $blocks_received{$index};
         delete $blocks_pending{$index};
         delete $block_sources{$index};
     }
@@ -890,8 +909,9 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         }
         if ( !$picker->end_game ) {
             my $missing = $bitfield->size - $bitfield->count;
-            if ( $missing <= 3 || $missing < ( $bitfield->size / 100 ) ) {
-                $self->_emit_log( 'debug', 'Entering END-GAME mode' ) if $debug;
+            my $stalled = ( $last_piece_verified_at > 0 && ( time - $last_piece_verified_at ) >= ENDGAME_STALL_TIMEOUT );
+            if ( $missing <= 3 || $missing < ( $bitfield->size / 100 ) || $stalled ) {
+                $self->_emit_log( 'debug', 'Entering END-GAME mode' . ( $stalled ? ' (stall detected)' : '' ) ) if $debug;
                 $picker->enter_end_game();
             }
         }
@@ -909,6 +929,7 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         my $ip_port = $peer->ip . ':' . $peer->port;
         $self->_emit_log( 'debug', "Peer disconnected: $ip_port" ) if $debug;
         $client->on_peer_disconnected( $peer->ip )                 if $client;
+        $client->_emit( 'peer_disconnected', $peer )               if $client;
         delete $metadata_pending{$peer}                            if defined $peer;
         $pex_dropped{$ip_port} = { ip => $peer->ip, port => $peer->port };
         delete $pex_added{$ip_port};
@@ -1028,6 +1049,9 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
                 if ( $storage->verify_piece_v1( $index, $data ) ) {
                     $storage->write_piece_v1( $index, $data );
                     $bitfield->set($index);
+                    $bytes_downloaded += length($data);
+                    $bytes_left       -= length($data);
+                    $self->_emit( 'piece_verified', $index );
                     return 1;
                 }
             }
@@ -1316,6 +1340,13 @@ class Net::BitTorrent::Torrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     method infohash_v2 () {$infohash_v2}
     method peer_id ()     {$peer_id}
     method trackers ()    { return $tracker_manager->trackers() }
+
+    method DESTROY () {
+        return unless $state != STATE_STOPPED;
+        for my $peer ( grep {defined} values %peer_objects ) {
+            $peer->disconnected();
+        }
+    }
 
     method files () {
         return [] unless $storage;

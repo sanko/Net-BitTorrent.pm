@@ -183,12 +183,12 @@ subtest 'Invalid file length does not die' => sub {
 };
 #
 subtest 'Block cache cap constant defined' => sub {
-    ok Net::BitTorrent::Torrent->can('MAX_BLOCK_CACHE'),    'MAX_BLOCK_CACHE constant exists';
-    ok Net::BitTorrent::Torrent::MAX_BLOCK_CACHE() >= 1024, 'MAX_BLOCK_CACHE is reasonable (>= 1024)';
+    ok Net::BitTorrent::Torrent->can('MAX_BLOCK_CACHE'),  'MAX_BLOCK_CACHE constant exists';
+    ok Net::BitTorrent::Torrent::MAX_BLOCK_CACHE() >= 32, 'MAX_BLOCK_CACHE is reasonable (>= 32)';
 };
 #
 subtest 'Torrent _store_block eviction cap defined' => sub {
-    ok Net::BitTorrent::Torrent::MAX_BLOCK_CACHE() >= 1024,    'MAX_BLOCK_CACHE is >= 1024';
+    ok Net::BitTorrent::Torrent::MAX_BLOCK_CACHE() >= 32,      'MAX_BLOCK_CACHE is >= 32';
     ok Net::BitTorrent::Torrent::MAX_BLOCK_CACHE() <= 100_000, 'MAX_BLOCK_CACHE is <= 100K';
 };
 #

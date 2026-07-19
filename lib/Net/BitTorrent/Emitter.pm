@@ -38,6 +38,7 @@ class Net::BitTorrent::Emitter v2.1.0 {
             }
         }
         $parent_emitter = $parent;
+        builtin::weaken($parent_emitter) if defined $parent_emitter;
     }
 
     method _emit ( $event, @args ) {
@@ -61,6 +62,7 @@ class Net::BitTorrent::Emitter v2.1.0 {
                 $depth--;
                 die $extra{log};
             }
+            @args = %extra;
         }
         if ( exists $on{$event} ) {
             for my $cb ( $on{$event}->@* ) {

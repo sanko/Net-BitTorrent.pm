@@ -72,9 +72,9 @@ subtest 'Peer Reputation Tracking' => sub {
     ok !$t2->bitfield->get(0), 'Piece failed verification';
     is $peer2->reputation, 80, 'Reputation decreased significantly after bad data (-20)';
 
-    # Drop reputation until blacklist threshold (50)
-    $peer2->adjust_reputation(-30);
-    is $peer2->reputation, 50, 'Reputation at threshold';
+    # Drop reputation until blacklist threshold (20)
+    $peer2->adjust_reputation(-60);
+    is $peer2->reputation, 20, 'Reputation at threshold';
     my $key = '2.2.2.2:2222';
     ok !exists $t2->peer_objects_hash->{$key}, 'Peer blacklisted and removed from torrent';
 };

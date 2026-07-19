@@ -108,8 +108,7 @@ function is intended for DNS pinning: resolve once, validate, and use the result
 the TOCTOU window between resolution and connection.
 
 A full TOCTOU elimination would require overriding L<HTTP::Tiny>'s internal connection logic. The residual window when
-using this function is sub-millisecond and requires attacker-controlled DNS — documented in code comments within the
-callers.
+using this function is sub-millisecond and requires attacker-controlled DNS.
 
 =head1 INTEGRATION
 

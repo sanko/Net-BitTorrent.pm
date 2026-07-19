@@ -69,7 +69,7 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
     field @hashing_queue;                                      # Array of { torrent => $t, index => $i, data => $d }
     field $hashing_rate_limit : writer = 1024 * 1024 * 500;    # 500MB/s limit for hashing
     field $hashing_allowance = 0;
-    my $MAX_HASHING_QUEUE_SIZE = 128;                          # Max pieces waiting for verification
+    my $MAX_HASHING_QUEUE_SIZE = 32;                           # Max pieces waiting for verification (~8MB at 256KB/piece)
 
     method features () {
         { bep05 => $bep05, bep06 => $bep06, bep09 => $bep09, bep10 => $bep10, bep11 => $bep11, bep52 => $bep52, bep55 => $bep55 };
@@ -191,8 +191,39 @@ class Net::BitTorrent v2.1.0 : isa(Net::BitTorrent::Emitter) {
         }
     }
 
-    method DESTROY () {
-        $self->shutdown();
+    method remove_torrent ($thing) {
+        my $removed;
+        if ( ref $thing && $thing->can('infohash_v1') ) {
+            my $ih1 = $thing->infohash_v1;
+            my $ih2 = $thing->infohash_v2;
+            $removed = delete $torrents{$ih1} if $ih1 && exists $torrents{$ih1};
+            delete $torrents{$ih2} if $ih2 && exists $torrents{$ih2};
+            if ( $removed && $removed != $thing ) {
+                $torrents{$ih1} = $removed if $ih1;
+                $torrents{$ih2} = $removed if $ih2;
+                $self->_emit_log( 'warn', 'remove_torrent: object does not match stored torrent' );
+                return undef;
+            }
+        }
+        elsif ( defined $thing && ( length($thing) == 40 || length($thing) == 64 ) && $thing =~ /^[0-9a-f]+$/i ) {
+            my $ih = pack( 'H*', $thing );
+            $removed = delete $torrents{$ih};
+        }
+        elsif ( defined $thing && ref $thing eq 'Net::BitTorrent::Torrent' ) {
+            for my $k ( keys %torrents ) {
+                if ( $torrents{$k} == $thing ) {
+                    $removed = delete $torrents{$k};
+                    last;
+                }
+            }
+        }
+        if ($removed) {
+            $removed->stop();
+            $self->_emit( 'torrent_removed', $removed );
+            return $removed;
+        }
+        $self->_emit_log( 'debug', 'remove_torrent: torrent not found' );
+        return undef;
     }
 
     method handle_udp_packet ( $data, $addr ) {
