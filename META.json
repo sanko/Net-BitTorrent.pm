@@ -137,7 +137,7 @@
       },
       "Net::BitTorrent::Protocol::BEP03" : {
          "file" : "lib/Net/BitTorrent/Protocol/BEP03.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.0"
       },
       "Net::BitTorrent::Protocol::BEP03::Bencode" : {
          "file" : "lib/Net/BitTorrent/Protocol/BEP03/Bencode.pm",
@@ -169,7 +169,7 @@
       },
       "Net::BitTorrent::Protocol::BEP53" : {
          "file" : "lib/Net/BitTorrent/Protocol/BEP53.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.0"
       },
       "Net::BitTorrent::Protocol::BEP55" : {
          "file" : "lib/Net/BitTorrent/Protocol/BEP55.pm",
@@ -252,7 +252,7 @@
          "version" : "v2.0.0"
       }
    },
-   "release_status" : "testing",
+   "release_status" : "stable",
    "resources" : {
       "bugtracker" : {
          "web" : "https://github.com/sanko/Net-BitTorrent.pm/issues"

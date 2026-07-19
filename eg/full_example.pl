@@ -4,42 +4,22 @@ use lib '../lib';
 use Net::BitTorrent;
 use Net::BitTorrent::Types qw[:all];
 use Path::Tiny;
-use Carp::Always;
-use Time::HiRes qw(time);
+use Time::HiRes qw[time];
 $|++;
-my $start_time = time();
-
-sub ts () {
-    my $elapsed = time() - $start_time;
-    return sprintf '[%.3fs]', $elapsed;
-}
-
-sub mem_mb () {
-    if ( open my $fh, '<', '/proc/self/status' ) {
-        while (<$fh>) {
-            return sprintf( '%.1fMB', $1 / 1024 ) if /^VmRSS:\s+(\d+)\s+kB/;
-        }
-        close $fh;
-    }
-    return '?MB';
-}
+sub ts () { sprintf '[%4.3fs]', time() - $^T }
 my $piece_count      = 0;
 my $piece_verified_n = 0;
 my $piece_failed_n   = 0;
 my $peers_connected  = 0;
 my $peers_discovered = 0;
 my $last_progress    = 0;
-
-# 1. Initialize the client with debug enabled
+#
 my $client = Net::BitTorrent->new( user_agent => 'Net::BitTorrent Example/2.0', upnp_enabled => 1, encryption => ENCRYPTION_PREFERRED, debug => 1 );
-
-# 2. Add a resource
-my $magnet       = 'magnet:?xt=urn:btih:481b6e3617be4c88f96cb25e47c9d8272130071e&dn=debian-13.6.0-amd64-netinst.iso';
+#
+my ($magnet)     = @ARGV || 'magnet:?xt=urn:btih:481b6e3617be4c88f96cb25e47c9d8272130071e&dn=debian-13.6.0-amd64-netinst.iso';
 my $download_dir = path('./downloads');
-say 'Adding magnet link...';
-my $torrent = $client->add( $magnet, $download_dir );
-
-# --- Torrent-level events ---
+my $torrent      = $client->add( $magnet, $download_dir );
+#
 $torrent->on(
     started => sub ($t) {
         print ts() . " EVENT: torrent started\n";
@@ -75,8 +55,8 @@ $torrent->on(
         my $prog = $t->progress;
         my $have = $t->bitfield ? $t->bitfield->count : 0;
         my $size = $t->bitfield ? $t->bitfield->size  : 0;
-        printf ts() . " STATUS: %.2f%%  have=%d/%d  left=%d  down=%d  up=%d  peers=%d  discovered=%d  %s\n", $prog, $have, $size,
-            $stats->{left} // 0, $stats->{downloaded} // 0, $stats->{uploaded} // 0, $stats->{peers} // 0, $peers_discovered, mem_mb();
+        printf ts() . " STATUS: %.2f%%  have=%d/%d  left=%d  down=%d  up=%d  peers=%d  discovered=%d\n", $prog, $have, $size, $stats->{left} // 0,
+            $stats->{downloaded} // 0, $stats->{uploaded} // 0, $stats->{peers} // 0, $peers_discovered;
     }
 );
 $torrent->on(
@@ -110,8 +90,7 @@ $client->on(
         printf "%s [%-5s] %-15s %s\n", ts(), uc($level), $class, $msg;
     }
 );
-
-# --- Client-level events ---
+#
 $client->on(
     peer_connected => sub ( $c, @args ) {
         $peers_connected++;
@@ -124,15 +103,13 @@ $client->on(
         print ts() . " PEER_DISCONNECTED ($peers_connected total)\n";
     }
 );
-
-# 3. Start the swarm
-say ts() . " Starting torrent...";
+#
+say ts() . ' Starting torrent...';
 $torrent->start();
-say ts() . " Waiting for seeder discovery and download completion...";
-say ts() . " (Press Ctrl+C to stop)";
-say ts() . " Set VERBOSE=1 for per-block/per-byte detail";
-
-# 4. The "Wait" Loop with periodic diagnostics
+say ts() . ' Waiting for seeder discovery and download completion...';
+say ts() . ' (Press Ctrl+C to stop)';
+say ts() . ' Set VERBOSE=1 for per-block/per-byte detail';
+#
 my $last_diag   = time();
 my $stall_start = undef;
 $client->wait(
@@ -149,10 +126,9 @@ $client->wait(
             my $total = $bf ? $bf->size  : 0;
             my $left  = $total - $have;
             say '';
-            say ts() . " === DIAGNOSTIC ===";
-            say ts() . " Progress:  $prog\%  ($have/$total pieces)";
-            say ts() . " Delta:     $delta\% since last check";
-            say ts() . " Memory:    " . mem_mb();
+            say ts() . ' === DIAGNOSTIC ===';
+            say ts() . ' Progress:  $prog\%  ($have/$total pieces)';
+            say ts() . ' Delta:     $delta\% since last check';
             say ts() . " Verified:  $piece_verified_n  Failed: $piece_failed_n";
             say ts() . " Peers:     $peers_connected connected, $peers_discovered discovered";
 
@@ -171,14 +147,14 @@ $client->wait(
                 $total_inflight += $p->blocks_inflight;
             }
             say ts() . " Inflight:  $total_inflight blocks across " . scalar( $torrent->peer_objects->@* ) . " peers";
-            say ts() . " is_seed:   " .   ( $torrent->is_seed     ? 'YES' : 'no' );
-            say ts() . " is_finished: " . ( $torrent->is_finished ? 'YES' : 'no' );
+            say ts() . ' is_seed:   ' .   ( $torrent->is_seed     ? 'YES' : 'no' );
+            say ts() . ' is_finished: ' . ( $torrent->is_finished ? 'YES' : 'no' );
 
             # Check for stall
             if ( abs($delta) < 0.01 && $have < $total ) {
                 if ( !$stall_start ) {
                     $stall_start = $now;
-                    say ts() . " ** STALL DETECTED **";
+                    say ts() . ' ** STALL DETECTED **';
                 }
                 else {
                     my $stalled_for = $now - $stall_start;
@@ -217,24 +193,21 @@ $client->wait(
     }
 );
 say '';
-say ts() . " === DOWNLOAD COMPLETE ===";
-say ts() . " File: " . $torrent->files->[0];
-say ts() . " Time: " . sprintf( '%.1fs', time() - $start_time );
+say ts() . ' === DOWNLOAD COMPLETE ===';
+say ts() . ' File: ' . $torrent->files->[0];
+say ts() . ' Time: ' . sprintf( '%.1fs', time() - $^T );
 say ts() . " Verified: $piece_verified_n  Failed: $piece_failed_n";
-
-# Remove the torrent from the client to free memory
-say ts() . " Removing torrent from client...";
+#
+say ts() . ' Removing torrent from client...';
 my $removed = $client->remove_torrent($torrent);
 if ($removed) {
-    say ts() . " Torrent removed successfully";
+    say ts() . ' Torrent removed successfully';
 }
 else {
-    say ts() . " WARNING: remove_torrent returned undef";
+    say ts() . ' WARNING: remove_torrent returned undef';
 }
 
 # Verify the torrent list is now empty
 my $remaining = $client->torrents;
-say ts() . " Remaining torrents: " . scalar(@$remaining);
-say ts() . " Memory after removal: " . mem_mb();
-sleep 30;
+say ts() . ' Remaining torrents: ' . scalar(@$remaining);
 $client->shutdown();
