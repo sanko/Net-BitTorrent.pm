@@ -380,6 +380,7 @@ class Net::BitTorrent::DHT v2.1.0 : isa(Net::BitTorrent::Emitter) {
     }
 
     method _unpack_address ($sockaddr) {
+        return () unless defined $sockaddr;
         my $family;
         try { $family = sockaddr_family($sockaddr) }
         catch ($e) { return () }

@@ -23,7 +23,7 @@ class Net::BitTorrent::Tracker::WebSeed v2.1.0 : isa(Net::BitTorrent::Emitter) {
             my $response;
             for ( 1 .. 5 ) {
                 $response = $http->get( $target_url, { headers => { Range => "bytes=$seg->{offset}-" . ( $seg->{offset} + $seg->{length} - 1 ) } } );
-                last unless $response->{status} =~ /^3/;
+                last unless ($response->{status} // '') =~ /^3/;
                 my $loc = $response->{headers}{location} // '';
                 unless ( is_safe_url($loc) ) {
                     $self->_emit_log( 'warn', 'Redirect blocked by SSRF policy: ' . $loc );

@@ -581,7 +581,7 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
         return if $_disconnected;
         $_disconnected = 1;
         $torrent->peer_disconnected($self) if $torrent;
-        $transport->close()                if $transport;
+        $transport->close()                if $transport && $transport->can('close');
         $self->_emit('disconnected');
     }
 
