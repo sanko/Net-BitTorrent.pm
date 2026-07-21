@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- [Some](https://www.cpantesters.org/cpan/report/4fed0e74-83bf-11f1-a5f3-44496e8775ea) [smokers](https://www.cpantesters.org/cpan/report/c1290b22-8407-11f1-b2a2-34ec6d8775ea) [were](https://www.cpantesters.org/cpan/report/88ad0b56-83bf-11f1-a5f3-44496e8775ea) [resolving](https://www.cpantesters.org/cpan/report/5d1456b6-83bf-11f1-a5f3-44496e8775ea) `this-host-does-not-exist-12345.example.com` as valid in our SSRF unit tests. My best guess is wildcard-resolving DNS servers?
+
 ## [v2.1.0] - 2026-07-19
 
 ### Fixed
@@ -56,7 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Net::BitTorrent::Torrent::DESTROY` disconnects peers and clears all data structures on garbage collection
 
 ### Changed
-- Peer reputation blacklist threshold lowered from 50 to 20; `adjust_reputation` now caps at 0–100 and is a no-op after disconnect
+- Peer reputation blacklist threshold lowered from 50 to 20; `adjust_reputation` now caps at 0-100 and is a no-op after disconnect
 - `Net::BitTorrent::Emitter` weakens `$parent_emitter` via `builtin::weaken` to break `Torrent->Peer->Emitter->Torrent` reference cycles causing memory leaks (I hope)
 - Endgame mode now enters on a 60-second stall (no piece verification) in addition to the existing piece-count triggers
 - Endgame duplicate request cancellation: when a block arrives, all other peers' inflight requests for that same block are immediately cancelled
