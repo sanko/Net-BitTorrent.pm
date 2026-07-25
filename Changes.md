@@ -12,7 +12,7 @@ Minor release that's just a pinch of sugar for client authoring.
 ### Added
 
 - `torrents_hash()` method for fast lookups by infohash
-- `magnet_uri()` method to construct magnet URIs from infohash, name, and tracker list
+- `magnet_uri()` method to construct magnet URIs from infohash, name, and tracker list (returns `undef` for private torrents)
 - `speed_down()`, `speed_up()`, `num_peers()`, `num_seeds()`, `total_size()`, `bytes_downloaded()`, `bytes_uploaded()`, `bytes_left()` methods on Torrent
 - `connected()` method on Peer to check if the connection is still alive
 - `metadata_received` event emitted after metadata is fully received and before transitioning to `STATE_RUNNING`
@@ -31,7 +31,22 @@ Minor release that's just a pinch of sugar for client authoring.
 - Torrent `load_state` validates metadata structure before applying (requires non-empty hash with `piece length` > 0 and `name`)
 - BEP10 `send_ext_handshake` now guards against undefined `metadata_size` before sending
 - `_request_metadata` refactored to block-style conditionals for clarity
+- Removed broken `$read_buffer_size` counter in TCP transport (was unreachable; BEP03 buffer cap provides the real defense)
 - [Some](https://www.cpantesters.org/cpan/report/4fed0e74-83bf-11f1-a5f3-44496e8775ea) [smokers](https://www.cpantesters.org/cpan/report/c1290b22-8407-11f1-b2a2-34ec6d8775ea) [were](https://www.cpantesters.org/cpan/report/88ad0b56-83bf-11f1-a5f3-44496e8775ea) [resolving](https://www.cpantesters.org/cpan/report/5d1456b6-83bf-11f1-a5f3-44496e8775ea) `this-host-does-not-exist-12345.example.com` as valid in our SSRF unit tests. My best guess is wildcard-resolving DNS servers?
+
+### Fixed
+
+- Hard cap on BEP03 inbound buffer (`MAX_MESSAGE_SIZE + 65536`) to prevent accumulation from peers sending slow-arriving large messages
+- `receive_data()` now returns immediately when state is `CLOSED` so we aren't dealing with data left in the pipe
+- PEX peers now validated against SSRF policy (`is_safe_ip()`) before being added to the peer list
+- Metadata piece data size validation: non-final pieces must be exactly 16384 bytes, final piece must not exceed expected remainder
+- `SUGGEST_PIECE` and `ALLOWED_FAST` now validate piece index is within range before accepting
+- `ut_holepunch` messages with empty payloads are rejected
+- `HASH_REQUEST` and `HASHES` handlers now validate root length, base layer, and length before writing to Merkle tree
+- `HASHES` handler validates hash count against claimed `$length` field
+- `BITFIELD` message now validates payload length matches `ceil(num_pieces / 8)`
+- `PIECE` message now validates `$begin + data_length <= piece_length` before processing
+- BEP09 `ut_metadata` now validates `piece` and `total_size` are non-negative integers before emitting events
 
 ## [v2.1.0] - 2026-07-19
 

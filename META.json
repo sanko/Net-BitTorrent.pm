@@ -121,7 +121,7 @@
       },
       "Net::BitTorrent::DHT::Peer" : {
          "file" : "lib/Net/BitTorrent/DHT.pm",
-         "version" : "v2.0.6"
+         "version" : "v2.1.1"
       },
       "Net::BitTorrent::DHT::Security" : {
          "file" : "lib/Net/BitTorrent/DHT/Security.pm",
@@ -145,15 +145,15 @@
       },
       "Net::BitTorrent::Protocol::BEP06" : {
          "file" : "lib/Net/BitTorrent/Protocol/BEP06.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.1"
       },
       "Net::BitTorrent::Protocol::BEP09" : {
          "file" : "lib/Net/BitTorrent/Protocol/BEP09.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.1"
       },
       "Net::BitTorrent::Protocol::BEP10" : {
          "file" : "lib/Net/BitTorrent/Protocol/BEP10.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.1"
       },
       "Net::BitTorrent::Protocol::BEP11" : {
          "file" : "lib/Net/BitTorrent/Protocol/BEP11.pm",
@@ -161,11 +161,11 @@
       },
       "Net::BitTorrent::Protocol::BEP23" : {
          "file" : "lib/Net/BitTorrent/Protocol/BEP23.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.1"
       },
       "Net::BitTorrent::Protocol::BEP52" : {
          "file" : "lib/Net/BitTorrent/Protocol/BEP52.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.1"
       },
       "Net::BitTorrent::Protocol::BEP53" : {
          "file" : "lib/Net/BitTorrent/Protocol/BEP53.pm",
@@ -173,11 +173,11 @@
       },
       "Net::BitTorrent::Protocol::BEP55" : {
          "file" : "lib/Net/BitTorrent/Protocol/BEP55.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.1"
       },
       "Net::BitTorrent::Protocol::HandshakeOnly" : {
          "file" : "lib/Net/BitTorrent/Protocol/HandshakeOnly.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.1"
       },
       "Net::BitTorrent::Protocol::MSE" : {
          "file" : "lib/Net/BitTorrent/Protocol/MSE.pm",
@@ -189,7 +189,7 @@
       },
       "Net::BitTorrent::Protocol::MSE::RC4" : {
          "file" : "lib/Net/BitTorrent/Protocol/MSE/KeyExchange.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.1"
       },
       "Net::BitTorrent::Protocol::PeerHandler" : {
          "file" : "lib/Net/BitTorrent/Protocol/PeerHandler.pm",
@@ -197,7 +197,7 @@
       },
       "Net::BitTorrent::Protocol::Simulation" : {
          "file" : "lib/Net/BitTorrent/Protocol/Simulation.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.1"
       },
       "Net::BitTorrent::SSRF" : {
          "file" : "lib/Net/BitTorrent/SSRF.pm",
@@ -217,15 +217,15 @@
       },
       "Net::BitTorrent::Torrent::Generator" : {
          "file" : "lib/Net/BitTorrent/Torrent/Generator.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.1"
       },
       "Net::BitTorrent::Torrent::PiecePicker" : {
          "file" : "lib/Net/BitTorrent/Torrent/PiecePicker.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.1"
       },
       "Net::BitTorrent::Tracker" : {
          "file" : "lib/Net/BitTorrent/Tracker.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.1"
       },
       "Net::BitTorrent::Tracker::Base" : {
          "file" : "lib/Net/BitTorrent/Tracker/Base.pm",
@@ -249,7 +249,7 @@
       },
       "Net::BitTorrent::Types" : {
          "file" : "lib/Net/BitTorrent/Types.pm",
-         "version" : "v2.0.0"
+         "version" : "v2.1.1"
       }
    },
    "release_status" : "stable",
