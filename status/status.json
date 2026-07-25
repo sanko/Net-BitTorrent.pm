@@ -1,17 +1,17 @@
 {
-"Linux:Intel": "success"
+"Linux:Intel": "failure"
 ,
-"Linux:ARM": "success"
+"Linux:ARM": "failure"
 ,
-"Linux:RISC-V": "success"
+"Linux:RISC-V": "failure"
 ,
-"macOS:Intel": "success"
+"macOS:Intel": "failure"
 ,
-"macOS:Apple Silicon": "success"
+"macOS:Apple Silicon": "failure"
 ,
-"Windows:Intel": "success"
+"Windows:Intel": "failure"
 ,
-"Windows:ARM": "success"
+"Windows:ARM": "failure"
 ,
 "DragonFly_BSD:Intel": "success"
 ,
