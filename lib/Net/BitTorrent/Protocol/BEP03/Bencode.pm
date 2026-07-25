@@ -1,4 +1,4 @@
-package Net::BitTorrent::Protocol::BEP03::Bencode v2.1.0 {
+package Net::BitTorrent::Protocol::BEP03::Bencode v2.1.1 {
     use v5.40;
     use Exporter qw[import];
     our %EXPORT_TAGS = ( all => [ our @EXPORT_OK = qw[bencode bdecode] ], bencode => [] );

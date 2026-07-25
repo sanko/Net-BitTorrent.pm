@@ -3,7 +3,7 @@ use feature 'class';
 no warnings 'experimental::class';
 #
 use Net::BitTorrent::Emitter;
-class Net::BitTorrent::Protocol::BEP03 v2.1.0 : isa(Net::BitTorrent::Emitter) {
+class Net::BitTorrent::Protocol::BEP03 v2.1.1 : isa(Net::BitTorrent::Emitter) {
     #
     field $infohash : param = undef;
     field $peer_id  : param : reader;

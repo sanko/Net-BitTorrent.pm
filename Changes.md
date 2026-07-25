@@ -7,8 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Minor release that's just a pinch of sugar for client authoring.
+
+### Added
+
+- `torrents_hash()` method for fast lookups by infohash
+- `magnet_uri()` method to construct magnet URIs from infohash, name, and tracker list
+- `speed_down()`, `speed_up()`, `num_peers()`, `num_seeds()`, `total_size()`, `bytes_downloaded()`, `bytes_uploaded()`, `bytes_left()` methods on Torrent
+- `connected()` method on Peer to check if the connection is still alive
+- `metadata_received` event emitted after metadata is fully received and before transitioning to `STATE_RUNNING`
+- Fallback DHT peer dispatch to torrents in `METADATA` state when no explicit `queried_target` match is found
+- V2 infohash support in state persistence (accepts 40 or 64 hex chars)
+- Smoothed value for `speed_down()` and `speed_up()` (α=0.3)
+- `tick()` now processes 15 peers per cycle instead of all peers at once, reducing CPU spikes and improving UI responsiveness
+
 ### Changed
 
+- Tick slice reduced from 0.1s to 0.025s and maximum blocking time reduced from 200ms to 50ms for snappier UI
+- Immediately checks all connected peers for interest after transitioning from `METADATA` to `RUNNING` (catches peers that sent `HAVE_ALL` before we had a bitfield)
+- DHT `tick()` now uses non-blocking `can_read(0)` since `_run_one_tick` already reads the socket
+- State persistence uses `JSON::PP` canonical mode (`->canonical`) and `Digest::SHA` for the integrity checksum instead of raw `encode_json` + `sha1`
+- Torrent `dump_state` validates metadata structure before saving (requires `piece length` > 0, `name`, and either `pieces` or `file tree`)
+- Torrent `load_state` validates metadata structure before applying (requires non-empty hash with `piece length` > 0 and `name`)
+- BEP10 `send_ext_handshake` now guards against undefined `metadata_size` before sending
+- `_request_metadata` refactored to block-style conditionals for clarity
 - [Some](https://www.cpantesters.org/cpan/report/4fed0e74-83bf-11f1-a5f3-44496e8775ea) [smokers](https://www.cpantesters.org/cpan/report/c1290b22-8407-11f1-b2a2-34ec6d8775ea) [were](https://www.cpantesters.org/cpan/report/88ad0b56-83bf-11f1-a5f3-44496e8775ea) [resolving](https://www.cpantesters.org/cpan/report/5d1456b6-83bf-11f1-a5f3-44496e8775ea) `this-host-does-not-exist-12345.example.com` as valid in our SSRF unit tests. My best guess is wildcard-resolving DNS servers?
 
 ## [v2.1.0] - 2026-07-19

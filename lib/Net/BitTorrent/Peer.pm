@@ -2,7 +2,7 @@ use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
 use Net::BitTorrent::Emitter;
-class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
+class Net::BitTorrent::Peer v2.1.1 : isa(Net::BitTorrent::Emitter) {
     use Net::BitTorrent::Types qw[:encryption :state];
     use Net::BitTorrent::SSRF qw[is_safe_ip];
     field $protocol : param;
@@ -37,6 +37,7 @@ class Net::BitTorrent::Peer v2.1.0 : isa(Net::BitTorrent::Emitter) {
     use constant REQUEST_TIMEOUT => 30;                           # Seconds without response before disconnect
     use constant IDLE_TIMEOUT    => 120;                          # Seconds without any data before disconnect
     method protocol ()     {$protocol}
+    method connected ()    { !$_disconnected }
     method is_encrypted () { defined $mse             && $mse->state eq 'PAYLOAD' }
     method is_seeder ()    { defined $bitfield_status && $bitfield_status eq 'all' }
 
