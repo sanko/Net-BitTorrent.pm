@@ -240,6 +240,11 @@ class Net::BitTorrent::Peer v2.1.1 : isa(Net::BitTorrent::Emitter) {
         }
         my $num_hashes = length($hashes) / $node_size;
 
+        if ( $num_hashes > $length ) {
+            $self->_emit_log( 'debug', "HASHES contains $num_hashes hashes but claimed length is $length, truncating" ) if $debug;
+            $num_hashes = $length;
+        }
+
         # BEP 52: index and length refer to the range of nodes at base_layer.
         # The hashes string contains these nodes concatenated.
         for ( my $i = 0; $i < $num_hashes; $i++ ) {
