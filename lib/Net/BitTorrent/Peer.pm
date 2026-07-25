@@ -279,6 +279,7 @@ class Net::BitTorrent::Peer v2.1.1 : isa(Net::BitTorrent::Emitter) {
         for my $p ( @$added, @$added6 ) {
             next unless ref $p eq 'HASH' && defined $p->{ip} && defined $p->{port};
             next if $p->{port} < 1 || $p->{port} > 65535;
+            next unless is_safe_ip( $p->{ip} );
             $torrent->add_peer($p);
         }
     }
