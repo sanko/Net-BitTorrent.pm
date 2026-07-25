@@ -239,7 +239,6 @@ class Net::BitTorrent::Peer v2.1.1 : isa(Net::BitTorrent::Emitter) {
             return;
         }
         my $num_hashes = length($hashes) / $node_size;
-
         if ( $num_hashes > $length ) {
             $self->_emit_log( 'debug', "HASHES contains $num_hashes hashes but claimed length is $length, truncating" ) if $debug;
             $num_hashes = $length;
@@ -415,8 +414,8 @@ class Net::BitTorrent::Peer v2.1.1 : isa(Net::BitTorrent::Emitter) {
             $self->_check_interest();
         }
         elsif ( $id == 5 ) {    # BITFIELD
-            my $num_pieces = $torrent->bitfield ? $torrent->bitfield->size : 0;
-            my $expected   = $num_pieces ? int( ( $num_pieces + 7 ) / 8 ) : 0;
+            my $num_pieces = $torrent->bitfield ? $torrent->bitfield->size       : 0;
+            my $expected   = $num_pieces        ? int( ( $num_pieces + 7 ) / 8 ) : 0;
             if ( $expected == 0 || $plen != $expected ) {
                 $self->_emit_log( 'debug', "Peer BITFIELD with invalid length $plen (expected $expected)" ) if $debug;
                 $self->adjust_reputation(-5);
@@ -458,7 +457,8 @@ class Net::BitTorrent::Peer v2.1.1 : isa(Net::BitTorrent::Emitter) {
                 return;
             }
             if ( $begin + length($payload) > $piece_len ) {
-                $self->_emit_log( 'debug', "Peer PIECE block extends beyond piece boundary: $index:$begin+" . length($payload) . " > $piece_len" ) if $debug;
+                $self->_emit_log( 'debug', "Peer PIECE block extends beyond piece boundary: $index:$begin+" . length($payload) . " > $piece_len" )
+                    if $debug;
                 $self->adjust_reputation(-5);
                 return;
             }

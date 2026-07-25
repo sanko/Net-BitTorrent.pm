@@ -7,7 +7,7 @@ class Net::BitTorrent::Transport::TCP v2.1.1 : isa(Net::BitTorrent::Emitter) {
     use Errno;
     field $socket : param : reader;
     field $write_buffer = '';
-    field $connecting : param = 1;
+    field $connecting : param  = 1;
     field $filter     : reader = undef;
     my $MAX_WRITE_BUFFER_SIZE = 4 * 1024 * 1024;    # 4 MB
     ADJUST {

@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v2.1.1] - 2026-07-25
 
 Minor release that's just a pinch of sugar for client authoring.
 
@@ -434,7 +434,8 @@ This is a documentation update.  100% coverage.
 - It actually exists
 - See above
 
-[Unreleased]: https://github.com/sanko/Net-BitTorrent.pm/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/sanko/Net-BitTorrent.pm/compare/v2.1.1...HEAD
+[v2.1.1]: https://github.com/sanko/Net-BitTorrent.pm/compare/v2.1.0...v2.1.1
 [v2.1.0]: https://github.com/sanko/Net-BitTorrent.pm/compare/v2.0.1...v2.1.0
 [v2.0.1]: https://github.com/sanko/Net-BitTorrent.pm/compare/v2.0.0...v2.0.1
 [v2.0.0]: https://github.com/sanko/Net-BitTorrent.pm/compare/0.052...v2.0.0

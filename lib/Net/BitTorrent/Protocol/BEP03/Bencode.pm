@@ -13,7 +13,7 @@ package Net::BitTorrent::Protocol::BEP03::Bencode v2.1.1 {
         return '';
     }
 
-    sub bdecode( $string //= return, $k //= 0, $depth = 0 ) {
+    sub bdecode( $string //= return, $k //= 0, $depth //= 0 ) {
         no warnings 'recursion';    # Let me deal with it.
         die 'bencode nesting depth limit exceeded (max ' . MAX_BDECODE_DEPTH . ' levels)' if $depth > MAX_BDECODE_DEPTH;
         my $return;
