@@ -69,6 +69,11 @@ class Net::BitTorrent::Protocol::BEP03 v2.1.1 : isa(Net::BitTorrent::Emitter) {
 
     method receive_data ($data) {
         $buffer_in .= $data;
+        if ( length($buffer_in) > MAX_MESSAGE_SIZE + 65536 ) {
+            $state = 'CLOSED';
+            $self->_emit_log( 'fatal', 'Inbound buffer exceeded hard limit, disconnecting' );
+            return;
+        }
         return if $processing;
         $processing = 1;
         try { $self->_process_buffer(); }
