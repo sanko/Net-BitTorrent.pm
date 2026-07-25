@@ -419,6 +419,17 @@ class Net::BitTorrent::Peer v2.1.1 : isa(Net::BitTorrent::Emitter) {
         }
         elsif ( $id == 7 ) {    # PIECE
             my ( $index, $begin ) = unpack( 'N N', substr( $payload, 0, 8, '' ) );
+            my $num_pieces = $torrent->bitfield ? $torrent->bitfield->size : 0;
+            my $piece_len  = $torrent->metadata->{info}{'piece length'} // 16384;
+            if ( $num_pieces == 0 || $index >= $num_pieces ) {
+                $self->_emit_log( 'debug', "Peer PIECE with out-of-range index $index" ) if $debug;
+                $self->adjust_reputation(-5);
+                return;
+            }
+            if ( $begin + length($payload) > $piece_len ) {
+                $self->_emit_log( 'debug', "Peer PIECE block extends beyond piece boundary: $index:$begin+" . length($payload) . " > $piece_len" ) if $debug;
+                $self->adjust_reputation(-5);
+                return;
             $self->_handle_piece_data( $index, $begin, $payload );
         }
         elsif ( $id == 13 ) {    # SUGGEST_PIECE
