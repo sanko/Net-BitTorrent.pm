@@ -11,6 +11,7 @@ class Net::BitTorrent::Protocol::BEP55 v2.1.1 : isa(Net::BitTorrent::Protocol::B
         $self->on(
             extended_message => sub ( $self, $name, $payload ) {
                 return unless $name eq 'ut_holepunch';
+                return if length($payload) < 1;
                 my $type = unpack( 'C', substr( $payload, 0, 1, '' ) );
                 my $dict;
                 try {
