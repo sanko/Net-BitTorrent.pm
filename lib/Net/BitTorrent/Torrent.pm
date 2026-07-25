@@ -700,8 +700,9 @@ class Net::BitTorrent::Torrent v2.1.1 : isa(Net::BitTorrent::Emitter) {
             return;
         }
         my $expected_size = ( $piece < $num_pieces - 1 ) ? METADATA_PIECE_SIZE : ( $metadata_size - $piece * METADATA_PIECE_SIZE );
-        if ( length($data) > $expected_size ) {
-            $self->_emit_log( 'warning', "Metadata piece $piece too large: " . length($data) . " bytes (max $expected_size)" );
+        my $actual_len    = length($data);
+        if ( $actual_len > $expected_size || ( $piece < $num_pieces - 1 && $actual_len != METADATA_PIECE_SIZE ) ) {
+            $self->_emit_log( 'warning', "Metadata piece $piece invalid size: $actual_len bytes (expected $expected_size)" );
             return;
         }
         $self->_emit_log( 'debug', "Received metadata piece $piece (len " . length($data) . ') from ' . ( $peer ? $peer->ip : 'unknown' ) ) if $debug;
