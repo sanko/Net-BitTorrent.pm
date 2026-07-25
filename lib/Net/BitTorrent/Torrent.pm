@@ -24,6 +24,7 @@ class Net::BitTorrent::Torrent v2.1.1 : isa(Net::BitTorrent::Emitter) {
     use constant MAX_PEERS             => 10_000;              # Max discovered peers per torrent
     use constant MAX_ATTEMPTED         => 5000;                # Max attempted connection entries
     use constant ENDGAME_STALL_TIMEOUT => 60;                  # Seconds without piece verification before endgame fallback
+    use constant METADATA_PIECE_SIZE   => 16384;               # BEP 09: metadata pieces are always 16KB
 
     #
     field $path             : param = undef;
@@ -631,7 +632,7 @@ class Net::BitTorrent::Torrent v2.1.1 : isa(Net::BitTorrent::Emitter) {
         }
 
         # How many pieces? (BEP 09 uses 16KiB pieces)
-        my $num_pieces = int( ( $metadata_size + 16383 ) / 16384 );
+        my $num_pieces = int( ( $metadata_size + METADATA_PIECE_SIZE - 1 ) / METADATA_PIECE_SIZE );
 
         # Check if we already have a request pending for this peer
         return if exists $metadata_pending{$peer};
@@ -678,9 +679,9 @@ class Net::BitTorrent::Torrent v2.1.1 : isa(Net::BitTorrent::Emitter) {
     method handle_metadata_request ( $peer, $piece ) {
         return unless $metadata;
         my $info_encoded = bencode( $metadata->{info} );
-        my $num_pieces   = int( ( length($info_encoded) + 16383 ) / 16384 );
+        my $num_pieces   = int( ( length($info_encoded) + METADATA_PIECE_SIZE - 1 ) / METADATA_PIECE_SIZE );
         return if $piece < 0 || $piece >= $num_pieces;
-        my $piece_data = substr( $info_encoded, $piece * 16384, 16384 );
+        my $piece_data = substr( $info_encoded, $piece * METADATA_PIECE_SIZE, METADATA_PIECE_SIZE );
         $peer->protocol->send_metadata_data( $piece, length($info_encoded), $piece_data );
     }
 
@@ -693,9 +694,14 @@ class Net::BitTorrent::Torrent v2.1.1 : isa(Net::BitTorrent::Emitter) {
             }
             $metadata_size = $total_size;
         }
-        my $num_pieces = int( ( $metadata_size + 16383 ) / 16384 );
+        my $num_pieces = int( ( $metadata_size + METADATA_PIECE_SIZE - 1 ) / METADATA_PIECE_SIZE );
         if ( $piece < 0 || $piece >= $num_pieces ) {
             $self->_emit_log( 'warning', "Received out-of-range metadata piece index $piece (max " . ( $num_pieces - 1 ) . ')' );
+            return;
+        }
+        my $expected_size = ( $piece < $num_pieces - 1 ) ? METADATA_PIECE_SIZE : ( $metadata_size - $piece * METADATA_PIECE_SIZE );
+        if ( length($data) > $expected_size ) {
+            $self->_emit_log( 'warning', "Metadata piece $piece too large: " . length($data) . " bytes (max $expected_size)" );
             return;
         }
         $self->_emit_log( 'debug', "Received metadata piece $piece (len " . length($data) . ') from ' . ( $peer ? $peer->ip : 'unknown' ) ) if $debug;
