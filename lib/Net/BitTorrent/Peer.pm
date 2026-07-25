@@ -200,6 +200,15 @@ class Net::BitTorrent::Peer v2.1.1 : isa(Net::BitTorrent::Emitter) {
     }
 
     method handle_hash_request ( $root, $proof_layer, $base_layer, $index, $length ) {
+        if ( !defined $root || length($root) != 32 ) {
+            $self->_emit_log( 'debug', 'HASH_REQUEST with invalid root' ) if $debug;
+            return;
+        }
+        if ( $base_layer > 63 || $length == 0 || $length > 65536 ) {
+            $self->_emit_log( 'debug', "HASH_REQUEST with invalid params: layer=$base_layer index=$index length=$length" ) if $debug;
+            $self->adjust_reputation(-5);
+            return;
+        }
         my $file = $torrent->storage->get_file_by_root($root);
         if ( !$file || !$file->merkle ) {
             $protocol->send_hash_reject( $root, $proof_layer, $base_layer, $index, $length ) if $protocol->can('send_hash_reject');
@@ -212,6 +221,15 @@ class Net::BitTorrent::Peer v2.1.1 : isa(Net::BitTorrent::Emitter) {
     }
 
     method handle_hashes ( $root, $proof_layer, $base_layer, $index, $length, $hashes ) {
+        if ( !defined $root || length($root) != 32 ) {
+            $self->_emit_log( 'debug', 'HASHES with invalid root' ) if $debug;
+            return;
+        }
+        if ( $base_layer > 63 || $length == 0 || $length > 65536 ) {
+            $self->_emit_log( 'debug', "HASHES with invalid params: layer=$base_layer index=$index length=$length" ) if $debug;
+            $self->adjust_reputation(-5);
+            return;
+        }
         my $file = $torrent->storage->get_file_by_root($root);
         return unless $file && $file->merkle;
         my $node_size = 32;
