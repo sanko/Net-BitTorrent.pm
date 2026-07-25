@@ -391,6 +391,13 @@ class Net::BitTorrent::Peer v2.1.1 : isa(Net::BitTorrent::Emitter) {
             $self->_check_interest();
         }
         elsif ( $id == 5 ) {    # BITFIELD
+            my $num_pieces = $torrent->bitfield ? $torrent->bitfield->size : 0;
+            my $expected   = $num_pieces ? int( ( $num_pieces + 7 ) / 8 ) : 0;
+            if ( $expected == 0 || $plen != $expected ) {
+                $self->_emit_log( 'debug', "Peer BITFIELD with invalid length $plen (expected $expected)" ) if $debug;
+                $self->adjust_reputation(-5);
+                return;
+            }
             $bitfield_status = $payload;
             $torrent->set_peer_bitfield( $self, $payload );
             $self->_emit( bitfield => $torrent->peer_bitfields->{$self} );
