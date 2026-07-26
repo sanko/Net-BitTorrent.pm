@@ -9,12 +9,12 @@
 | Windows | Intel | ❌ |
 | Windows | ARM | ❌ |
 | DragonFly BSD | Intel | ✅ |
-| FreeBSD | Intel | ✅ |
-| FreeBSD | ARM | ✅ |
+| FreeBSD | Intel | ❌ |
+| FreeBSD | ARM | ❌ |
 | Haiku | Intel | ✅ |
-| MidnightBSD | Intel | ✅ |
-| NetBSD | Intel | ✅ |
-| NetBSD | ARM | ✅ |
+| MidnightBSD | Intel | ❌ |
+| NetBSD | Intel | ❌ |
+| NetBSD | ARM | ❌ |
 | OmniOS | Intel | ✅ |
 | OpenBSD | Intel | ✅ |
-| OpenBSD | ARM | ✅ |
+| OpenBSD | ARM | ❌ |

@@ -15,21 +15,21 @@
 ,
 "DragonFly_BSD:Intel": "success"
 ,
-"FreeBSD:Intel": "success"
+"FreeBSD:Intel": "failure"
 ,
-"FreeBSD:ARM": "success"
+"FreeBSD:ARM": "failure"
 ,
 "Haiku:Intel": "success"
 ,
-"MidnightBSD:Intel": "success"
+"MidnightBSD:Intel": "failure"
 ,
-"NetBSD:Intel": "success"
+"NetBSD:Intel": "failure"
 ,
-"NetBSD:ARM": "success"
+"NetBSD:ARM": "failure"
 ,
 "OmniOS:Intel": "success"
 ,
 "OpenBSD:Intel": "success"
 ,
-"OpenBSD:ARM": "success"
+"OpenBSD:ARM": "failure"
 }
