@@ -11,7 +11,7 @@
 | DragonFly BSD | Intel | ✅ |
 | FreeBSD | Intel | ✅ |
 | FreeBSD | ARM | ✅ |
-| Haiku | Intel | ✅ |
+| Haiku | Intel | ❌ |
 | MidnightBSD | Intel | ✅ |
 | NetBSD | Intel | ✅ |
 | NetBSD | ARM | ✅ |
