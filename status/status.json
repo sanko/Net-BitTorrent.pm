@@ -5,7 +5,7 @@
 ,
 "Linux:RISC-V": "success"
 ,
-"macOS:Intel": "success"
+"macOS:Intel": "failure"
 ,
 "macOS:Apple Silicon": "success"
 ,
@@ -13,7 +13,7 @@
 ,
 "Windows:ARM": "success"
 ,
-"DragonFly_BSD:Intel": "success"
+"DragonFly_BSD:Intel": "failure"
 ,
 "FreeBSD:Intel": "success"
 ,
