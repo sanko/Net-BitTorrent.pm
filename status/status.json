@@ -5,7 +5,7 @@
 ,
 "Linux:RISC-V": "success"
 ,
-"macOS:Intel": "failure"
+"macOS:Intel": "success"
 ,
 "macOS:Apple Silicon": "success"
 ,
