@@ -1,501 +1,123 @@
 ---
+concurrency:
+  cancel-in-progress: true
+  group: '${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}'
 jobs:
-  dragonflybsd:
-    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'dragonflybsd') }}"
-    name: DragonFly BSD
-    needs:
-      - setup
-    uses: ./.github/workflows/cross.yml
-    with:
-      arch: x86-64
-      gcc_pkg: sudo pkg install -y gcc
-      host: ubuntu-latest
-      os: dragonflybsd
-      perl: 5.42
-      pkg: sudo pkg install -y perl5-5.42 || (sudo sed -i '' 's|/quarterly|/latest|' /usr/local/etc/pkg/repos/Avalon.conf && sudo pkg update -f && sudo pkg install -y perl5-5.42) || (curl -sL https://www.cpan.org/src/5.0/perl-5.42.2.tar.gz | tar xz -C /tmp && cd /tmp/perl-5.42.2 && ./Configure -des -Dprefix=/usr/local -Dusedevel && make -j$(getconf NPROCESSORS_ONLN) && sudo make install && sudo ln -sf /usr/local/bin/perl5.42.2 /usr/local/bin/perl)
-      setup: export LC_ALL=C LANG=C LC_CTYPE=C LC_NUMERIC=C LC_COLLATE=C LC_TIME=C LC_MESSAGES=C LC_MONETARY=C; sudo pkg install -y gdb p5-Test-Harness || true
-      test_files: '${{ needs.setup.outputs.test_files }}'
-      version: 6.4.2
-  freebsd-arm64:
-    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'freebsd-arm64') }}"
-    name: FreeBSD
-    needs:
-      - setup
-    uses: ./.github/workflows/cross.yml
-    with:
-      arch: arm64
-      gcc_pkg: sudo pkg install -y gcc
-      host: ubuntu-latest
-      os: freebsd
-      perl: 5.42
-      pkg: sudo pkg install -y perl5
-      test_files: '${{ needs.setup.outputs.test_files }}'
-      version: 15.1
-  freebsd-x64:
-    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'freebsd-x64') }}"
-    name: FreeBSD
-    needs:
-      - setup
-    uses: ./.github/workflows/cross.yml
-    with:
-      arch: x86-64
-      gcc_pkg: sudo pkg install -y gcc
-      host: ubuntu-latest
-      os: freebsd
-      perl: 5.42
-      pkg: sudo pkg install -y perl5
-      test_files: '${{ needs.setup.outputs.test_files }}'
-      version: 15.1
-  haiku:
-    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'haiku') }}"
-    name: Haiku
-    needs:
-      - setup
-    uses: ./.github/workflows/cross.yml
-    with:
-      arch: x86-64
-      gcc_pkg: sudo pkgman install gcc || sudo pkgman install gcc_x86
-      host: ubuntu-latest
-      os: haiku
-      perl: 5.42
-      perl_subversion: 2
-      pkg: sudo pkgman install "perl>=5.42.2" -y || echo "perl 5.42 not available"
-      test_files: '${{ needs.setup.outputs.test_files }}'
-      version: r1beta5
-  linux-arm64:
-    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'linux-arm64') }}"
+  linux:
     name: Linux
-    needs:
-      - setup
-    uses: ./.github/workflows/unix.yml
+    uses: sanko/workflow-testing/.github/workflows/run-direct.yml@main
     with:
-      flags: '${{ fromJSON(needs.setup.outputs.matrix).flags[0] }}'
-      os: ubuntu-24.04-arm
-      perl: '${{ fromJSON(needs.setup.outputs.matrix).perl[0] }}'
-      test_files: '${{ needs.setup.outputs.test_files }}'
-      title: ARM
-  linux-x64:
-    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'linux-x64') }}"
-    name: Linux
-    needs:
-      - setup
-    uses: ./.github/workflows/unix.yml
-    with:
-      flags: '${{ fromJSON(needs.setup.outputs.matrix).flags[0] }}'
-      os: ubuntu-24.04
-      perl: '${{ fromJSON(needs.setup.outputs.matrix).perl[0] }}'
-      test_files: '${{ needs.setup.outputs.test_files }}'
-      title: Intel
-  macos-arm:
-    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'macos-arm') }}"
+      checkout_submodules: recursive
+      matrix: |-
+        [
+          {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind build-essential libperl-dev libcrypt-dev","arch":"x86_64","perl_version":"5.42.0","variant":"default","platform_name":"linux","os":"ubuntu-24.04","toolchain":"gcc"},
+          {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind build-essential libperl-dev libcrypt-dev","arch":"aarch64","perl_version":"5.42.0","variant":"default","platform_name":"linux","os":"ubuntu-24.04-arm","toolchain":"gcc"}
+        ]
+      task: |
+        export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
+        #~ t/357 sizes the payload its cloned interpreter allocates. At the 4 MiB default the clone stayed inside
+        #~ the arena; 12 MiB used to fault with SIGSEGV (exit 139), and the documented 4 MiB case was passing while
+        #~ still printing heap warnings, so a payload that fits the allocator hides the very bug the test is for.
+        #~ The task is one shared script and `${{ matrix.* }}` in it is evaluated here, where no matrix context
+        #~ exists, so the leg identifies itself by the matrix `name` that run-direct.yml exports as RAW_NAME. Every
+        #~ other leg leaves the variable unset and t/357 falls back to its own 4 MiB default.
+        case "$RAW_NAME" in
+          *payload-12mb*) export PARATAXIS_SB_PAYLOAD_MB=12 ;;
+        esac
+        #~ Bootstrap cpanm via its canonical one-liner; on a writable perl (a
+        #~ source build) it lands in the perl's own bin dir, which the runner
+        #~ puts on PATH. Distro perl is read-only to the runner user, so
+        #~ cpanm relocates every install into $HOME/perl5 instead. Adopt that
+        #~ layout (PATH + local::lib env) so cpanm deps and the Build steps
+        #~ share one module pool. No-op when $HOME/perl5 was never created.
+        curl -L https://cpanmin.us | perl - --notest App::cpanminus
+        if [ -x "$HOME/perl5/bin/cpanm" ]; then
+          export PATH="$HOME/perl5/bin:$PATH"
+          "$HOME/perl5/bin/cpanm" --local-lib="$HOME/perl5" --notest local::lib
+          eval "$(perl -I "$HOME/perl5/lib/perl5" -Mlocal::lib)"
+        fi
+        command -v cpanm
+        #~ A source-built perl is writable, so this first attempt installs straight
+        #~ into it and nothing changes for those legs. The distro perl of the
+        #~ ubuntu-26.04 default legs is not writable, and Affix::Build writes to
+        #~ its site paths no matter what local::lib says, so when the plain
+        #~ install fails, retry as root through the absolute cpanm path (sudo
+        #~ resets PATH, so a bare name would not be found).
+        cpanm --installdeps --notest --with-suggests --with-recommends --with-configure -v . \
+          || sudo "$(command -v cpanm)" --installdeps --notest --with-suggests --with-recommends --with-configure -v .
+        #~ t/256 and t/257 skip without an event loop, leaving attach_loop untested.
+        #~ Not in META.json's test/recommends, so --with-recommends does not cover
+        #~ them; install both directly. Best effort, as above.
+        cpanm --notest -v IO::Async::Loop Mojo::IOLoop \
+          || echo '::warning::event-loop drivers unavailable, t/256 and t/257 will skip'
+        perl Build.PL
+        ./Build
+        ./Build test --v
+  macos:
     name: macOS
-    needs:
-      - setup
-    uses: ./.github/workflows/unix.yml
+    uses: sanko/workflow-testing/.github/workflows/run-direct.yml@main
     with:
-      flags: '${{ fromJSON(needs.setup.outputs.matrix).flags[0] }}'
-      os: macos-15
-      perl: '${{ fromJSON(needs.setup.outputs.matrix).perl[0] }}'
-      test_files: '${{ needs.setup.outputs.test_files }}'
-      title: Apple Silicon
-  macos-intel:
-    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'macos-intel') }}"
-    name: macOS
-    needs:
-      - setup
-    uses: ./.github/workflows/unix.yml
-    with:
-      flags: '${{ fromJSON(needs.setup.outputs.matrix).flags[0] }}'
-      os: macos-15-intel
-      perl: '${{ fromJSON(needs.setup.outputs.matrix).perl[0] }}'
-      test_files: '${{ needs.setup.outputs.test_files }}'
-      title: Intel
-  midnightbsd:
-    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'midnightbsd') }}"
-    name: MidnightBSD
-    needs:
-      - setup
-    uses: ./.github/workflows/cross.yml
-    with:
-      arch: x86-64
-      gcc_pkg: sudo mport install gcc || true
-      host: ubuntu-latest
-      os: midnightbsd
-      perl: 5.42
-      pkg: sudo mport install perl5.42-5.42.2 || true; sudo ln -sf /usr/local/bin/perl5.42.2 /usr/local/bin/perl
-      test_files: '${{ needs.setup.outputs.test_files }}'
-      version: 4.0.4
-  netbsd-arm64:
-    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'netbsd-arm64') }}"
-    name: NetBSD
-    needs:
-      - setup
-    uses: ./.github/workflows/cross.yml
-    with:
-      arch: arm64
-      gcc_pkg: which gcc 2>/dev/null || sudo pkgin -y install gcc || true
-      host: ubuntu-latest
-      os: netbsd
-      perl: 5.42
-      pkg: sudo pkgin -y install perl || true
-      test_files: '${{ needs.setup.outputs.test_files }}'
-      version: 10.1
-  netbsd-x64:
-    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'netbsd-x64') }}"
-    name: NetBSD
-    needs:
-      - setup
-    uses: ./.github/workflows/cross.yml
-    with:
-      arch: x86-64
-      gcc_pkg: which gcc 2>/dev/null || sudo pkgin -y install gcc || true
-      host: ubuntu-latest
-      os: netbsd
-      perl: 5.42
-      pkg: sudo pkgin -y install perl || true
-      setup: sudo pkgin -y install gdb || true
-      test_files: '${{ needs.setup.outputs.test_files }}'
-      version: 10.1
-  omnios:
-    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'omnios') }}"
-    name: OmniOS
-    needs:
-      - setup
-    uses: ./.github/workflows/cross.yml
-    with:
-      arch: x86-64
-      gcc_pkg: sudo pkg install developer/gcc --accept || sudo pkg install developer/gcc11 --accept || sudo pkg install gcc --accept || sudo pkg install developer/gcc49 --accept || true
-      host: ubuntu-latest
-      os: omnios
-      perl: 5.42
-      pkg: 'sudo pkg install perl || [ $? -eq 4 ]'
-      test_files: '${{ needs.setup.outputs.test_files }}'
-      version: r151058
-  openbsd-arm64:
-    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'openbsd-arm64') }}"
-    name: OpenBSD
-    needs:
-      - setup
-    uses: ./.github/workflows/cross.yml
-    with:
-      arch: arm64
-      gcc_pkg: which gcc 2>/dev/null || true
-      host: ubuntu-latest
-      os: openbsd
-      perl: 5.40
-      perl_subversion: 1
-      pkg: echo "using system perl"
-      test_files: '${{ needs.setup.outputs.test_files }}'
-      version: 7.9
-  openbsd-x64:
-    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'openbsd-x64') }}"
-    name: OpenBSD
-    needs:
-      - setup
-    uses: ./.github/workflows/cross.yml
-    with:
-      arch: x86-64
-      gcc_pkg: which gcc 2>/dev/null || true
-      host: ubuntu-latest
-      os: openbsd
-      perl: 5.40
-      perl_subversion: 1
-      pkg: echo "using system perl"
-      test_files: '${{ needs.setup.outputs.test_files }}'
-      version: 7.9
-  publish-status:
-    if: ( success() || failure() ) && github.ref == 'refs/heads/main'
-    name: Publish Status Page
-    needs:
-      - results
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download status files
-        uses: actions/download-artifact@v8.0.1
-        with:
-          name: status-files
-          path: ./status
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          commit_message: Update build status matrix
-          destination_dir: status
-          github_token: '${{ secrets.GITHUB_TOKEN }}'
-          keep_files: true
-          publish_branch: gh-pages
-          publish_dir: ./status
-          user_email: 'github-actions[bot]@users.noreply.github.com'
-          user_name: 'github-actions[bot]'
+      checkout_submodules: recursive
+      matrix: |-
+        [
+          {"arch":"aarch64","perl_version":"5.42.0","variant":"default","platform_name":"macos","os":"macos-15","toolchain":"clang"},
+          {"arch":"aarch64","perl_version":"5.42.0","variant":"default","platform_name":"macos","os":"macos-15","toolchain":"clang"},
+          {"arch":"x86_64","perl_version":"5.42.0","variant":"default","platform_name":"macos","os":"macos-15-intel","toolchain":"clang"},
+        ]
+      task: |
+        export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
+        #~ Bootstrap cpanm via its canonical one-liner; it installs into the
+        #~ active (source-built) perl's bin dir, which the runner puts on PATH.
+        curl -L https://cpanmin.us | perl - --notest App::cpanminus
+        command -v cpanm
+        cpanm --installdeps --notest --with-suggests --with-recommends --with-configure -v .
+        #~ t/256 and t/257 skip without an event loop, leaving attach_loop untested.
+        #~ Not in META.json's test/recommends, so --with-recommends does not cover
+        #~ them; install both directly. Best effort, as above.
+        cpanm --notest -v IO::Async::Loop Mojo::IOLoop \
+          || echo '::warning::event-loop drivers unavailable, t/256 and t/257 will skip'
+        perl Build.PL
+        ./Build
+        ./Build test --v
   results:
     if: always()
-    name: Summary
+    name: Results
     needs:
-      - linux-x64
-      - linux-arm64
-      - riscv64
-      - macos-intel
-      - macos-arm
-      - win32-x64
-      - win32-arm64
-      - dragonflybsd
-      - freebsd-x64
-      - freebsd-arm64
-      - haiku
-      - midnightbsd
-      - netbsd-x64
-      - netbsd-arm64
-      - omnios
-      - openbsd-x64
-      - openbsd-arm64
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all test output artifacts
-        uses: actions/download-artifact@v8.0.1
-        with:
-          path: results
-      - name: Generate summary from test results
-        run: |
-          mkdir -p status
-          SUMMARY_MD="status/status.md"
-          STATUS_JSON="status/status.json"
-          echo "## Build and Test Summary" > $SUMMARY_MD
-          echo "| OS | Architecture | Result |" >> $SUMMARY_MD
-          echo "|:---|:---|:---|" >> $SUMMARY_MD
-          echo "{" > $STATUS_JSON
-          first=true
-
-          # All expected (OS, Arch) pairs in display order
-          EXPECTED=(
-            "Linux:Intel"
-            "Linux:ARM"
-            "Linux:RISC-V"
-            "macOS:Intel"
-            "macOS:Apple Silicon"
-            "Windows:Intel"
-            "Windows:ARM"
-            "DragonFly BSD:Intel"
-            "FreeBSD:Intel"
-            "FreeBSD:ARM"
-            "Haiku:Intel"
-            "MidnightBSD:Intel"
-            "NetBSD:Intel"
-            "NetBSD:ARM"
-            "OmniOS:Intel"
-            "OpenBSD:Intel"
-            "OpenBSD:ARM"
-          )
-
-          # Map artifact dir name → OS:Arch key
-          map_name() {
-            case "$1" in
-              *"ubuntu-24.04-arm"*)   echo "Linux:ARM" ;;
-              *"ubuntu-24.04-riscv"*) echo "Linux:RISC-V" ;;
-              *"ubuntu-24.04"*)       echo "Linux:Intel" ;;
-              *"macos-15-intel"*)    echo "macOS:Intel" ;;
-              *"macos-15"*)          echo "macOS:Apple Silicon" ;;
-              *"windows-11-arm"*)    echo "Windows:ARM" ;;
-              *"windows-2022"*)      echo "Windows:Intel" ;;
-              *"dragonflybsd"*)      echo "DragonFly BSD:Intel" ;;
-              *"freebsd"*"arm64"*)   echo "FreeBSD:ARM" ;;
-              *"freebsd"*)           echo "FreeBSD:Intel" ;;
-              *"haiku"*)             echo "Haiku:Intel" ;;
-              *"midnightbsd"*)       echo "MidnightBSD:Intel" ;;
-              *"netbsd"*"arm64"*)    echo "NetBSD:ARM" ;;
-              *"netbsd"*)            echo "NetBSD:Intel" ;;
-              *"omnios"*)            echo "OmniOS:Intel" ;;
-              *"openbsd"*"arm64"*)   echo "OpenBSD:ARM" ;;
-              *"openbsd"*)           echo "OpenBSD:Intel" ;;
-            esac
-          }
-
-          declare -A SEEN
-          for entry in "${EXPECTED[@]}"; do
-            SEEN["$entry"]=0
-          done
-
-          if [ -d "results" ]; then
-            for dir in results/*/; do
-              name=$(basename "$dir")
-              key=$(map_name "$name")
-              [ -z "$key" ] && continue
-              file=$(find "$dir" -name "*.txt" | head -1)
-              if [ -n "$file" ]; then
-                if grep -q "^Error!" "$file"; then
-                  SEEN["$key"]="failure"
-                else
-                  SEEN["$key"]="success"
-                fi
-              fi
-            done
-          fi
-
-          for entry in "${EXPECTED[@]}"; do
-            IFS=':' read -r os arch <<< "$entry"
-            status="${SEEN[$entry]}"
-            case "$status" in
-              "success") icon="✅" ;;
-              "failure") icon="❌" ;;
-              *)         icon="❌"; status="failure" ;;
-            esac
-            echo "| $os | $arch | $icon |" >> $SUMMARY_MD
-            [ "$first" = false ] && echo "," >> $STATUS_JSON
-            echo "\"${os// /_}:$arch\": \"$status\"" >> $STATUS_JSON
-            first=false
-          done
-
-          echo "}" >> $STATUS_JSON
-          cat $SUMMARY_MD >> $GITHUB_STEP_SUMMARY
-      - name: Upload status files for publishing
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: status-files
-          path: status/
-  riscv64:
-    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'riscv64') }}"
-    name: Linux
-    needs:
-      - setup
-    uses: ./.github/workflows/unix.yml
+      - linux
+      - macos
+      - windows
+    uses: sanko/workflow-testing/.github/workflows/results-summary.yml@main
     with:
-      flags: '${{ fromJSON(needs.setup.outputs.matrix).flags[0] }}'
-      os: ubuntu-24.04-riscv
-      perl: '${{ fromJSON(needs.setup.outputs.matrix).perl[0] }}'
-      test_files: '${{ needs.setup.outputs.test_files }}'
-      title: RISC-V
-  setup:
-    name: Generate Testing Matrix
-    outputs:
-      matrix: '${{ steps.matrix.outputs.matrix }}'
-      runner: '${{ steps.parse_tags.outputs.runner }}'
-      test_files: '${{ steps.parse_tags.outputs.test_files }}'
-    runs-on: ubuntu-22.04
-    steps:
-      - env:
-          COMMIT_MSG: "${{ github.event.head_commit.message || github.event.pull_request.body || '' }}"
-          DISPATCH_ARCH: '${{ github.event.inputs.arch }}'
-          DISPATCH_OS: '${{ github.event.inputs.os }}'
-          DISPATCH_TEST: '${{ github.event.inputs.test_files }}'
-        id: parse_tags
-        name: Parse commit message tags for os/arch/test filtering
-        run: |
-          expand_runner() {
-            local os_input="$1"
-            local arch_input="$2"
-            [ "$os_input" = "all" ] && [ "$arch_input" = "all" ] && { echo "all"; return; }
-            local -a selected_oses
-            if [ "$os_input" = "all" ]; then
-              selected_oses=(linux macos windows freebsd openbsd netbsd dragonflybsd haiku midnightbsd omnios)
-            else
-              IFS=',' read -ra selected_oses <<< "$os_input"
-            fi
-            local -a selected_archs
-            if [ "$arch_input" = "all" ]; then
-              selected_archs=(x64 arm risc)
-            else
-              IFS=',' read -ra selected_archs <<< "$arch_input"
-            fi
-            local result=""
-            local need_risc=false
-            for os in "${selected_oses[@]}"; do
-              os="${os#"${os%%[! ]*}"}"; os="${os%"${os##*[! ]}"}"
-              [ -z "$os" ] && continue
-              for arch in "${selected_archs[@]}"; do
-                arch="${arch#"${arch%%[! ]*}"}"; arch="${arch%"${arch##*[! ]}"}"
-                [ -z "$arch" ] && continue
-                case "$arch" in
-                  x64)
-                    case "$os" in
-                      linux)       result="$result linux-x64" ;;
-                      macos)       result="$result macos-intel" ;;
-                      windows)     result="$result win32-x64" ;;
-                      freebsd)     result="$result freebsd-x64" ;;
-                      openbsd)     result="$result openbsd-x64" ;;
-                      netbsd)      result="$result netbsd-x64" ;;
-                      dragonflybsd|dragonfly) result="$result dragonflybsd" ;;
-                      haiku)       result="$result haiku" ;;
-                      midnightbsd) result="$result midnightbsd" ;;
-                      omnios)      result="$result omnios" ;;
-                    esac ;;
-                  arm)
-                    case "$os" in
-                      linux)   result="$result linux-arm64" ;;
-                      macos)   result="$result macos-arm" ;;
-                      windows) result="$result win32-arm64" ;;
-                      freebsd) result="$result freebsd-arm64" ;;
-                      openbsd) result="$result openbsd-arm64" ;;
-                      netbsd)  result="$result netbsd-arm64" ;;
-                    esac ;;
-                  risc) [ "$os" = "linux" ] && need_risc=true ;;
-                esac
-              done
-            done
-            $need_risc && result="$result riscv64"
-            echo "${result:1}"
-          }
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "runner=$(expand_runner "${DISPATCH_OS:-all}" "${DISPATCH_ARCH:-all}")" >> "$GITHUB_OUTPUT"
-            echo "test_files=${DISPATCH_TEST:-}" >> "$GITHUB_OUTPUT"
-          else
-            RAW_OS=$(echo "$COMMIT_MSG" | grep -oP '\[os:\K[^\]]+' || echo "all")
-            RAW_ARCH=$(echo "$COMMIT_MSG" | grep -oP '\[arch:\K[^\]]+' || echo "all")
-            TEST=$(echo "$COMMIT_MSG" | grep -oP '\[test:\K[^\]]+' || echo "")
-            echo "runner=$(expand_runner "$RAW_OS" "$RAW_ARCH")" >> "$GITHUB_OUTPUT"
-            echo "test_files=$TEST" >> "$GITHUB_OUTPUT"
-          fi
-      - env:
-          DATA: |
-            {
-              "perl":  ["5.42.0"],
-              "flags": [""]
-            }
-        id: matrix
-        run: "jq -rn 'env.DATA | fromjson | @json \"matrix=\\(.)\"' > $GITHUB_OUTPUT\n"
-  win32-arm64:
-    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'win32-arm64') }}"
+      title: Net::BitTorrent CI Matrix
+  windows:
     name: Windows
-    needs:
-      - setup
-    uses: ./.github/workflows/windows.yml
+    uses: sanko/workflow-testing/.github/workflows/run-direct.yml@main
     with:
-      flags: -Dusethreads
-      os: windows-11-arm
-      perl: '${{ fromJSON(needs.setup.outputs.matrix).perl[0] }}'
-      test_files: '${{ needs.setup.outputs.test_files }}'
-      title: ARM
-  win32-x64:
-    if: "${{ needs.setup.outputs.runner == 'all' || contains(needs.setup.outputs.runner, 'win32-x64') }}"
-    name: Windows
-    needs:
-      - setup
-    uses: ./.github/workflows/windows.yml
-    with:
-      flags: -Dusethreads
-      os: windows-2022
-      perl: '${{ fromJSON(needs.setup.outputs.matrix).perl[0] }}'
-      test_files: '${{ needs.setup.outputs.test_files }}'
-      title: Intel
+      checkout_submodules: recursive
+      matrix: |-
+        [
+          {"arch":"x86_64","platform_name":"windows","os":"windows-2022","toolchain":"gcc","variant":"5.42.3.1","prepare":"curl -sL -o /c/strawberry.zip https://github.com/StrawberryPerl/Perl-Dist-Strawberry/releases/download/SP_54231_64bit/strawberry-perl-5.42.3.1-64bit-portable.zip && rm -rf /c/Strawberry; powershell -NoProfile -Command Expand-Archive -Path C:/strawberry.zip -DestinationPath C:/Strawberry -Force -ErrorAction Stop; rm -f /c/strawberry.zip"}
+        ]
+      task: |
+        export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
+        export PATH="/c/Strawberry/perl/site/bin:/c/Strawberry/perl/bin:/c/Strawberry/c/bin:$PATH"
+        perl -e 'print qq(perl=\$^X :: \$^O\n)'
+        curl -L https://cpanmin.us | perl - --notest App::cpanminus
+        command -v cpanm
+        cpanm --installdeps --notest --with-suggests --with-recommends --with-configure -v .
+        #~ t/256 and t/257 skip without an event loop, leaving attach_loop untested.
+        #~ Not in META.json's test/recommends, so --with-recommends does not cover
+        #~ them; install both directly. Best effort, as above.
+        cpanm --notest -v IO::Async::Loop Mojo::IOLoop \
+          || echo '::warning::event-loop drivers unavailable, t/256 and t/257 will skip'
+        cpanm --test-only -v .
 name: CI Matrix
 on:
   pull_request: ~
   push: ~
   schedule:
     - cron: 42 5 * * 0
-  workflow_dispatch:
-    inputs:
-      arch:
-        default: all
-        description: 'Architecture(s) to test (comma-separated, e.g. "x64,arm" or "risc"). See [arch:...] commit tag docs.'
-        type: string
-      os:
-        default: all
-        description: 'OS(es) to test (comma-separated, e.g. "linux" or "linux,macos"). See [os:...] commit tag docs.'
-        type: string
-      test_files:
-        default: ''
-        description: Test file pattern (e.g. t/3000_jenny/3500_isolate/*.t)
-        type: string
+  workflow_dispatch: ~
 permissions:
   actions: read
   contents: read
